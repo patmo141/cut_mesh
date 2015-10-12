@@ -32,8 +32,8 @@ from bpy.types import SpaceView3D
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .lib.common_classes import TextBox
-from . import key_maps
+#from .lib.common_classes import TextBox
+#from . import key_maps
 
 class ModalOperator(Operator):
 
@@ -59,7 +59,7 @@ class ModalOperator(Operator):
             for fnname in lbad: print('  %s' % dfns[fnname])
             assert False, 'Modal operator missing definitions: %s' % ','.join(dfns[fnname] for fnname in lbad)
 
-        self.events_nav = key_maps.rtflow_user_keymap_generate()['navigate']
+        self.events_nav = {'MIDDLEMOUSE', 'WHEELINMOUSE','WHEELOUTMOUSE', 'WHEELUPMOUSE','WHEELDOWNMOUSE'}
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
@@ -229,13 +229,8 @@ class ModalOperator(Operator):
         called by Blender when the user invokes (calls/runs) our tool
         '''
         assert self.initialized, 'Must initialize operator before invoking'
-        
         if not self.start_poll(context):    # can the tool get started?
             return {'CANCELLED'}
-        
-        self.help_box = TextBox(context,500,500,300,200,10,20,'No Help!')
-        self.help_box.collapse()
-        self.help_box.snap_to_corner(context, corner = [1,1])
         
         self.modal_start(context)
         

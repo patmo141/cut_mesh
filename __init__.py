@@ -39,18 +39,18 @@ import bpy
 #TODO Menu
 
 #Tools
-from .op_polytrim.polytrim_modal import CutMesh_PolyTrim
+from .op_polytrim.polytrim_modal import CGC_Polytrim
 
 
 def register(): 
     #bpy.utils.register_class(CutMeshPreferences) #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
-    bpy.utils.register_class(CutMesh_PolyTrim)
+    bpy.utils.register_class(CGC_Polytrim)
 
     
 def unregister():
     #bpy.utils.register_class(CutMeshPreferences)  #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
-    bpy.utils.unregister_class(CutMesh_PolyTrim)
+    bpy.utils.unregister_class(CGC_Polytrim)

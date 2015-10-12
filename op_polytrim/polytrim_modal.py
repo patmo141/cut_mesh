@@ -4,12 +4,10 @@ Created on Oct 8, 2015
 @author: Patrick
 '''
 from ..modaloperator import ModalOperator
-from .polystrips_ui            import Polytrim_UI
-from .polystrips_ui_modalwait  import Polytrim_UI_ModalWait
-from .polystrips_ui_tools      import Polytrim_UI_Tools
-from .polystrips_ui_draw       import Polytrim_UI_Draw
-
-from .polystrips_datastructure import Polytrim
+from .polytrim_ui            import Polytrim_UI
+from .polytrim_ui_modalwait  import Polytrim_UI_ModalWait
+from .polytrim_ui_tools      import Polytrim_UI_Tools
+from .polytrim_ui_draw       import Polytrim_UI_Draw
 
 
 class CGC_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_UI_Tools, Polytrim_UI_Draw):
@@ -23,17 +21,16 @@ class CGC_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_U
     
     def __init__(self):
         FSM = {}
-        FSM['sketch']  = self.modal_sketching
-        FSM['grab']    = self.modal_grab_tool
+        FSM['sketch']  = self.modal_sketch
+        FSM['grab']    = self.modal_grab
         FSM['inner']   = self.modal_inner
 
         ModalOperator.initialize(self, FSM)
-        self.initialize_ui()
     
     def start_poll(self, context):
         ''' Called when tool is invoked to determine if tool can start '''
                 
-        if context.mode != 'OBJECT' and self.settings.source_object == '' and not context.active_object:
+        if context.mode != 'OBJECT':
             #showErrorMessage('Object Mode please')
             return False
         
@@ -54,7 +51,6 @@ class CGC_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_U
     def end_commit(self, context):
         ''' Called when tool is committing '''
         self.cleanup(context, 'commit')
-        self.create_mesh(context)
     
     def end_cancel(self, context):
         ''' Called when tool is canceled '''

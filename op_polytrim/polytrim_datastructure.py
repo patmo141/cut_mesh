@@ -12,8 +12,9 @@ from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from .bmesh_fns import grow_selection_to_find_face, flood_selection_faces
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
+from .. import common_drawing
 
 class PolyLineKnife(object):
     '''
@@ -533,19 +534,19 @@ class PolyLineKnife(object):
             common_drawing.draw_polyline_from_3dpoints(context, self.pts, (.1,.2,1,.8), 2, 'GL_LINE')
         
         if self.ui_type != 'DENSE_POLY':    
-            bgl_utils.draw_3d_points(context,self.pts, 3)
-            bgl_utils.draw_3d_points(context,[self.pts[0]], 8, color = (1,1,0,1))
+            common_drawing.draw_3d_points(context,self.pts, 3)
+            common_drawing.draw_3d_points(context,[self.pts[0]], 8, color = (1,1,0,1))
             
         else:
-            common_drawing.draw_3d_points(context,self.pts,(1,1,1,1),4) 
-            bgl_utils.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
+            common_drawing.draw_3d_points(context,self.pts, 4, color = (1,1,1,1)) 
+            common_drawing.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
         
         
         if self.selected != -1 and len(self.pts) >= self.selected + 1:
-            bgl_utils.draw_3d_points(context,[self.pts[self.selected]], 8, color = (0,1,1,1))
+            common_drawing.draw_3d_points(context,[self.pts[self.selected]], 8, color = (0,1,1,1))
                 
         if self.hovered[0] == 'POINT':
-            bgl_utils.draw_3d_points(context,[self.pts[self.hovered[1]]], 8, color = (0,1,0,1))
+            common_drawing.draw_3d_points(context,[self.pts[self.hovered[1]]], 8, color = (0,1,0,1))
      
         elif self.hovered[0] == 'EDGE':
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
@@ -557,11 +558,11 @@ class PolyLineKnife(object):
         if self.face_seed:
             #TODO direct bmesh face drawing util
             vs = self.bme.faces[self.face_seed].verts
-            bgl_utils.draw_3d_points(context,[self.cut_ob.matrix_world * v.co for v in vs], 4, color = (1,1,.1,1))
+            common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v.co for v in vs], 4, color = (1,1,.1,1))
             
             
         if len(self.new_cos):
-            bgl_utils.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = (.2,.5,.2,1))
+            common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = (.2,.5,.2,1))
         if len(self.bad_segments):
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
