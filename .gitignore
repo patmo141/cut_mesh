@@ -1,0 +1,16 @@
+.project
+.pydevproject
+__pycache__/__init__.cpython-34.pyc
+__pycache__/bmesh_fns.cpython-34.pyc
+__pycache__/common_drawing.cpython-34.pyc
+__pycache__/common_utilities.cpython-34.pyc
+__pycache__/cut_algorithms.cpython-34.pyc
+__pycache__/modaloperator.cpython-34.pyc
+op_polytrim/__pycache__/__init__.cpython-34.pyc
+op_polytrim/__pycache__/cache.cpython-34.pyc
+op_polytrim/__pycache__/polytrim_datastructure.cpython-34.pyc
+op_polytrim/__pycache__/polytrim_modal.cpython-34.pyc
+op_polytrim/__pycache__/polytrim_ui.cpython-34.pyc
+op_polytrim/__pycache__/polytrim_ui_draw.cpython-34.pyc
+op_polytrim/__pycache__/polytrim_ui_modalwait.cpython-34.pyc
+op_polytrim/__pycache__/polytrim_ui_tools.cpython-34.pyc
