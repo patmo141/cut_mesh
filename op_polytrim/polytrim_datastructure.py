@@ -7,12 +7,12 @@ import time
 
 import bpy
 import bmesh
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, kdtree
 from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
 
@@ -41,6 +41,25 @@ class PolyLineKnife(object):
         self.ed_map = []
         self.ed_pcts = {}
         
+        self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
+        self.non_man_ed_loops = edge_loops_from_bmedges(self.bme, self.non_man_eds)
+        
+        #print(self.non_man_ed_loops)
+        self.non_man_points = []
+        self.non_man_bmverts = []
+        for loop in self.non_man_ed_loops:
+            self.non_man_points += [self.cut_ob.matrix_world * self.bme.verts[ind].co for ind in loop]
+            self.non_man_bmverts += [self.bme.verts[ind].index for ind in loop]
+        if len(self.non_man_points):  
+            kd = kdtree.KDTree(len(self.non_man_points))
+            for i, v in enumerate(self.non_man_points):
+                kd.insert(v, i)
+                
+            kd.balance()            
+            self.kd = kd
+        else:
+            self.kd = None
+            
         self.face_chain = set()  #all faces crossed by the cut curve
         if ui_type not in {'SPARSE_POLY','DENSE_POLY', 'BEZIER'}:
             self.ui_type = 'SPARSE_POLY'
@@ -178,17 +197,63 @@ class PolyLineKnife(object):
 
     def hover(self,context,x,y):
         '''
-        hovering happens in screen space, 20 pixels thresh for points, 30 for edges
+        hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges
+        40 for non_man
         '''
+        region = context.region
+        rv3d = context.region_data
+        coord = x, y
         self.mouse = Vector((x, y))
+        
+        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+        
+        
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+        ray_target = ray_origin + (view_vector * 1000)
+        mx = self.cut_ob.matrix_world
+        imx = mx.inverted()
+        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        
+        if len(self.non_man_points):
+            co3d, index, dist = self.kd.find(mx * loc)
+
+            #get the actual non man vert from original list
+            close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
+            close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
+            if len(close_eds) == 2:
+                bm0 = close_eds[0].other_vert(close_bmvert)
+                bm1 = close_eds[1].other_vert(close_bmvert)
+            
+                a0 = bm0.co
+                b   = close_bmvert.co
+                a1  = bm1.co 
+                
+                inter_0, d0 = intersect_point_line(loc, a0, b)
+                inter_1, d1 = intersect_point_line(loc, a1, b)
+                
+                screen_0 = loc3d_reg2D(region, rv3d, mx * inter_0)
+                screen_1 = loc3d_reg2D(region, rv3d, mx * inter_1)
+                
+                screen_d0 = (self.mouse - screen_0).length
+                screen_d1 = (self.mouse - screen_0).length
+                
+                if 0 < d0 <= 1 and screen_d0 < 30:
+                    self.hovered = ['NON_MAN', (close_eds[0], mx*inter_0)]
+                    return
+                elif 0 < d1 <= 1 and screen_d1 < 30:
+                    self.hovered = ['NON_MAN', (close_eds[1], mx*inter_1)]
+                    return
+                
         if len(self.pts) == 0:
+            self.hovered = [None, -1]
             return
 
         def dist(v):
             diff = v - Vector((x,y))
             return diff.length
         
-        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+        
         screen_pts =  [loc3d_reg2D(context.region, context.space_data.region_3d, pt) for pt in self.pts]
         closest_point = min(screen_pts, key = dist)
         
@@ -214,7 +279,7 @@ class PolyLineKnife(object):
                 if intersect:
                     dist = (intersect[0].to_2d() - Vector((x,y))).length_squared
                     bound = intersect[1]
-                    if (dist < 900) and (bound < 1) and (bound > 0):
+                    if (dist < 400) and (bound < 1) and (bound > 0):
                         self.hovered = ['EDGE',i]
                         return
                     
@@ -525,6 +590,12 @@ class PolyLineKnife(object):
         return
                 
     def draw(self,context):
+        
+        
+        if self.hovered[0] == 'NON_MAN':
+            ed, pt = self.hovered[1]
+            common_drawing.draw_3d_points(context,[pt], 6, color = (.3,1,.3,1))
+                    
         if len(self.pts) == 0: return
         
         if self.cyclic and len(self.pts):
@@ -569,3 +640,32 @@ class PolyLineKnife(object):
                 m_p1 = (m + 1) % len(self.face_changes)
                 ind_p1 = self.face_changes[m_p1]
                 common_drawing.draw_polyline_from_3dpoints(context, [self.cut_pts[ind], self.cut_pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
+
+
+class PolyCutPoint(object):
+    
+    def __init__(self,co):
+        self.co = co
+        
+        self.no = None
+        self.face = None
+        self.face_region = set()
+        
+    def find_closest_non_manifold(self):
+        return None
+    
+class NonManifoldEndpoint(object):
+    
+    def __init__(self,co, ed):
+        if len(ed.link_faces) != 1:
+            return None
+        
+        self.co = co
+        self.ed = ed
+        self.face = ed.link_faces[0]
+        
+    
+        
+        
+        
+        

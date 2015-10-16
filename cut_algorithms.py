@@ -15,6 +15,13 @@ from mathutils.geometry import intersect_line_plane, intersect_point_line, dista
 #Cut Mesh imports
 from .bmesh_fns import face_neighbors, flood_selection_faces, grow_selection_to_find_face, edge_loops_from_bmedges, walk_non_man_edge
 
+
+#basic utils
+def list_shift(seq, n):
+    n = n % len(seq)
+    return seq[n:] + seq[:n]
+
+
 def find_bmedges_crossing_plane(pt, no, edges, epsilon):
     '''
     pt - pt on cutting plane: mathutils.Vector
@@ -134,7 +141,7 @@ def find_sorted_bmedges_crossing_plane(pt, no, edges, epsilon, e_ind_from, co_fr
     edges - edges of BMeshFace
     epsilon - error for coplanar verts: Float
     e_ind_from - index of the previous bmesh edge the walker just crossed
-    co_from  - location wehre the cutting plane crosses the lats BMEdge (e_ind_from)
+    co_from  - location where the cutting plane crosses the lats BMEdge (e_ind_from)
     #e_exclude - a dictionary of edges previulsy crossed. dictionary should return order in which edges were crossed.
     
     returns a list of bmedges that *cross* plane and corresponding intersection points
@@ -819,3 +826,59 @@ def cross_section_2seeds_ver1(bme, mx,
         print('Error 0: ' + error0)
         print('Error 1: ' + error1)
         return([], [], [], [], error)
+    
+
+def cross_section_walker(bme, pt, no, find_from, eind_from, co_from, epsilon):
+    '''
+    returns tuple (verts,looped) by walking around a bmesh near the given plane
+    verts is list of verts as the intersections of edges and cutting plane (in order)
+    looped is bool indicating if walk wrapped around bmesh
+    '''
+
+    # returned values
+    verts = [co_from]
+    looped = False
+    
+    # track what we've seen
+    finds_dict = {find_from: 0}
+
+    # get blender version
+    bver = '%03d.%03d.%03d' % (bpy.app.version[0],bpy.app.version[1],bpy.app.version[2])
+
+    if bver > '002.072.000':
+        bme.edges.ensure_lookup_table();
+
+    f_cur = next(f for f in bme.edges[eind_from].link_faces if f.index != find_from)
+    find_current = f_cur.index
+    
+    while True:
+        # find farthest point
+        edge,i = find_distant_bmedge_crossing_plane(pt, no, f_cur.edges, epsilon, eind_from, co_from)
+        verts += [i]
+        if len(edge.link_faces) == 1: break                                     # hit end?
+        
+        # get next face, edge, co
+        f_next = next(f for f in edge.link_faces if f.index != find_current)
+        find_next = f_next.index
+        eind_next = edge.index
+        co_next   = i
+        
+        if find_next in finds_dict:                                             # looped
+            looped = True
+            if finds_dict[find_next] != 0:
+                # loop is P-shaped (loop with a tail)
+                verts = verts[finds_dict[find_next]:]      # clip off tail
+            break
+        
+        # leave breadcrumb
+        finds_dict[find_next] = len(finds_dict)
+        
+        find_from = find_current
+        eind_from = eind_next
+        co_from   = co_next
+        
+        f_cur = f_next
+        find_current = find_next
+    
+    return (verts,looped)
+    

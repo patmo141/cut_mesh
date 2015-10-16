@@ -19,6 +19,7 @@ def flood_selection_faces(bme, selected_faces, seed_face, max_iters = 1000):
     seed_face - a face within/out selected_faces loop
     max_iters - maximum recursions to select_neightbors
     
+    return - set of faces
     '''
     total_selection = set([f for f in selected_faces])
     levy = set([f for f in selected_faces])  #it's funny because it stops the flood :-)
@@ -68,10 +69,66 @@ def grow_selection_to_find_face(bme, start_face, stop_face, max_iters = 1000):
         print('max iterations reached')
             
     return total_selection
+
+
+def grow_to_find_mesh_end(bme, start_face, max_iters = 20):
+    '''
+    will grow selection until a non manifold face is reched.
+    
+    geom = dictionary
+    
+    geom['end'] = BMFace or None, the first non manifold face to be found
+    geom['faces'] = list [BMFaces], all the faces encountered on the way
+    
+    '''
+
+    geom = {}
+    
+    total_selection = set([start_face])
+    new_faces = set(face_neighbors(start_face))
+    
+    def not_manifold(faces):
+        for f in faces:
+            if any([not ed.is_manifold for ed in f.edges]):
+                return f
+        return None
+    
+    iters = 0
+    stop_face = not_manifold(new_faces)
+    if stop_face:
+        total_selection |= new_faces
+        geom['end'] = stop_face
+        geom['faces'] = total_selection
+        return geom
+    
+    while new_faces and iters < max_iters and not stop_face:
+        iters += 1
+        candidates = set()
+        for f in new_faces:
+            candidates.update(face_neighbors(f))
+        
+        new_faces = candidates - total_selection   
+        if new_faces:
+            total_selection |= new_faces
+            stop_face = not_manifold(new_faces)
+            
+    if iters == max_iters:
+        print('max iterations reached')
+        geom['end'] = None
+        
+    elif not stop_face:
+        print('completely manifold mesh')
+        geom['end'] = None
+        
+    else:
+        geom['end'] = stop_face
+     
+    geom['faces'] = total_selection    
+    return geom
     
 def edge_loops_from_bmedges(bmesh, bm_edges):
     """
-    Edge loops defined by edges
+    Edge loops defined by edges (indices)
 
     Takes [mesh edge indices] or a list of edges and returns the edge loops
 
@@ -133,7 +190,7 @@ def walk_non_man_edge(bme, start_edge, stop, max_iters = 5000):
     start_edge - BMEdge
     stop -  set of verts or edges to stop when reached
     
-    return
+    return- list of edge loops
     '''
     
     #stop criteria
@@ -143,9 +200,9 @@ def walk_non_man_edge(bme, start_edge, stop, max_iters = 5000):
     
     def next_pair(prev_ed, prev_vert):
         v_next = prev_ed.other_vert(prev_vert)
-        eds = [e for e in v_next.link_edges if not e.is_manifold]
-        
-        if len(eds) == 1:
+        eds = [e for e in v_next.link_edges if not e.is_manifold and e != prev_ed]
+        print(eds)
+        if len(eds):
             return eds[0], v_next
         else:
             return None, None
