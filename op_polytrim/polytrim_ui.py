@@ -26,10 +26,12 @@ class Polytrim_UI:
         self.sketch          = []
         
         self.knife = PolyLineKnife(context,context.object)
+        context.window.cursor_modal_set('CROSSHAIR')
+        context.area.header_text_set('Poly Trim Mesh')
         
-        context.area.header_text_set('Polyst Trim Mesh')
     def end_ui(self, context):            
         context.area.header_text_set()
+        context.window.cursor_modal_restore()
         
     def cleanup(self, context, cleantype=''):
         '''

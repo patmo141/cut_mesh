@@ -162,7 +162,8 @@ class PolyLineKnife(object):
         if self.hovered[0] == None:  #adding in a new point
             self.pts += [mx * loc]
             self.cut_pts += [loc]
-            self.normals += [no]
+            #self.normals += [no]
+            self.normals += [view_vector] #try this, because fase normals are difficult
             self.face_map += [face_ind]
             self.selected = len(self.pts) -1
                 
@@ -234,16 +235,25 @@ class PolyLineKnife(object):
                 
                 screen_0 = loc3d_reg2D(region, rv3d, mx * inter_0)
                 screen_1 = loc3d_reg2D(region, rv3d, mx * inter_1)
+                screen_v = loc3d_reg2D(region, rv3d, mx * b)
                 
                 screen_d0 = (self.mouse - screen_0).length
-                screen_d1 = (self.mouse - screen_0).length
+                screen_d1 = (self.mouse - screen_1).length
+                screen_dv = (self.mouse - screen_v).length
                 
                 if 0 < d0 <= 1 and screen_d0 < 30:
-                    self.hovered = ['NON_MAN', (close_eds[0], mx*inter_0)]
+                    self.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
                     return
                 elif 0 < d1 <= 1 and screen_d1 < 30:
-                    self.hovered = ['NON_MAN', (close_eds[1], mx*inter_1)]
+                    self.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
                     return
+                elif screen_dv < 30:
+                    if abs(d0) < abs(d1):
+                        self.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
+                        return
+                    else:
+                        self.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
+                        return
                 
         if len(self.pts) == 0:
             self.hovered = [None, -1]
@@ -592,7 +602,7 @@ class PolyLineKnife(object):
     def draw(self,context):
         
         
-        if self.hovered[0] == 'NON_MAN':
+        if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             ed, pt = self.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, color = (.3,1,.3,1))
                     
