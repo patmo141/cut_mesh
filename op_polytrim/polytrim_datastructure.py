@@ -417,14 +417,14 @@ class PolyLineKnife(object):
         '''
         locs = []
         self.face_map = []
-        self.normals = []
+        #self.normals = [] for now, leave normals from view direction
         self.face_changes = []
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
         for i, v in enumerate(self.pts):
             loc, no, ind, d = self.bvh.find(imx * v)
             self.face_map.append(ind)
-            self.normals.append(no)
+            #self.normals.append(no)
             locs.append(loc)
             if i > 0:
                 if ind != self.face_map[i-1]:
@@ -476,8 +476,16 @@ class PolyLineKnife(object):
             print('\n')
             
             if ind == len(self.face_changes) - 1 and not self.cyclic:
-                'not cyclic, we are done'
+                print('not cyclic, we are done')
+                self.ed_map += [self.end_edge]
+                self.new_cos += [imx * self.cut_pts[-1]]
                 break
+            
+            elif ind == 0 and not self.cyclic:
+                self.ed_map += [self.start_edge]
+                self.new_cos += [imx * self.cut_pts[0]]
+                #print('not cyclic...come back to me')
+                #continue
             
             
             n_p1 = (m + 1) % len(self.face_changes)
@@ -524,7 +532,6 @@ class PolyLineKnife(object):
             
             #if no shared edge, need to cut across to the next face    
             if not cross_ed:
-                
                 if self.face_changes.index(ind) != 0:
                     p_face = self.bme.faces[self.face_map[ind-1]]
                 else:

@@ -13,6 +13,8 @@ class Polytrim_UI_Tools():
             print('sketch too short, cant confirm')
             return
         x,y = eventd['mouse']
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, (x,y))
+        
         last_hovered = self.knife.hovered[1] #guaranteed to be a point by criteria to enter sketch mode
         self.knife.hover(context,x,y)
         print('last hovered %i' % last_hovered)
@@ -23,11 +25,13 @@ class Polytrim_UI_Tools():
             #add the points in
             if last_hovered == len(self.knife.pts) - 1:
                 self.knife.pts += sketch_3d[0::5]
+                self.knife.normals += [view_vector]*len(sketch_3d[0::5]) #TODO optimize...don't slice twice, you are smart enough to calc this length!
                 print('add on to the tail')
 
                 
             else:
                 self.knife.pts = self.knife.pts[:last_hovered] + sketch_3d[0::5]
+                self.knife.normals = self.knife.normals[:last_hovered] + [view_vector]*len(sketch_3d[0::5])
                 print('snipped off and added on to the tail')
         
         else:
@@ -37,6 +41,8 @@ class Polytrim_UI_Tools():
             if last_hovered > self.knife.hovered[1]:
                 new_pts.reverse()
                 self.knife.pts = self.knife.pts[:self.knife.hovered[1]] + new_pts + self.knife.pts[last_hovered:]
+                self.knife.normals = self.knife.normals[:self.knife.hovered[1]] + [view_vector]*len(new_pts) + self.knife.normals[last_hovered:]
             else:
                 self.knife.pts = self.knife.pts[:last_hovered] + new_pts + self.knife.pts[self.knife.hovered[1]:]
+                self.knife.normals = self.knife.normals[:last_hovered]  + [view_vector]*len(new_pts) + self.knife.normals[self.knife.hovered[1]:]
         self.knife.snap_poly_line()

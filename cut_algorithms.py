@@ -412,6 +412,12 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
     if bver > '002.072.000':
         bme.edges.ensure_lookup_table();
 
+    if len(bme.edges[e_ind_from].link_faces) != 2:
+        print('no manifold edge in this direction')
+        return ([co_from, co_to],[],[], False, False, 'NON_MANIFOLD')
+        return
+        
+        
     f_cur = next(f for f in bme.edges[e_ind_from].link_faces if f.index != f_ind_from)
     find_current = f_cur.index
     
@@ -601,7 +607,7 @@ def path_between_2_points(bme, bvh, mx, pt_a, pt_b,
         verts0, crossed_eds0, crossed_faces0, looped0, found0, error0 = cross_section_walker_dynamic_endpoints(bme, ind_a, ei0_max[0].index, ei0_max[1], ind_b, loc_b, epsilon, limit_set = faces_set)
     else:
         print('prev face prevented walking in the Verts0 direction')
-        verts0, crossed_eds0, crossed_faces0. looped0, found0 = [], [], [], False, False
+        verts0, crossed_eds0, crossed_faces0, looped0, found0 = [], [], [], False, False
         
     if (prev_face and prev_face not in ei1_max[0].link_faces) or not prev_face:
         verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = cross_section_walker_dynamic_endpoints(bme, ind_a, ei1_max[0].index, ei1_max[1], ind_b, loc_b, epsilon, limit_set = faces_set)
