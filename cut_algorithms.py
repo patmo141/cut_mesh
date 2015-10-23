@@ -293,7 +293,7 @@ def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from,
     
     if not valid_end:
         print('co_to is not close to f_ind_to or not between 2 edge intersections of f_to and cut plane')
-        return ([co_from, co_to], [], False, False, 'END_POINT')
+        return ([co_from, co_to],[], [], False, False, 'END_POINT')
     
     
     while True:
@@ -571,7 +571,7 @@ def path_between_2_points(bme, bvh, mx, pt_a, pt_b,
         faces_set = faces_a & faces_b
         times.append(time.time())
         step = times[-1] - times[-2]
-        print('did connectivity growing in %f' % step) 
+        #print('did connectivity growing in %f' % step) 
     else:
         faces_set = None
     
@@ -607,13 +607,13 @@ def path_between_2_points(bme, bvh, mx, pt_a, pt_b,
         verts0, crossed_eds0, crossed_faces0, looped0, found0, error0 = cross_section_walker_dynamic_endpoints(bme, ind_a, ei0_max[0].index, ei0_max[1], ind_b, loc_b, epsilon, limit_set = faces_set)
     else:
         print('prev face prevented walking in the Verts0 direction')
-        verts0, crossed_eds0, crossed_faces0, looped0, found0 = [], [], [], False, False
+        verts0, crossed_eds0, crossed_faces0, looped0, found0, error0 = [], [], [], False, False, 'PREV_FACE'
         
     if (prev_face and prev_face not in ei1_max[0].link_faces) or not prev_face:
         verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = cross_section_walker_dynamic_endpoints(bme, ind_a, ei1_max[0].index, ei1_max[1], ind_b, loc_b, epsilon, limit_set = faces_set)
     else:
         print('prev face prevented walking in the Verts1 direction')
-        verts1, crossed_eds1, crossed_faces1, looped1, found1 = [], [], [], False, False
+        verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = [], [], [], False, False, 'PREV_FACE'
         
     if found0 and found1:
         print('Found target both directions')
@@ -763,7 +763,7 @@ def cross_section_2seeds_ver1(bme, mx,
                                                                                seed_index1, co_1, epsilon,                                                                                limit_set=flood_set)
     else:
         print('prev face prevented walking in the Verts0 direction')
-        verts0, crossed_eds0, crossed_faces0, looped0, found0 = [], [], [], False, False
+        verts0, crossed_eds0, crossed_faces0, looped0, found0, error0 = [], [], [], False, False, 'PREV_FACE'
         
     if (prev_face and prev_face not in ei1_max[0].link_faces) or not prev_face:
         verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = cross_section_walker_endpoints(bme, pt, no, 
@@ -772,7 +772,7 @@ def cross_section_2seeds_ver1(bme, mx,
                                                                                limit_set=flood_set)
     else:
         print('prev face prevented walking in the Verts1 direction')
-        verts1, crossed_eds1, crossed_faces1, looped1, found1 = [], [], [], False, False
+        verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = [], [], [], False, False, 'PREV_FACE'
         
     if found0 and found1:
         #print('Went both ways, awesome. Picking shortest path, Verts0 and Verts 1 have the following lengths')
