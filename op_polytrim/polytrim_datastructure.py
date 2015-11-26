@@ -431,7 +431,6 @@ class PolyLineKnife(object):
         last_face_ind = None
         for i, v in enumerate(self.pts):
             loc, no, ind, d = self.bvh.find(imx * v)
-            print((i, ind))
             self.face_map.append(ind)
             locs.append(loc)
             
@@ -445,13 +444,6 @@ class PolyLineKnife(object):
                 self.face_changes.append(i-1)
                 
                 if last_face_ind not in self.face_groups: #previous face has not been mapped before
-                    
-                    #if ((not self.cyclic) and
-                    #    last_face_ind == self.start_edge.link_faces[0].index):  #last face was the first face
-                        
-                    #    if len(group) == 1: continue  #only the non manifold edge/point were in the group
-                    #    group.pop(0)  #removed the reference to the non manifold edge vert
-                        
                     self.face_groups[last_face_ind] = group
                     last_face_ind = ind
                     group = [i]
@@ -479,14 +471,50 @@ class PolyLineKnife(object):
                         print((ind, group))
                         self.face_groups[ind] = group
                     
+                    else:
+                        print('group already in dictionary')
+                        exising_group = self.face_groups[ind]
+                        if 0 not in exising_group:
+                            print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
+                            print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
+                        self.face_groups[ind] = group + exising_group
+                        
                 else:
                     print('group already in dictionary')
                     exising_group = self.face_groups[ind]
                     if 0 not in exising_group:
                         print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
                         print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                    self.face_groups[ind] = group + exising_group        
+                    self.face_groups[ind] = group + exising_group
+                              
         self.cut_pts = locs
+        
+        #clean up face groups if necessary
+        #TODO, get smarter about not adding in these
+        if not self.cyclic:
+            s_ind = self.start_edge.link_faces[0].index
+            e_ind = self.end_edge.link_faces[0].index
+            
+            if s_ind in self.face_groups:
+                v_group = self.face_groups[s_ind]
+                if len(v_group) == 1:
+                    print('remove first face from face groups')
+                    del self.face_groups[s_ind]
+                elif len(v_group) > 1:
+                    print('remove first vert from first face group')
+                    v_group.pop(0)
+                    self.face_groups[s_ind] = v_group
+                    
+            if e_ind in self.face_groups:
+                v_group = self.face_groups[e_ind]
+                if len(v_group) == 1:
+                    print('remove last face from face groups')
+                    del self.face_groups[e_ind]
+                elif len(v_group) > 1:
+                    print('remove last vert from last face group')
+                    v_group.pop()
+                    self.face_groups[e_ind] = v_group
+        
         print('FACE GROUPS')
         print(self.face_groups)
         
@@ -784,10 +812,13 @@ class PolyLineKnife(object):
         
         finish = time.time()
         print('Took %f seconds' % (finish-start))
-        start = finish    
+        start = finish
         ed_geom = bmesh.ops.connect_verts(self.bme, verts = new_bmverts, faces_exclude = [], check_degenerate = False)
         new_edges = ed_geom['edges']
-        
+        if self.cyclic:
+            new_edges.reverse()
+            new_edges = new_edges[1:] + [new_edges[0]]
+            
         finish = time.time()
         print('took %f seconds' % (finish-start))
         
@@ -805,15 +836,18 @@ class PolyLineKnife(object):
         unchanged_edges = []
         for i, edge in enumerate(new_edges):
             if i in self.new_ed_face_map:
-                
+                print('%i is in the new ed face map' % i)
                 face_ind = self.new_ed_face_map[i]
+                print('edge %i is cross face %i' % (i, face_ind))
                 if face_ind not in self.face_groups:
+                    print('unfortunately, it is not in the face groups')
                     unchanged_edges += [edge]
                     continue
                 #these are the user polyine vertex indices
                 vert_inds = self.face_groups[face_ind]
                 
                 if len(vert_inds):
+                    print('there are %i user drawn poly points on the face' % len(vert_inds))
                     geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
                     new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
                     newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
@@ -824,6 +858,7 @@ class PolyLineKnife(object):
                     self.bme.edges.ensure_lookup_table()
                     
             else:
+                print('%i edge crosses a face in the walking algo, unchanged' % i)
                 unchanged_edges += [edge]
         
         print('splitting old edges')
