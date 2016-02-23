@@ -11,6 +11,7 @@ def face_neighbors(bmface):
         
     return neighbors
 
+
 def flood_selection_faces(bme, selected_faces, seed_face, max_iters = 1000):
     '''
     bme - bmesh
@@ -25,6 +26,38 @@ def flood_selection_faces(bme, selected_faces, seed_face, max_iters = 1000):
     levy = set([f for f in selected_faces])  #it's funny because it stops the flood :-)
 
     new_faces = set(face_neighbors(seed_face)) - levy
+    iters = 0
+    while iters < max_iters and new_faces:
+        iters += 1
+        new_candidates = set()
+        for f in new_faces:
+            new_candidates.update(face_neighbors(f))
+            
+        new_faces = new_candidates - total_selection
+        
+        if new_faces:
+            total_selection |= new_faces    
+    if iters == max_iters:
+        print('max iterations reached')    
+    return total_selection
+
+
+def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
+    '''
+    bme - bmesh
+    edge_loop - should create a closed edge loop to contain "flooded" selection
+    if an empty set, selection will grow to non manifold boundaries
+    seed_face - a face within/out selected_faces loop
+    max_iters - maximum recursions to select_neightbors
+    
+    return - set of faces
+    '''
+    total_selection = set([f for f in edge_loop]) #<we pop and remove things, and lists are mutable so we copy it
+    
+    
+    levy = set([e for e in edge_loop])  #it's funny because it stops the flood :-)
+
+    new_faces = set(face_neighbors(seed_face))
     iters = 0
     while iters < max_iters and new_faces:
         iters += 1
@@ -73,7 +106,7 @@ def grow_selection_to_find_face(bme, start_face, stop_face, max_iters = 1000):
 
 def grow_to_find_mesh_end(bme, start_face, max_iters = 20):
     '''
-    will grow selection until a non manifold face is reched.
+    will grow selection until a non manifold face is raeched.
     
     geom = dictionary
     
