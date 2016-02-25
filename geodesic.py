@@ -456,6 +456,35 @@ def geodesic_walk(bme, seed, seed_location, target, target_location, subset = No
     return geos, fixed_verts, close,    
         
 
+def gradient_face(f, geos):
+    
+    #http://saturno.ge.imati.cnr.it/ima/personal-old/attene/PersonalPage/pdf/steepest-descent-paper.pdf
+    [vi, vj, vk] = f.verts
+    
+    
+    U = vj.co - vi.co
+    V = vk.co - vj.co
+    N = U.cross(V)
+    N.normalize()
+    
+    
+    
+    T = Matrix.Identity(3)  #make the columns of matrix U, V, W
+    T[0][0], T[0][1], T[0][2]  = U[0] ,U[1],  U[2]
+    T[1][0], T[1][1], T[1][2]  = V[0], V[1],  V[2]
+    T[2][0] ,T[2][1], T[2][2]  = N[0], N[1],  N[2]
+    
+    GeoV = Vector((geos[vj]-geos[vi],
+                   geos[vk]-geos[vj],
+                   0))
+    
+    
+    grad = T.inverted() * GeoV
+    grad.normalize()
+    
+    return grad
+
+
 def gradient_descent_on_verts(bme, geos, start_vert):
     
     def ring_neighbors(v):
