@@ -485,15 +485,44 @@ def gradient_face(f, geos):
     return grad
 
 
-def gradient_descent_on_verts(bme, geos, start_vert):
+def gradient_descent_on_verts(bme, geos, start_vert, epsilon = .0000001):
     
     def ring_neighbors(v):
         return [e.other_vert(v) for e in v.link_edges]
     
+    
+    def grad_f_ed(f, ed, p):
+        
+        g = gradient_face(f, geos)
+        L = g.calc_perimeter()
+        
+        tests = [e for e in f.edges if e != ed]
+        
+        for e in tests:
+            
+            v0, v1 = intersect_line_line(ed.verts[0].co, ed.verts[1].co, p, p-l*g)
+            
+            V = v0 - ed.verts[0].co
+            edV = ed.verts[1].co - ed.verts[0].co
+            if V.length - edV.length > epsilon:
+                print('intersects outside segmetn')
+            elif V.dot(edV) < 0:
+                print('intersects behind')
+            else:
+                
+                return v0, e
+        
+        
+        
     path = [start_vert]
+
+    
+    f_start = min(start_vert.link_faces, key = lambda f: sum([geos[v] for v in f.verts]))
+    
     
     iters = 0
     while True and iters < 1000:
+        
         vs = [v for v in ring_neighbors(path[-1]) if v in geos]
         v = min(vs, key = geos.get)
         
