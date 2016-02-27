@@ -2,6 +2,10 @@
 Created on Feb 14, 2016
 
 @author: Patrick
+
+based on work by
+https://math.berkeley.edu/~sethian/2006/Papers/sethian.kimmel.geodesics.pdf
+http://saturno.ge.imati.cnr.it/ima/personal-old/attene/PersonalPage/pdf/steepest-descent-paper.pdf
 '''
 #python imports
 import time
@@ -485,55 +489,139 @@ def gradient_face(f, geos):
     return grad
 
 
-def gradient_descent_on_verts(bme, geos, start_vert, epsilon = .0000001):
+def gradient_descent(bme, geos, start_vert, epsilon = .0000001):
     
     def ring_neighbors(v):
         return [e.other_vert(v) for e in v.link_edges]
     
     
-    def grad_f_ed(f, ed, p):
         
+            
+    def grad_v(v):
+        '''
+        walk down from a vert
+        '''
+        
+        eds = [ed for ed in v.link_edges if geos[ed.other_vert(v)] <= geos[v]]
+        if len(eds) == 0:
+            print('lowest vert by golly')
+            return None, None, None
+        
+        fs = set()
+        
+        for ed in eds:
+            fs.update(ed.link_faces)
+            
+        
+        minf = min(fs, key = lambda x: sum([geos[vrt] for vrt in x.verts]))
+        
+        for ed in minf.edges:
+            if v not in ed.verts:
+                g = gradient_face(minf, geos)
+                L = minf.calc_perimeter()    
+                    
+                v0, v1 = intersect_line_line(ed.verts[0].co, ed.verts[1].co, v.co, v.co-L*g)
+            
+                V = v0 - ed.verts[0].co
+                edV = ed.verts[1].co - ed.verts[0].co
+                if V.length - edV.length > epsilon:
+                    print('intersects outside segment')
+                elif V.dot(edV) < 0:
+                    print('intersects behind')
+                else:
+                    print('regular edge crossing')
+                    return v0, ed, minf
+        
+        #we were not able to walk through a face
+        print('must walk on edge')
+        vs = [ed.other_vert(v) for ed in eds]
+        minv = min(vs, key = geos.get)
+        
+        if geos[minv] > geos[v]:
+            print('Found smallest geodesic already')
+            return None, None, None
+        
+        return minv.co, minv, None
+        
+        
+    def grad_f_ed(ed, p, last_face):
+        
+        #walk around non manifold edges
+        if len(ed.link_faces) == 1:
+            minv = min(ed.verts, key = geos.get)
+            return minv.co, minv, None
+        
+        
+        f = [fc for fc in ed.link_faces if fc !=last_face][0]
         g = gradient_face(f, geos)
-        L = g.calc_perimeter()
+        L = f.calc_perimeter()
         
+        
+        #test for vert intersection
+        for v in f.verts:
+            v_inter, pct = intersect_point_line(v.co, p, p-L*g)
+        
+            delta = v.co - v_inter
+            if delta.length < epsilon:
+                print('intersect vert')
+                return v.co, v, None
+            
         tests = [e for e in f.edges if e != ed]
         
         for e in tests:
             
-            v0, v1 = intersect_line_line(ed.verts[0].co, ed.verts[1].co, p, p-l*g)
+            v0, v1 = intersect_line_line(e.verts[0].co, e.verts[1].co, p, p-L*g)
             
-            V = v0 - ed.verts[0].co
-            edV = ed.verts[1].co - ed.verts[0].co
+            V = v0 - e.verts[0].co
+            edV = e.verts[1].co - e.verts[0].co
+            Vi = v0 - p
+            
             if V.length - edV.length > epsilon:
-                print('intersects outside segmetn')
+                print('intersects outside segment')
             elif V.dot(edV) < 0:
                 print('intersects behind')
-            else:
                 
-                return v0, e
+            elif Vi.dot(g) > 0:  #remember we watnt to travel DOWN the gradient
+                print('shoots out the face, not across the face')
+            else:
+                print('regular face edge crossing')
+                return v0, e, f
+            
+        #we didn't intersect across an edge, or on a vert,
+        #therefore, we should travel ALONG the edge
         
+        vret = min(ed.verts, key = geos.get)
+        return vret.co, vret, None
+    
         
-        
-    path = [start_vert]
-
+    path_elements = []
+    path_coords = []
     
-    f_start = min(start_vert.link_faces, key = lambda f: sum([geos[v] for v in f.verts]))
-    
-    
+   #f_start = min(start_vert.link_faces, key = lambda f: sum([geos[v] for v in f.verts]))
     iters = 0
-    while True and iters < 1000:
+    new_ele = start_vert
+    new_coord = start_vert.co
+    last_face = None
+    while new_ele != None and iters < 1000:
         
-        vs = [v for v in ring_neighbors(path[-1]) if v in geos]
-        v = min(vs, key = geos.get)
-        
-        if geos[v] < geos[path[-1]]:
-        #if v not in path:
-            path += [v]
+        if new_ele not in path_elements:
+            path_elements += [new_ele]
+            path_coords += [new_coord]
         else:
-            break
+            print('uh oh we reversed')
+            print('stopped walking at %i' % iters)
+            return path_elements, path_coords
+            
+        if isinstance(path_elements[-1], bmesh.types.BMVert): 
+            new_coord, new_ele, last_face = grad_v(path_elements[-1])
+        elif isinstance(path_elements[-1], bmesh.types.BMEdge):
+            new_coord, new_ele, last_face = grad_f_ed(path_elements[-1], path_coords[-1], last_face)
+        
+        if new_coord == None:
+            print('stopped walking at %i' % iters)    
         iters += 1
         
-    return path  
+    return path_elements, path_coords
         
 def prepare_bmesh_for_geodesic(bme, qmeth = 0):
     '''
