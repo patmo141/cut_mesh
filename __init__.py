@@ -40,6 +40,7 @@ import bpy
 
 #Tools
 from .op_polytrim.polytrim_modal import CGC_Polytrim
+from .op_geopath.geopath_modal import CGC_Geopath
 
 
 def register(): 
@@ -47,10 +48,11 @@ def register():
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
     bpy.utils.register_class(CGC_Polytrim)
-
+    bpy.utils.register_class(CGC_Geopath)
     
 def unregister():
     #bpy.utils.register_class(CutMeshPreferences)  #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
     bpy.utils.unregister_class(CGC_Polytrim)
+    bpy.utils.unregister_class(CGC_Geopath)
