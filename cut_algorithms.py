@@ -64,7 +64,7 @@ def find_bmedges_crossing_plane(pt, no, edges, epsilon):
         i = intersect_line_plane(v0.co, v1.co, pt, no)
         if not i: continue  
         d = (i - pt).length
-        if d == 0:
+        if d == 0.00:
             d = epsilon
         i_edges += [edge]
         intersects += [i]
@@ -72,6 +72,8 @@ def find_bmedges_crossing_plane(pt, no, edges, epsilon):
             
     if len(i_edges) > 2:  #a concave ngon with 4,6,8.. crossings
         
+        print('There are %i crossed edges' % len(i_edges))
+        print('There are %i total edges' % len(edges))
         #all the crossings are colinear if ngon is planar, so sorting them is easy
         min_i = intersects[ds.index(min(ds))]
         min_ed = i_edges[ds.index(min(ds))]
@@ -95,6 +97,11 @@ def find_bmedges_crossing_plane(pt, no, edges, epsilon):
             print('shifting and reversing')
             sorted_edges = list(reversed(list_shift(sorted_edges, n + 1)))
             sorted_is = list(reversed(list_shift(sorted_is, n + 1)))
+    
+    elif len(i_edges) == 0:
+        print('no edges crossing plane')
+        sorted_edges = []
+        sorted_is = [] 
     else:
         sorted_edges = i_edges
         sorted_is = intersects        
@@ -194,7 +201,7 @@ def find_sorted_bmedges_crossing_plane(pt, no, edges, epsilon, e_ind_from, co_fr
         ed = [e for e in i_edges if e.index != e_ind_from][0]
         return [(ed, intersects[i_edges.index(ed)])]
     
-    if len(i_edges) > 2:  #a concave ngon with 4,6,8.. crossings
+    elif len(i_edges) > 2:  #a concave ngon with 4,6,8.. crossings
         print('there are %i crossings' % len(i_edges))
         #all the crossings are colinear if ngon is planar, so sorting them is easy
         edge_from = [e for e in i_edges if e.index == e_ind_from][0]
@@ -224,6 +231,12 @@ def find_sorted_bmedges_crossing_plane(pt, no, edges, epsilon, e_ind_from, co_fr
         print('leaving to this edge' + str(sorted_edges[0].index))
         return list(zip(sorted_edges, sorted_is))
     
+    else:
+        print('no crossings perhaps')
+        print([e.index for e in edges])
+        print(pt)
+        print(no)
+        return []
     
 def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from, f_ind_to, co_to, epsilon, limit_set = None, max_iters = 10000):
     '''
@@ -459,6 +472,10 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
         
         # find edges in the face that cross the plane
         cross_eds = find_sorted_bmedges_crossing_plane(verts[-1], no, f_cur.edges, epsilon, e_ind_from, co_from)
+        
+        if not len(cross_eds):
+            return verts,eds_crossed, faces_crossed, False, False, 'STOP_MID'
+            
         edge, i = cross_eds[0]
         verts += [i]
         eds_crossed += [edge]
@@ -535,7 +552,7 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
     
     return (verts,eds_crossed, faces_crossed, looped, found, error)
 
-def path_between_2_points(bme, bvh, mx, pt_a, pt_b, 
+def path_between_2_points(bme, bvh, pt_a, pt_b, 
                           max_tests = 10000, debug = True, 
                           prev_face = None, use_limit = True):
     '''
@@ -559,10 +576,9 @@ def path_between_2_points(bme, bvh, mx, pt_a, pt_b,
     
     times = [time.time()]
 
-    imx = mx.inverted()
     #snap and find nearest pt and face in local coords
-    loc_a, no_a, ind_a, d_a = bvh.find(imx*pt_a)
-    loc_b, no_b, ind_b, d_b = bvh.find(imx*pt_b)
+    loc_a, no_a, ind_a, d_a = bvh.find(pt_a)
+    loc_b, no_b, ind_b, d_b = bvh.find(pt_b)
     
     if use_limit:
         #grow selection from A to B and from B to A this way we get good connectivity
@@ -676,8 +692,7 @@ def path_between_2_points(bme, bvh, mx, pt_a, pt_b,
         return([], [], [], [], error)
     
     
-def cross_section_2seeds_ver1(bme, mx, 
-                       point, normal, 
+def cross_section_2seeds_ver1(bme, point, normal, 
                        seed_index0, co_0,
                        seed_index1, co_1,
                        max_tests = 10000, 
