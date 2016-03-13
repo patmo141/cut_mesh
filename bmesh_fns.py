@@ -12,6 +12,52 @@ def face_neighbors(bmface):
     return neighbors
 
 
+def face_neighbors_strict(bmface):
+    neighbors = []
+    for ed in bmface.edges:
+        if not (ed.verts[0].is_manifold and ed.verts[1].is_manifold):
+            if len(ed.link_faces) == 1:
+                print('found an ed, with two non manifold verts')
+            continue
+        neighbors += [f for f in ed.link_faces if f != bmface]
+        
+    return neighbors
+
+
+def vert_neighbors(bmvert):
+    
+    neighbors = [ed.other_vert(bmvert) for ed in bmvert.link_edges]
+    return [v for v in neighbors if v.is_manifold]
+     
+def flood_selection_by_verts(bme, selected_faces, seed_face, max_iters = 1000):
+    '''
+    bme - bmesh
+    selected_faces - should create a closed face loop to contain "flooded" selection
+    if an empty set, selection willg grow to non manifold boundaries
+    seed_face - a face within/out selected_faces loop
+    max_iters - maximum recursions to select_neightbors
+    
+    return - set of faces
+    '''
+    total_selection = set([f for f in selected_faces])
+    levy = set([f for f in selected_faces])  #it's funny because it stops the flood :-)
+
+    new_faces = set(face_neighbors_strict(seed_face)) - levy
+    iters = 0
+    while iters < max_iters and new_faces:
+        iters += 1
+        new_candidates = set()
+        for f in new_faces:
+            new_candidates.update(face_neighbors_strict(f))
+            
+        new_faces = new_candidates - total_selection
+        
+        if new_faces:
+            total_selection |= new_faces    
+    if iters == max_iters:
+        print('max iterations reached')    
+    return total_selection
+
 def flood_selection_faces(bme, selected_faces, seed_face, max_iters = 1000):
     '''
     bme - bmesh

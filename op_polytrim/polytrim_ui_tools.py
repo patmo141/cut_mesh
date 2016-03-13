@@ -4,6 +4,7 @@ Created on Oct 10, 2015
 @author: Patrick
 '''
 from .. import common_utilities
+from bpy_extras import view3d_utils
 
 class Polytrim_UI_Tools():
     

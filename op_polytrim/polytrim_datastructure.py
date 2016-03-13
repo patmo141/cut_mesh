@@ -12,7 +12,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges, flood_selection_by_verts
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
 
@@ -859,7 +859,7 @@ class PolyLineKnife(object):
         if not self.face_seed: return
         if len(self.bad_segments): return
         f0 = self.bme.faces[self.face_seed]
-        inner_faces = flood_selection_faces(self.bme, set(), f0, max_iters=1000)
+        inner_faces = flood_selection_by_verts(self.bme, set(), f0, max_iters=1000)
         
         for f in self.bme.faces:
             f.select_set(False)
