@@ -30,11 +30,11 @@ class PolyLineKnife(object):
         self.bme.faces.ensure_lookup_table()
         
         non_tris = [f for f in self.bme.faces if len(f.verts) > 3]
-        if len(non_tris):
-            geom = bmesh.ops.connect_verts_concave(self.bme, non_tris)
-            self.bme.verts.ensure_lookup_table()
-            self.bme.edges.ensure_lookup_table()
-            self.bme.faces.ensure_lookup_table()
+        #if len(non_tris):
+            #geom = bmesh.ops.connect_verts_concave(self.bme, non_tris)
+            #self.bme.verts.ensure_lookup_table()
+            #self.bme.edges.ensure_lookup_table()
+            #self.bme.faces.ensure_lookup_table()
         
         self.bvh = BVHTree.FromBMesh(self.bme)
         

@@ -35,9 +35,9 @@ class Slice(object):
         #non_tris = [f for f in self.bme.faces if len(f.verts) > 3]
         #bmesh.ops.triangulate(self.bme, faces = non_tris, quad_method = 0, ngon_method = 0)
         
-        non_tris = [f for f in self.bme.faces if len(f.verts) > 3]
-        if len(non_tris):
-            geom = bmesh.ops.connect_verts_concave(self.bme, non_tris)
+        #non_tris = [f for f in self.bme.faces if len(f.verts) > 3]
+        #if len(non_tris):
+            #geom = bmesh.ops.connect_verts_concave(self.bme, non_tris)
         
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
