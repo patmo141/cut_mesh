@@ -38,5 +38,5 @@ Useage:
     
 7.  'D' to calculate the intermediate step behind the scenes
 
-8.  'E' to cut and separate the mesh and finish the operatory
+8.  'E' to cut and separate the mesh and finish operator.
     

@@ -59,7 +59,7 @@ class ModalOperator(Operator):
             for fnname in lbad: print('  %s' % dfns[fnname])
             assert False, 'Modal operator missing definitions: %s' % ','.join(dfns[fnname] for fnname in lbad)
 
-        self.events_nav = {'MIDDLEMOUSE', 'WHEELINMOUSE','WHEELOUTMOUSE', 'WHEELUPMOUSE','WHEELDOWNMOUSE'}
+        self.events_nav = {'MIDDLEMOUSE', 'SHIFT+MIDDLEMOUSE','WHEELINMOUSE','WHEELOUTMOUSE', 'WHEELUPMOUSE','WHEELDOWNMOUSE'}
         self.FSM = {} if not FSM else dict(FSM)
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav

@@ -341,6 +341,8 @@ class PolyLineKnife(object):
                 screen_1 = loc3d_reg2D(region, rv3d, mx * inter_1)
                 screen_v = loc3d_reg2D(region, rv3d, mx * b)
                 
+                if not screen_0 and screen_1 and screen_v:
+                    return
                 screen_d0 = (self.mouse - screen_0).length
                 screen_d1 = (self.mouse - screen_1).length
                 screen_dv = (self.mouse - screen_v).length
