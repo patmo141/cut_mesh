@@ -46,7 +46,7 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'D':
             print('confirm cut')
             if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
-                print('actuall confirm cut')
+                print('actually confirm cut')
                 self.knife.confirm_cut_to_mesh()
                 return 'main' 
             

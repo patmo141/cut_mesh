@@ -15,6 +15,7 @@ from bpy_extras import view3d_utils
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges, flood_selection_by_verts
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
+from ..common_utilities import bversion
 
 class PolyLineKnife(object):
     '''
@@ -141,14 +142,21 @@ class PolyLineKnife(object):
 
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
 
-        if face_ind == -1:        
-            self.grab_cancel()
-            return
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: 
+                self.grab_cancel()
+                return
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
         
+            if not res:
+                self.grab_cancel()
+                return
+            
         #check if first or end point and it's a non man edge!   
-        elif self.selected == 0 and self.start_edge or self.selected == (len(self.pts) -1) and self.end_edge:
+        if self.selected == 0 and self.start_edge or self.selected == (len(self.pts) -1) and self.end_edge:
         
             co3d, index, dist = self.kd.find(mx * loc)
 
@@ -238,12 +246,19 @@ class PolyLineKnife(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-
-        if face_ind == -1: 
-            self.selected = -1
-            return
+    
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: 
+                self.selected = -1
+                return
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
         
+            if not res:
+                self.selected = -1
+                return
+            
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
             
             if self.cyclic:
@@ -318,7 +333,13 @@ class PolyLineKnife(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
+         
         
         if len(self.non_man_points):
             co3d, index, dist = self.kd.find(mx * loc)
@@ -379,7 +400,7 @@ class PolyLineKnife(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        #loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
         
         
         if len(self.pts) == 0:
@@ -439,7 +460,11 @@ class PolyLineKnife(object):
         
         last_face_ind = None
         for i, v in enumerate(self.pts):
-            loc, no, ind, d = self.bvh.find(imx * v)
+            if bversion() < '002.077.000':
+                loc, no, ind, d = self.bvh.find(imx * v)
+            else:
+                loc, no, ind, d = self.bvh.find_nearest(imx * v)
+                
             self.face_map.append(ind)
             locs.append(loc)
             
@@ -501,28 +526,31 @@ class PolyLineKnife(object):
         #clean up face groups if necessary
         #TODO, get smarter about not adding in these
         if not self.cyclic:
-            s_ind = self.start_edge.link_faces[0].index
-            e_ind = self.end_edge.link_faces[0].index
             
-            if s_ind in self.face_groups:
-                v_group = self.face_groups[s_ind]
-                if len(v_group) == 1:
-                    print('remove first face from face groups')
-                    del self.face_groups[s_ind]
-                elif len(v_group) > 1:
-                    print('remove first vert from first face group')
-                    v_group.pop(0)
-                    self.face_groups[s_ind] = v_group
-                    
-            if e_ind in self.face_groups:
-                v_group = self.face_groups[e_ind]
-                if len(v_group) == 1:
-                    print('remove last face from face groups')
-                    del self.face_groups[e_ind]
-                elif len(v_group) > 1:
-                    print('remove last vert from last face group')
-                    v_group.pop()
-                    self.face_groups[e_ind] = v_group
+            
+            
+            if self.start_edge:
+                s_ind = self.start_edge.link_faces[0].index
+                if s_ind in self.face_groups:
+                    v_group = self.face_groups[s_ind]
+                    if len(v_group) == 1:
+                        print('remove first face from face groups')
+                        del self.face_groups[s_ind]
+                    elif len(v_group) > 1:
+                        print('remove first vert from first face group')
+                        v_group.pop(0)
+                        self.face_groups[s_ind] = v_group
+            if self.end_edge:
+                e_ind = self.end_edge.link_faces[0].index        
+                if e_ind in self.face_groups:
+                    v_group = self.face_groups[e_ind]
+                    if len(v_group) == 1:
+                        print('remove last face from face groups')
+                        del self.face_groups[e_ind]
+                    elif len(v_group) > 1:
+                        print('remove last vert from last face group')
+                        v_group.pop()
+                        self.face_groups[e_ind] = v_group
         
         print('FACE GROUPS')
         print(self.face_groups)
@@ -616,7 +644,8 @@ class PolyLineKnife(object):
                     self.face_groups[e_ind] = v_group
         
         print('FACE GROUPS')
-        print(self.face_groups)       
+        print(self.face_groups)
+               
     def click_seed_select(self, context, x, y):
         
         region = context.region
@@ -627,8 +656,14 @@ class PolyLineKnife(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
 
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
+            
         if face_ind != -1:
             self.face_seed = face_ind
             print('face selected!!')
@@ -802,7 +837,6 @@ class PolyLineKnife(object):
                     self.bad_segments.append(ind)
                     print('cut failure!!!')
                 
-                
                 if ((not self.cyclic) and
                     m == (len(self.face_changes) - 1) and
                     self.end_edge.link_faces[0].index == f1.index
@@ -813,7 +847,6 @@ class PolyLineKnife(object):
                     self.new_cos += [self.cut_pts[-1]]
                     self.new_ed_face_map[len(self.new_cos)-2] = f1.index
                 
-                print('continue line 678')
                 continue
             
             p0 = cross_ed.verts[0].co
@@ -834,10 +867,7 @@ class PolyLineKnife(object):
                 self.ed_map += [self.end_edge]
                 self.new_cos += [self.cut_pts[-1]]
                 self.new_ed_face_map[len(self.new_cos)-2] = f1.index
-                
-        print(self.new_ed_face_map)
-        
-        
+                          
     def calc_ed_pcts(self):
         '''
         not used utnil bmesh.ops uses the percentage index
@@ -959,7 +989,7 @@ class PolyLineKnife(object):
                     self.bme.edges.ensure_lookup_table()
                     
             else:
-                print('%i edge crosses a face in the walking algo, unchanged' % i)
+                #print('%i edge crosses a face in the walking algo, unchanged' % i)
                 unchanged_edges += [edge]
         
         print('splitting old edges')
@@ -1000,6 +1030,7 @@ class PolyLineKnife(object):
           
     def replace_segment(self,start,end,new_locs):
         #http://stackoverflow.com/questions/497426/deleting-multiple-elements-from-a-list
+        print('replace')
         return
                 
     def draw(self,context):

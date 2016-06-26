@@ -24,5 +24,5 @@ class Polytrim_UI_Draw():
         self.knife.draw(context)
         
         if len(self.sketch):
-            common_drawing.draw_polyline_from_points(context, self.sketch, (.3,.3,.3,.8), 2, "GL_LINE_SMOOTH")
+            common_drawing.draw_polyline_from_points(context, self.sketch, (.8,.3,.3,.8), 2, "GL_LINE_SMOOTH")
         

@@ -14,17 +14,23 @@ class Polytrim_UI_Tools():
             print('sketch too short, cant confirm')
             return
         x,y = eventd['mouse']
+        region = context.region
+        rv3d = context.region_data
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, (x,y))
         
         last_hovered = self.knife.hovered[1] #guaranteed to be a point by criteria to enter sketch mode
+        
+        
         self.knife.hover(context,x,y)
         print('last hovered %i' % last_hovered)
         
         sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)
         
-        if self.knife.hovered[0] == None:
+        if self.knife.hovered[0] == None:  #drawing out into space
             #add the points in
             if last_hovered == len(self.knife.pts) - 1:
+                if last_hovered == 0: self.knife.cyclic = False
+                
                 self.knife.pts += sketch_3d[0::5]
                 self.knife.normals += [view_vector]*len(sketch_3d[0::5]) #TODO optimize...don't slice twice, you are smart enough to calc this length!
                 print('add on to the tail')
@@ -37,13 +43,27 @@ class Polytrim_UI_Tools():
         
         else:
             print('inserted new segment')
-            print('now hovered %i' % self.knife.hovered[1])
+            print('last hovered is %i, now hovered %i' % (last_hovered, self.knife.hovered[1]))
             new_pts = sketch_3d[0::5]
             if last_hovered > self.knife.hovered[1]:
-                new_pts.reverse()
-                self.knife.pts = self.knife.pts[:self.knife.hovered[1]] + new_pts + self.knife.pts[last_hovered:]
-                self.knife.normals = self.knife.normals[:self.knife.hovered[1]] + [view_vector]*len(new_pts) + self.knife.normals[last_hovered:]
+                
+                if self.knife.hovered[1] == 0:
+                    self.knife.pts = self.knife.pts[:last_hovered] + new_pts
+                    self.knife.normals = self.knife.normals[:last_hovered] + [view_vector]*len(new_pts)
+            
+                else:
+                    new_pts.reverse()
+                    self.knife.pts = self.knife.pts[:self.knife.hovered[1]] + new_pts + self.knife.pts[last_hovered:]
+                    self.knife.normals = self.knife.normals[:self.knife.hovered[1]] + [view_vector]*len(new_pts) + self.knife.normals[last_hovered:]
+            
+            
+            
             else:
-                self.knife.pts = self.knife.pts[:last_hovered] + new_pts + self.knife.pts[self.knife.hovered[1]:]
-                self.knife.normals = self.knife.normals[:last_hovered]  + [view_vector]*len(new_pts) + self.knife.normals[self.knife.hovered[1]:]
+                if self.knife.hovered[1] == 0: #drew back into tail
+                    self.knife.pts += sketch_3d[0::5]
+                    self.knife.normals += [view_vector]*len(sketch_3d[0::5])
+                    self.knife.cyclic = True
+                else:
+                    self.knife.pts = self.knife.pts[:last_hovered] + new_pts + self.knife.pts[self.knife.hovered[1]:]
+                    self.knife.normals = self.knife.normals[:last_hovered]  + [view_vector]*len(new_pts) + self.knife.normals[self.knife.hovered[1]:]
         self.knife.snap_poly_line()

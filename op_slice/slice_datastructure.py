@@ -86,8 +86,15 @@ class Slice(object):
 
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
         loc2, no2, face_ind2, d = self.bvh.ray_cast(imx * ray_origin, view_vector)
+        
+        
         
         if loc != None and loc2 != None:
             print((loc - loc2).length)
@@ -140,8 +147,12 @@ class Slice(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-
+        
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
         if face_ind == -1: 
             self.selected = -1
             return
@@ -163,8 +174,11 @@ class Slice(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-
+        
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
         if face_ind == -1: return
             
             

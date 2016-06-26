@@ -16,6 +16,7 @@ from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from ..geodesic import geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
+from ..common_utilities import bversion
 
 class GeoPath(object):
     '''
@@ -78,11 +79,17 @@ class GeoPath(object):
 
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-
-        if face_ind == -1:        
-            self.grab_cancel()
-            return
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1:        
+                self.grab_cancel()
+                return
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
+            if not res:
+                self.grab_cancel()
+                return
         
         #check if first or end point and it's a non man edge!   
         geos, fixed, close, far = self.geo_data
@@ -137,9 +144,17 @@ class GeoPath(object):
         imx = mx.inverted()
         loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
 
-        if face_ind == -1: 
-            self.selected = -1
-            return
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: 
+                self.selected = -1
+                return
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
+            if not res:
+                self.selected = -1
+                return
         
         self.seed = self.bme.faces[face_ind]
         self.seed_loc = loc
@@ -158,11 +173,14 @@ class GeoPath(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-
-        if face_ind == -1: return
             
-            
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: return   
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+            if not res: return
+                         
         self.target = self.bme.faces[face_ind]
         self.target_loc = loc
         
