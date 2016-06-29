@@ -142,8 +142,7 @@ class GeoPath(object):
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
-        loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-
+        
         if bversion() < '002.077.000':
             loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
             if face_ind == -1: 
@@ -155,7 +154,7 @@ class GeoPath(object):
             if not res:
                 self.selected = -1
                 return
-        
+        self.bme.faces.ensure_lookup_table() #how does this get outdated?
         self.seed = self.bme.faces[face_ind]
         self.seed_loc = loc
         

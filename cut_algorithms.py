@@ -286,7 +286,7 @@ def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from,
     if bver > '002.072.000':
         bme.edges.ensure_lookup_table();
 
-    f_cur = next(f for f in bme.edges[e_ind_from].link_faces if f.index != f_ind_from)
+    f_cur = next(f for f in bme.edges[e_ind_from].link_faces if f.index != f_ind_from) #There is occasionally error here
     find_current = f_cur.index
     
     #find the edges we might cross at the end, make sure where we are headed is valid
