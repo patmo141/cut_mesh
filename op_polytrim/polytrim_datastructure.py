@@ -526,9 +526,6 @@ class PolyLineKnife(object):
         #clean up face groups if necessary
         #TODO, get smarter about not adding in these
         if not self.cyclic:
-            
-            
-            
             if self.start_edge:
                 s_ind = self.start_edge.link_faces[0].index
                 if s_ind in self.face_groups:
@@ -552,12 +549,12 @@ class PolyLineKnife(object):
                         v_group.pop()
                         self.face_groups[e_ind] = v_group
         
-        print('FACE GROUPS')
-        print(self.face_groups)
- 
     def preprocess_points(self):
         '''
         '''
+        if not self.cyclic and not (self.start_edge != None and self.end_edge != None):
+            print('not ready!')
+            return
         #self.normals = [] for now, leave normals from view direction
         self.face_changes = []
         self.face_groups = dict()
@@ -597,12 +594,12 @@ class PolyLineKnife(object):
                         
                         
                     if self.face_map[i] not in self.face_groups:
-                        print('final group not added to dictionary yet')
-                        print((self.face_map[i], group))
+                        #print('final group not added to dictionary yet')
+                        #print((self.face_map[i], group))
                         self.face_groups[self.face_map[i]] = group
                     
                     else:
-                        print('group already in dictionary')
+                        #print('group already in dictionary')
                         exising_group = self.face_groups[self.face_map[i]]
                         if 0 not in exising_group:
                             print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
@@ -610,7 +607,7 @@ class PolyLineKnife(object):
                         self.face_groups[self.face_map[i]] = group + exising_group
                         
                 else:
-                    print('group already in dictionary')
+                    #print('group already in dictionary')
                     exising_group = self.face_groups[self.face_map[i]]
                     if 0 not in exising_group:
                         print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
@@ -695,8 +692,8 @@ class PolyLineKnife(object):
 
         for m, ind in enumerate(self.face_changes):
 
-            print('m, IND')
-            print((m,ind))
+            #print('m, IND')
+            #print((m,ind))
             
             if m == 0 and not self.cyclic:
                 self.ed_map += [self.start_edge]
@@ -868,9 +865,22 @@ class PolyLineKnife(object):
                 self.new_cos += [self.cut_pts[-1]]
                 self.new_ed_face_map[len(self.new_cos)-2] = f1.index
                           
+    def smart_make_cut(self):
+        if len(self.new_cos) == 0:
+            print('havent made initial cut yet')
+            self.make_cut()
+    
+        old_fcs = self.face_changes
+        old_fgs = self.face_groups
+        
+        self.preprocess_points()
+        
+        
+        
+        
     def calc_ed_pcts(self):
         '''
-        not used utnil bmesh.ops uses the percentage index
+        not used until bmesh.ops uses the percentage index
         '''
         if not len(self.ed_map) and len(self.new_cos): return
         
@@ -903,12 +913,9 @@ class PolyLineKnife(object):
         if len(self.bad_segments): return  #can't do this with bad segments!!
         
         if self.split: return #already split! no going back
-        new_verts = []
-        new_bmverts = []
-        new_edges = []
-        
+
         self.calc_ed_pcts()
-        ed_set = set(self.ed_map)
+
         if len(self.ed_map) != len(set(self.ed_map)):  #doubles in ed dictionary
             
             print('doubles in the edges crossed!!')
@@ -925,51 +932,63 @@ class PolyLineKnife(object):
                 else:
                     removals.append(ed.index)
             
-            print('these are the edge indices wich were removed to be only cut once ')
+            print('these are the edge indices which were removed to be only cut once ')
             print(removals)
             
             self.ed_map = new_eds
             self.new_cos = new_cos
             
-            
+        for v in self.bme.verts:
+            v.select_set(False)
+        for ed in self.bme.edges:
+            ed.select_set(False)  
+        for f in self.bme.faces:
+            f.select_set(False)
+                
         start = time.time()
         print('bisecting edges')
         geom =  bmesh.ops.bisect_edges(self.bme, edges = self.ed_map,cuts = 1,edge_percents = {})
         new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
-
-        #assigne new verts their locations
+        
+        #assigned new verts their locations
         for v, co in zip(new_bmverts, self.new_cos):
             v.co = co
+            #v.select_set(True)
         
         finish = time.time()
-        print('Took %f seconds' % (finish-start))
+        print('Took %f seconds to bisect edges' % (finish-start))
         start = finish
+        
+        ##########################################################
+        ########## Connect all the newly crated verts ############
         ed_geom = bmesh.ops.connect_verts(self.bme, verts = new_bmverts, faces_exclude = [], check_degenerate = False)
         new_edges = ed_geom['edges']
         if self.cyclic:
             new_edges.reverse()
             new_edges = new_edges[1:] + [new_edges[0]]
+        
             
         finish = time.time()
-        print('took %f seconds' % (finish-start))
-        
+        print('took %f seconds to connect the verts' % (finish-start))
         start = finish
         
-        print('subdividing edges which need subdivision')
-        
-       
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         
-        
-        print('subdividing new edges where needed')
+        for ed in new_edges:
+            ed.select_set(True)
+            
+        ########################################################
+        ###### The user clicked points need subdivision ########
         newer_edges = []
         unchanged_edges = []
+        
+        
         for i, edge in enumerate(new_edges):
             if i in self.new_ed_face_map:
-                print('%i is in the new ed face map' % i)
+                #print('%i is in the new ed face map' % i)
                 face_ind = self.new_ed_face_map[i]
-                print('edge %i is cross face %i' % (i, face_ind))
+                #print('edge %i is cross face %i' % (i, face_ind))
                 if face_ind not in self.face_groups:
                     print('unfortunately, it is not in the face groups')
                     unchanged_edges += [edge]
@@ -978,29 +997,65 @@ class PolyLineKnife(object):
                 vert_inds = self.face_groups[face_ind]
                 
                 if len(vert_inds):
-                    print('there are %i user drawn poly points on the face' % len(vert_inds))
+                    if len(vert_inds) > 1:
+                        print('there are %i user drawn poly points on the face' % len(vert_inds))
                     geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
                     new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
                     newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
-                    #for n, bv in enumerate(new_bmverts):
-                    #    bv.co = self.cut_pts[vert_inds[n]]
+                    
+                    if len(vert_inds) == 1:
+                        new_bmverts[0].co = self.cut_pts[vert_inds[0]]
         
                     self.bme.verts.ensure_lookup_table()
                     self.bme.edges.ensure_lookup_table()
+                else:
+                    print('#################################')
+                    print('there are not user drawn points...what do we do!?')
+                    print('so this may not be gettings split')
+                    print('#################################')
                     
             else:
                 #print('%i edge crosses a face in the walking algo, unchanged' % i)
                 unchanged_edges += [edge]
         
-        print('splitting old edges')
+        finish = time.time()
+        print('Took %f seconds to bisect multipoint edges' % (finish-start))
+        start = finish
+        
+        
+        
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table() 
         bmesh.ops.split_edges(self.bme, edges = unchanged_edges, verts = [], use_verts = False)
+        finish = time.time()
+        print('Took %f seconds to split old edges' % (finish-start))
+        start = finish
         
-        print('splitting newer edges')
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table() 
         bmesh.ops.split_edges(self.bme, edges = newer_edges, verts = [], use_verts = False) 
+        finish = time.time()
+        print('Took %f seconds to splot newer edges' % (finish-start))
+        start = finish
+        
+        
+        self.bme.verts.ensure_lookup_table()
+        self.bme.edges.ensure_lookup_table()
+        unsplit_edges = []
+        for ed in new_edges:
+            if ed.is_valid:
+                unsplit_edges += [ed]
+            else:
+                print('edge was prev_split and is now invalid')
+        
+        if len(unsplit_edges):
+            print('AHA There were %i unsplit edges, what the hell!?' % len(unsplit_edges))
+            bmesh.ops.split_edges(self.bme, edges = unsplit_edges, verts = [], use_verts = False)     
+        
+            finish = time.time()
+            print('Took %f seconds to split left out edges' % (finish-start))
+            start = finish
+        
         
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
@@ -1008,9 +1063,32 @@ class PolyLineKnife(object):
         finish = time.time()
         print('took %f seconds' % (finish-start))
         self.split = True
+    
+    
+    def preview_mesh(self, context):
         
-    def split_geometry(self):
+        context.tool_settings.mesh_select_mode = (False, True, False)
+        self.bme.to_mesh(self.cut_ob.data)
+        
+        #store the cut!
+        cut_bme = bmesh.new()
+        cut_me = bpy.data.meshes.new('polyknife_stroke')
+        cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
+        
+        bmvs = [cut_bme.verts.new(co) for co in self.cut_pts]
+        for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
+            cut_bme.edges.new((v0,v1))
+        
+        if self.cyclic:
+            cut_bme.edges.new((bmvs[-1], bmvs[0])) 
+        cut_bme.to_mesh(cut_me)
+        context.scene.objects.link(cut_ob)
+        cut_ob.show_x_ray = True
+           
+    def split_geometry(self, context):
         if not (self.split and self.face_seed): return
+        
+        start = time.time()
         
         self.find_select_inner_faces()
         
@@ -1018,6 +1096,23 @@ class PolyLineKnife(object):
         bpy.ops.object.mode_set(mode ='EDIT')
         bpy.ops.mesh.separate(type = 'SELECTED')
         bpy.ops.object.mode_set(mode = 'OBJECT')
+        
+        finish = time.time()
+        print('Tooth %f seconds to split objects' % (finish - start))
+        #store the cut as an object
+        cut_bme = bmesh.new()
+        cut_me = bpy.data.meshes.new('polyknife_stroke')
+        cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
+        
+        bmvs = [cut_bme.verts.new(co) for co in self.cut_pts]
+        for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
+            cut_bme.edges.new((v0,v1))
+        
+        if self.cyclic:
+            cut_bme.edges.new((bmvs[-1], bmvs[0])) 
+        cut_bme.to_mesh(cut_me)
+        context.scene.objects.link(cut_ob)
+        cut_ob.show_x_ray = True
         
         #EXPENSIVE!!
         #self.bme = bmesh.new()

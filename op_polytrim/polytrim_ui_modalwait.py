@@ -44,16 +44,18 @@ class Polytrim_UI_ModalWait():
             self.knife.make_cut()
             return 'main' 
         if eventd['press'] == 'D':
-            print('confirm cut')
             if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
-                print('actually confirm cut')
                 self.knife.confirm_cut_to_mesh()
                 return 'main' 
             
         if eventd['press'] == 'E':     
             if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
-                self.knife.split_geometry()
+                self.knife.split_geometry(eventd['context'])
                 return 'finish' 
+        if eventd['press'] == 'P':
+            self.knife.preview_mesh(eventd['context'])
+            
+            return 'finish'
             
         if eventd['press'] == 'S':
             return 'inner'
@@ -73,6 +75,7 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
             self.knife.grab_confirm()
+            self.knife.make_cut()
             return 'main'
         
         elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
