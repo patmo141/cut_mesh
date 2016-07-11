@@ -12,7 +12,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges, flood_selection_by_verts
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
 from ..common_utilities import bversion
@@ -57,7 +57,7 @@ class PolyLineKnife(object):
         
         
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
-        self.non_man_ed_loops = edge_loops_from_bmedges(self.bme, self.non_man_eds)
+        self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
         
         #print(self.non_man_ed_loops)
         self.non_man_points = []
@@ -93,6 +93,7 @@ class PolyLineKnife(object):
         #keep up with these to show user
         self.bad_segments = []
         self.split = False
+        self.perimeter_edges = []
         self.face_seed = None
     
     def reset_vars(self):
@@ -901,7 +902,8 @@ class PolyLineKnife(object):
         if not self.face_seed: return
         if len(self.bad_segments): return
         f0 = self.bme.faces[self.face_seed]
-        inner_faces = flood_selection_by_verts(self.bme, set(), f0, max_iters=1000)
+        #inner_faces = flood_selection_by_verts(self.bme, set(), f0, max_iters=1000)
+        inner_faces = flood_selection_edge_loop(self.bme, self.perimeter_edges, f0, max_iters = 20000)
         
         for f in self.bme.faces:
             f.select_set(False)
@@ -969,15 +971,12 @@ class PolyLineKnife(object):
         
             
         finish = time.time()
-        print('took %f seconds to connect the verts' % (finish-start))
+        print('took %f seconds to connect the verts and %i new edges were created' % ((finish-start), len(new_edges)))
         start = finish
         
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
-        
-        for ed in new_edges:
-            ed.select_set(True)
-            
+           
         ########################################################
         ###### The user clicked points need subdivision ########
         newer_edges = []
@@ -1019,54 +1018,78 @@ class PolyLineKnife(object):
                 unchanged_edges += [edge]
         
         finish = time.time()
-        print('Took %f seconds to bisect multipoint edges' % (finish-start))
+        print('Took %f seconds to bisect %i multipoint edges' % ((finish-start), len(newer_edges)))
+        print('Leaving %i unchanged edges' % len(unchanged_edges))
         start = finish
         
-        
-        
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table() 
-        bmesh.ops.split_edges(self.bme, edges = unchanged_edges, verts = [], use_verts = False)
-        finish = time.time()
-        print('Took %f seconds to split old edges' % (finish-start))
-        start = finish
-        
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table() 
-        bmesh.ops.split_edges(self.bme, edges = newer_edges, verts = [], use_verts = False) 
-        finish = time.time()
-        print('Took %f seconds to splot newer edges' % (finish-start))
-        start = finish
-        
-        
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        unsplit_edges = []
         for ed in new_edges:
-            if ed.is_valid:
-                unsplit_edges += [ed]
-            else:
-                print('edge was prev_split and is now invalid')
+            ed.select_set(True)
+            
+        for ed in newer_edges:
+            ed.select_set(True)
         
-        if len(unsplit_edges):
-            print('AHA There were %i unsplit edges, what the hell!?' % len(unsplit_edges))
-            bmesh.ops.split_edges(self.bme, edges = unsplit_edges, verts = [], use_verts = False)     
         
-            finish = time.time()
-            print('Took %f seconds to split left out edges' % (finish-start))
-            start = finish
+        
+        face_boundary = set()
+        for ed in new_edges:
+            face_boundary.update(list(ed.link_faces))
+        for ed in newer_edges:
+            face_boundary.update(list(ed.link_faces))
+            
+        ngons = [f for f in face_boundary if len(f.verts) > 4]
+        #for f in face_boundary:
+            #f.select_set(True)
+        bmesh.ops.triangulate(self.bme, faces = ngons)
+        
+        #for ed in unchanged_edges:
+        #    ed.select_set(True)
+        
+        #self.bme.verts.ensure_lookup_table()
+        #self.bme.edges.ensure_lookup_table() 
+        #bmesh.ops.split_edges(self.bme, edges = unchanged_edges, verts = [], use_verts = False)
+        #finish = time.time()
+        #print('Took %f seconds to split old edges' % (finish-start))
+        #start = finish
+        
+        #self.bme.verts.ensure_lookup_table()
+        #self.bme.edges.ensure_lookup_table() 
+        #bmesh.ops.split_edges(self.bme, edges = newer_edges, verts = [], use_verts = False) 
+        #finish = time.time()
+        #print('Took %f seconds to splot newer edges' % (finish-start))
+        #start = finish
+        
+        
+        #self.bme.verts.ensure_lookup_table()
+        #self.bme.edges.ensure_lookup_table()
+        #unsplit_edges = []
+        #for ed in new_edges:
+        #    if ed.is_valid:
+        #        unsplit_edges += [ed]
+        #    else:
+        #        print('edge was prev_split and is now invalid')
+        
+        #if len(unsplit_edges):
+        #    print('AHA There were %i unsplit edges, what the hell!?' % len(unsplit_edges))
+        #    bmesh.ops.split_edges(self.bme, edges = unsplit_edges, verts = [], use_verts = False)     
+        
+        #    finish = time.time()
+        #    print('Took %f seconds to split left out edges' % (finish-start))
+        #    start = finish
         
         
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
+        
+        self.perimeter_edges = list(set(new_edges) | set(newer_edges))
         finish = time.time()
-        print('took %f seconds' % (finish-start))
+        #print('took %f seconds' % (finish-start))
         self.split = True
     
     
     def preview_mesh(self, context):
         
+        self.find_select_inner_faces()
         context.tool_settings.mesh_select_mode = (False, True, False)
         self.bme.to_mesh(self.cut_ob.data)
         

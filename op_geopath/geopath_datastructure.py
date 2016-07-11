@@ -12,7 +12,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from ..geodesic import geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
