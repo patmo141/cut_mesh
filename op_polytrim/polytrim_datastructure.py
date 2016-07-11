@@ -982,7 +982,8 @@ class PolyLineKnife(object):
         newer_edges = []
         unchanged_edges = []
         
-        
+        bisect_eds = []
+        bisect_pts = []
         for i, edge in enumerate(new_edges):
             if i in self.new_ed_face_map:
                 #print('%i is in the new ed face map' % i)
@@ -998,15 +999,19 @@ class PolyLineKnife(object):
                 if len(vert_inds):
                     if len(vert_inds) > 1:
                         print('there are %i user drawn poly points on the face' % len(vert_inds))
-                    geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
-                    new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
-                    newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
                     
-                    if len(vert_inds) == 1:
-                        new_bmverts[0].co = self.cut_pts[vert_inds[0]]
+                    bisect_eds += [edge]
+                    bisect_pts += [self.cut_pts[vert_inds[0]]]  #TODO, this only allows for a single point per face
+                    
+                    #geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
+                    #new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
+                    #newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
+                    
+                    #if len(vert_inds) == 1:
+                    #    new_bmverts[0].co = self.cut_pts[vert_inds[0]]
         
-                    self.bme.verts.ensure_lookup_table()
-                    self.bme.edges.ensure_lookup_table()
+                    #self.bme.verts.ensure_lookup_table()
+                    #self.bme.edges.ensure_lookup_table()
                 else:
                     print('#################################')
                     print('there are not user drawn points...what do we do!?')
@@ -1017,6 +1022,14 @@ class PolyLineKnife(object):
                 #print('%i edge crosses a face in the walking algo, unchanged' % i)
                 unchanged_edges += [edge]
         
+        geom =  bmesh.ops.bisect_edges(self.bme, edges = bisect_eds,cuts = len(vert_inds),edge_percents = {})
+        new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
+        newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
+        
+        print('Len of new bmverts %i and len of expected verts %i' % (len(bisect_pts), len(new_bmverts)))
+        for v, loc in zip(new_bmverts, bisect_pts):
+            v.co = loc
+                    
         finish = time.time()
         print('Took %f seconds to bisect %i multipoint edges' % ((finish-start), len(newer_edges)))
         print('Leaving %i unchanged edges' % len(unchanged_edges))
