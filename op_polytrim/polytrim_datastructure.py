@@ -94,6 +94,7 @@ class PolyLineKnife(object):
         self.bad_segments = []
         self.split = False
         self.perimeter_edges = []
+        self.inner_faces = []
         self.face_seed = None
     
     def reset_vars(self):
@@ -319,8 +320,7 @@ class PolyLineKnife(object):
             self.cut_pts.pop(self.selected)
             self.normals.pop(self.selected)
             self.face_map.pop(self.selected)
-
-    
+ 
     def hover_non_man(self,context,x,y):
         region = context.region
         rv3d = context.region_data
@@ -905,10 +905,16 @@ class PolyLineKnife(object):
         #inner_faces = flood_selection_by_verts(self.bme, set(), f0, max_iters=1000)
         inner_faces = flood_selection_edge_loop(self.bme, self.perimeter_edges, f0, max_iters = 20000)
         
+        if len(inner_faces) == len(self.bme.faces):
+            print('region growing selected entire mesh!')
+            self.inner_faces = []
+        else:
+            self.inner_faces = list(inner_faces)
+        
         for f in self.bme.faces:
             f.select_set(False)
-        for f in inner_faces:
-            f.select_set(True)
+        #for f in inner_faces:
+        #    f.select_set(True)
                  
     def confirm_cut_to_mesh(self):
         
@@ -1049,10 +1055,10 @@ class PolyLineKnife(object):
         for ed in newer_edges:
             face_boundary.update(list(ed.link_faces))
             
-        ngons = [f for f in face_boundary if len(f.verts) > 4]
+        #ngons = [f for f in face_boundary if len(f.verts) > 4]
         #for f in face_boundary:
             #f.select_set(True)
-        bmesh.ops.triangulate(self.bme, faces = ngons)
+        #bmesh.ops.triangulate(self.bme, faces = ngons)
         
         #for ed in unchanged_edges:
         #    ed.select_set(True)
@@ -1061,14 +1067,16 @@ class PolyLineKnife(object):
         #self.bme.edges.ensure_lookup_table() 
         #bmesh.ops.split_edges(self.bme, edges = unchanged_edges, verts = [], use_verts = False)
         #finish = time.time()
-        #print('Took %f seconds to split old edges' % (finish-start))
+        #print('Took %f seconds to split %i old edges' % (finish-start, len(unchanged_edges)))
         #start = finish
+        
+        
         
         #self.bme.verts.ensure_lookup_table()
         #self.bme.edges.ensure_lookup_table() 
         #bmesh.ops.split_edges(self.bme, edges = newer_edges, verts = [], use_verts = False) 
         #finish = time.time()
-        #print('Took %f seconds to splot newer edges' % (finish-start))
+        #print('Took %f seconds to split newer edges' % (finish-start))
         #start = finish
         
         
@@ -1094,12 +1102,11 @@ class PolyLineKnife(object):
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
         
-        self.perimeter_edges = list(set(new_edges) | set(newer_edges))
+        self.perimeter_edges = list(set(new_edges) | set(newer_edges))        
         finish = time.time()
         #print('took %f seconds' % (finish-start))
         self.split = True
-    
-    
+       
     def preview_mesh(self, context):
         
         self.find_select_inner_faces()
@@ -1121,20 +1128,123 @@ class PolyLineKnife(object):
         context.scene.objects.link(cut_ob)
         cut_ob.show_x_ray = True
            
-    def split_geometry(self, context):
+    def split_geometry(self, context, mode = 'DUPLICATE'):
+        '''
+        
+        mode:  Enum in {'DUPLICATE', 'DELETE', 'SPLIT', 'SEPARATE'}
+        '''
         if not (self.split and self.face_seed): return
         
         start = time.time()
-        
         self.find_select_inner_faces()
         
-        self.bme.to_mesh(self.cut_ob.data)
-        bpy.ops.object.mode_set(mode ='EDIT')
-        bpy.ops.mesh.separate(type = 'SELECTED')
-        bpy.ops.object.mode_set(mode = 'OBJECT')
         
-        finish = time.time()
-        print('Tooth %f seconds to split objects' % (finish - start))
+        
+        if mode == 'SEPARATE':
+            '''
+            separates the selected portion into a new object
+            leaving hole in original object
+            this is destructive
+            '''
+            if not (self.split and self.face_seed): return
+            output_bme = bmesh.new()
+            
+            verts = set()
+            vert_lookup = {}
+            for f in self.inner_faces:
+                verts.update([v for v in f.verts])
+                
+            vert_list = list(verts)
+            new_bmverts = []
+            for i, v in enumerate(vert_list):
+                vert_lookup[v.index] = i
+                new_bmverts += [output_bme.verts.new(v.co)]
+                
+            for f in self.inner_faces:
+                f_ind_tuple = [vert_lookup[v.index] for v in f.verts]
+                f_vert_tuple = [new_bmverts[i] for i in f_ind_tuple]
+                output_bme.faces.new(tuple(f_vert_tuple))
+            
+            new_data = bpy.data.meshes.new(self.cut_ob.name + ' trimmed') 
+            new_ob =   bpy.data.objects.new(self.cut_ob.name + ' trimmed', new_data)
+            new_ob.matrix_world = self.cut_ob.matrix_world
+            output_bme.to_mesh(new_data)
+            context.scene.objects.link(new_ob)
+            
+            
+            bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
+            self.bme.to_mesh(self.cut_ob.data)
+        
+        
+        elif mode == 'DELETE':
+            '''
+            deltes the selected region of mesh
+            This is destructive method
+            '''
+            self.find_select_inner_faces()
+            print(len(self.inner_faces))
+            bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
+            self.bme.to_mesh(self.cut_ob.data)
+            self.bme.free()
+            
+        elif mode == 'SPLIT':
+            '''
+            splits the mesh, leaving 2 separate pieces in the original object
+            This is destructive method
+            '''
+            if not self.split: return
+            print('There are %i perimeter edges' % len(self.perimeter_edges))
+            
+            old_eds = set([e for e in self.bme.edges])    
+            gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
+            #this dictionary is bad...just empy stuff
+            
+            self.bme.verts.ensure_lookup_table()
+            self.bme.edges.ensure_lookup_table()
+            self.bme.faces.ensure_lookup_table()
+            
+            current_edges = set([e for e in self.bme.edges])           
+            new_edges = current_edges - old_eds
+            for ed in new_edges:
+                ed.select_set(True)
+            print('There are %i new edges' % len(new_edges))
+            
+            self.bme.to_mesh(self.cut_ob.data)
+            
+            
+        elif mode == 'DUPLICATE':
+            '''
+            creates a new object with the selected portion
+            of original but leavs the original object un-touched
+            '''
+            if not (self.split and self.face_seed): return
+            output_bme = bmesh.new()
+            
+            verts = set()
+            vert_lookup = {}
+            for f in self.inner_faces:
+                verts.update([v for v in f.verts])
+                
+            vert_list = list(verts)
+            new_bmverts = []
+            for i, v in enumerate(vert_list):
+                vert_lookup[v.index] = i
+                new_bmverts += [output_bme.verts.new(v.co)]
+                
+            for f in self.inner_faces:
+                f_ind_tuple = [vert_lookup[v.index] for v in f.verts]
+                f_vert_tuple = [new_bmverts[i] for i in f_ind_tuple]
+                output_bme.faces.new(tuple(f_vert_tuple))
+            
+            new_data = bpy.data.meshes.new(self.cut_ob.name + ' trimmed') 
+            new_ob =   bpy.data.objects.new(self.cut_ob.name + ' trimmed', new_data)
+            new_ob.matrix_world = self.cut_ob.matrix_world
+            output_bme.to_mesh(new_data)
+            context.scene.objects.link(new_ob)
+            
+            self.bme.free()
+            
+            
         #store the cut as an object
         cut_bme = bmesh.new()
         cut_me = bpy.data.meshes.new('polyknife_stroke')
