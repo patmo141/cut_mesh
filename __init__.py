@@ -42,7 +42,7 @@ import bpy
 from .op_polytrim.polytrim_modal import CGC_Polytrim
 from .op_geopath.geopath_modal import CGC_Geopath
 from .op_slice.slice_modal import CGC_Slice
-
+from .op_triangle_fill import TriangleFill
 
 def register(): 
     #bpy.utils.register_class(CutMeshPreferences) #TODO
@@ -51,6 +51,7 @@ def register():
     bpy.utils.register_class(CGC_Polytrim)
     bpy.utils.register_class(CGC_Geopath)
     bpy.utils.register_class(CGC_Slice)
+    bpy.utils.register_class(TriangleFill)
     
 def unregister():
     #bpy.utils.register_class(CutMeshPreferences)  #TODO
@@ -59,3 +60,4 @@ def unregister():
     bpy.utils.unregister_class(CGC_Polytrim)
     bpy.utils.unregister_class(CGC_Geopath)
     bpy.utils.unregister_class(CGC_Slice)
+    bpy.utils.unregister_class(TriangleFill)

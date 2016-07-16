@@ -1182,8 +1182,18 @@ class PolyLineKnife(object):
             This is destructive method
             '''
             self.find_select_inner_faces()
-            print(len(self.inner_faces))
-            bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
+            
+            gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
+            #this dictionary is bad...just empy stuff
+            
+            self.bme.verts.ensure_lookup_table()
+            self.bme.edges.ensure_lookup_table()
+            self.bme.faces.ensure_lookup_table()
+            
+            
+            #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
+            bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 1)
+            
             self.bme.to_mesh(self.cut_ob.data)
             self.bme.free()
             

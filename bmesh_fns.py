@@ -3,6 +3,8 @@ Created on Oct 8, 2015
 
 @author: Patrick
 '''
+from mathutils import Vector, Matrix
+
 def face_neighbors_by_edge(bmface):
     neighbors = []
     for ed in bmface.edges:
@@ -652,3 +654,93 @@ def face_region_boundary_loops(bme, sel_faces):
     geom_dict = edge_loops_from_bmedges(bme, edges_raw, ret={'VERTS','EDGES'})
     
     return geom_dict
+
+def join_bmesh(source, target, src_trg_map, src_mx = None, trg_mx = None):
+    '''
+    
+    '''
+    L = len(target.verts)
+    print('Target has %i verts' % L)
+    
+    print('Source has %i verts' % len(source.verts))
+    l = len(src_trg_map)
+    print('is the src_trg_map being sticky...%i' % l)
+    if not src_mx:
+        src_mx = Matrix.Identity(4)
+    
+    if not trg_mx:
+        trg_mx = Matrix.Identity(4)
+        i_trg_mx = Matrix.Identity(4)
+    else:
+        i_trg_mx = trg_mx.inverted()
+        
+        
+
+    new_bmverts = []
+    
+    source.verts.ensure_lookup_table()
+
+    for v in source.verts:
+        if v.index not in src_trg_map:
+            new_ind = len(target.verts)
+            new_bv = target.verts.new(i_trg_mx * src_mx * v.co)
+            new_bmverts.append(new_bv)
+            #new_bv.index = new_ind
+            src_trg_map[v.index] = new_ind
+    
+    #new_bmverts = [target.verts.new(i_trg_mx * src_mx * v.co) for v in source.verts]# if v.index not in src_trg_map]
+
+    #def src_to_trg_ind(v):
+    #    subbed = False
+    #    if v.index in src_trg_map:
+
+    #       new_ind = src_trg_map[v.index]
+    #        subbed = True
+    #    else:
+    #        new_ind = v.index + L  #TODO, this takes the actual versts from sources, these verts are in target
+            
+    #    return new_ind, subbed
+    
+    #new_bmfaces = [target.faces.new(tuple(new_bmverts[v.index] for v in face.verts)) for face in source.faces]
+    target.verts.index_update()
+    #target.verts.sort()  #does this still work?
+    target.verts.ensure_lookup_table()
+    #print('new faces')
+    #for f in source.faces:
+        #print(tuple(src_to_trg_ind(v) for v in f.verts))
+    
+    #subbed = set()
+    new_bmfaces = []
+    for f in source.faces:
+        v_inds = []
+        for v in f.verts:
+            new_ind = src_trg_map[v.index]
+            v_inds.append(new_ind)
+          
+        new_bmfaces += [target.faces.new(tuple(target.verts[i] for i in v_inds))]
+    
+    #new_bmfaces = [target.faces.new(tuple(target.verts[src_to_trg_ind(v)] for v in face.verts)) for face in source.faces]
+    target.faces.ensure_lookup_table()
+    target.verts.ensure_lookup_table()
+    target.verts.index_update()
+    
+    #throw away the loose verts...not very elegant with edges and what not
+    #n_removed = 0
+    #for vert in new_bmverts:
+    #    if (vert.index - L) in src_trg_map: #these are verts that are not needed
+    #        target.verts.remove(vert)
+    #        n_removed += 1
+    
+    #bmesh.ops.delete(target, geom=del_verts, context=1)
+            
+    target.verts.index_update()        
+    target.verts.ensure_lookup_table()
+    target.faces.ensure_lookup_table()
+    
+    new_L = len(target.verts)
+    
+    if src_trg_map:
+        if new_L != L + len(source.verts) -l:
+            print('seems some verts were left in that should not have been')
+            
+    del src_trg_map
