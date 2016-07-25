@@ -179,7 +179,10 @@ class TriangleFill(bpy.types.Operator):
             bme.faces.ensure_lookup_table()
             
             
-            def calc_angle(v, report = False):
+            def calc_angle(v, report = True):
+                if report:
+                    print('                 ')
+                    print("Calcing angle for %i vertex" % v.index)
                 #use link edges and non_man eds
                 eds_non_man = [ed for ed in v.link_edges if not ed.is_manifold]
                 eds_all = [ed for ed in v.link_edges]
@@ -197,6 +200,8 @@ class TriangleFill(bpy.types.Operator):
                 
                 va = eds_non_man[0].other_vert(v)
                 vb = eds_non_man[1].other_vert(v)
+                
+                print('Va and Vb are %i and %i respectively' % (va.index,vb.index))
                 
                 Va = va.co - v.co
                 Vb = vb.co - v.co
@@ -216,57 +221,68 @@ class TriangleFill(bpy.types.Operator):
                     
                     else: #completely regular situation
                         
-                        if Vb.cross(Va).dot(v.normal) < 0:
+                        if Va.cross(Vb).dot(v.normal) < 0:
                             print('keep normals consistent reverse')
                             return angle, vb, va
                         else:
-                            
                             return angle, va, vb
                 
                 elif len(eds_all) > 2:
                     #sort edges ccw by normal, starting at eds_nm[0]
                     eds_sorted = sort_objects_by_angles(v.normal, eds_all, eds_vecs)
-                    vecs_sorted = [ed.other_vert(v).co - v.co for ed in v.link_edges]
+                    vecs_sorted = [ed.other_vert(v).co - v.co for ed in eds_sorted]
                     deltas = delta_angles(v.normal, vecs_sorted)
                     ed1_ind = eds_sorted.index(eds_non_man[1])
                     
                     delta_forward = sum(deltas[:ed1_ind])
                     delta_reverse = sum(deltas[ed1_ind:])
                     
-                    if ed1_ind == len(eds_all) - 1:
+                    print('Reality check ed_0 is manifold: ' + str(eds_sorted[0].is_manifold))
+                    print('reality check %i should be 0' % vecs_sorted.index(Va))
+                    print('Reality check %i should be 1 or %i' % (vecs_sorted.index(Vb), len(vecs_sorted)-1))
+                    
+                    if Va.cross(Vb).dot(v.normal) > 0:
                         
                         if report:
-                            print('ed_nm1 is last in the loop')
+                            print('Va cross Vb is parallel to normal')
+                            
+                        
+                        if ed1_ind == 1:
+                            if report:
+                                print('Vb index = 1')
 
-                        if delta_reverse > math.pi:
-                            
+                            return angle, va, vb
+                        
+                        elif ed1_ind == (len(eds_sorted) - 1):
                             if report:
-                                print('delta revers >180 so ret 2pi - angle')
-                            return 2*math.pi - angle, va, vb
+                                print('Vb index = -1')
+                            return 2*math.pi - angle, vb, va
                         
                         else:
-                            if report:
-                                print('delta revers <180 so ret angle')
-                            return angle, va, vb  
-                        
-                    elif ed1_ind == 1:
-                        if report:
-                            print('ed_nm1 is index 1 in the loop')
-                            
-                        if delta_forward > math.pi:
-                            if report:
-                                print('delta forward > 180 so ret 2pi - angle')
-                            return 2*math.pi - angle, va, vb
-                        else:
-                            if report:
-                                print('delta revers < 180 so ret angle')
-                            return angle, vb, va  #notice reverse Va, Vb to mainatin normals
-                        
-                        
+                            #PROBLEMS!
+                            print("BIG BIG PROBLEMS")
+                            return angle, va, vb
+                    
                     else:
-                        print('BIG PROBLEM IN ANALYZING THIS VERTEX')
-                        #big problems....edges on both sides
-                return angle, va, vb
+                        if report:
+                            print('Va cross Vb is NOT parallel to normal')
+                            
+                        if ed1_ind == 1:
+                            if report:
+                                print('Vb index = 1')
+                            return 2*math.pi - angle, va, vb
+                        
+                        elif ed1_ind == (len(eds_sorted) - 1):
+                            if report:
+                                print('Vb index = -1')
+                            return angle, vb, va
+                        
+                        else:
+                            #PROBLEMS!
+                            print("BIG BIG PROBLEMS")
+                            return angle, vb, va
+                            
+                    
                 
             #initiate the front and calc angles
             angles = {}
@@ -316,8 +332,10 @@ class TriangleFill(bpy.types.Operator):
                 if smallest_angle < math.pi/180 * 75:
                     print(' < 75 degrees situation')
                     try:
+                        #f = bme.faces.new((va, v_small, vb))
                         f = bme.faces.new((vb, v_small, va))
                         f.normal_update()
+                    
                     except ValueError:
                         print('concavity with face on back side')
                         angles[v_small] = 2*math.pi
@@ -343,8 +361,9 @@ class TriangleFill(bpy.types.Operator):
                     v_new_co = v_small.co + R_12 * v_12
                     
                     v_new = bme.verts.new(v_new_co)
-                    #bme.faces.new((va, v_small, v_new))
-                    #bme.faces.new((v_new, v_small, vb))
+                    
+                    #f1 = bme.faces.new((va, v_small, v_new))
+                    #f2 = bme.faces.new((v_new, v_small, vb))
                     
                     f1 = bme.faces.new((v_new, v_small, va))
                     f2 = bme.faces.new((vb, v_small, v_new))
@@ -385,9 +404,9 @@ class TriangleFill(bpy.types.Operator):
                     v_new_a = bme.verts.new(v_new_coa)
                     v_new_b = bme.verts.new(v_new_cob)
                     
-                    #bme.faces.new((va, v_small, v_new_a))
-                    #bme.faces.new((v_new_a, v_small, v_new_b))
-                    #bme.faces.new((v_new_b, v_small, vb))
+                    #f1 = bme.faces.new((va, v_small, v_new_a))
+                    #f2 = bme.faces.new((v_new_a, v_small, v_new_b))
+                    #f3 = bme.faces.new((v_new_b, v_small, vb))
                     
                     f1 = bme.faces.new((v_new_a, v_small, va))
                     f2 = bme.faces.new((v_new_b, v_small, v_new_a))
