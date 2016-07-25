@@ -3,12 +3,15 @@ Created on Jul 12, 2016
 
 @author: Patrick
 '''
+import math
+
 import bpy
 import bmesh
 from mathutils import Vector
 
-from bpy.props import FloatProperty, BoolProperty
+from bpy.props import FloatProperty, BoolProperty, IntProperty
 from ..bmesh_fns import edge_loops_from_bmedges, join_bmesh
+from ..common_utilities import sort_objects_by_angles, delta_angles
 
 def relax_bmesh(bme, verts, exclude, iterations = 1, spring_power = .1, quad_power = .1):
     '''
@@ -59,8 +62,7 @@ def relax_bmesh(bme, verts, exclude, iterations = 1, spring_power = .1, quad_pow
                   
         for i in deltas:
             bme.verts[i].co += deltas[i]
-            
-            
+                       
 def collapse_short_edges(bm,boundary_edges, interior_edges,threshold=.5):
     '''
     collapses edges shorter than threshold * average_edge_length
@@ -162,13 +164,12 @@ class TriangleFill(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     
+    iter_max = IntProperty(default = 5, name = 'Max Iterations')
     
-
-    def triangulate_fill(self,bme,edges):
+    def triangulate_fill(self,bme,edges, max_iters):
         
         ed_loops = edge_loops_from_bmedges(bme, edges, ret = {'VERTS','EDGES'})
         
-        bme_patches = []
         for vs, eds in zip(ed_loops['VERTS'], ed_loops['EDGES']):
             if vs[0] != vs[-1]: 
                 print('not a closed loop')
@@ -177,86 +178,254 @@ class TriangleFill(bpy.types.Operator):
             bme.edges.ensure_lookup_table()
             bme.faces.ensure_lookup_table()
             
-            hole_edges = [bme.edges[i] for i in eds]
-            perimeter_verts = set([bme.verts[i] for i in vs[0:-1]])
             
-            
-            bme_patches += [bmesh.new()]
-            bme_patch = bme_patches[-1]
-            ######################
-
-            
-            vert_lookup = {}
-            vert_list = list(perimeter_verts)
-            new_bmverts = []
-            for i, v in enumerate(vert_list):
-                vert_lookup[v.index] = i
-                new_bmverts += [bme_patch.verts.new(v.co)]
-            
-            patch_hole_edges = []    
-            for ed in hole_edges:
-                ed_ind_tuple = [vert_lookup[v.index] for v in ed.verts]
-                ed_vert_tuple = [new_bmverts[i] for i in ed_ind_tuple]
-                patch_hole_edges += [bme_patch.edges.new(tuple(ed_vert_tuple))]
-            
-            
-            ######################
-            fill_ok, geom_dict = triangle_fill_loop(bme_patch,patch_hole_edges)
-            if fill_ok:
+            def calc_angle(v, report = False):
+                #use link edges and non_man eds
+                eds_non_man = [ed for ed in v.link_edges if not ed.is_manifold]
+                eds_all = [ed for ed in v.link_edges]
                 
-                new_faces = [ele for ele in geom_dict['geom'] if isinstance(ele, bmesh.types.BMFace)]
-                new_edges = [ele for ele in geom_dict['geom'] if isinstance(ele, bmesh.types.BMEdge)]
-                new_verts = [ele for ele in geom_dict['geom'] if isinstance(ele, bmesh.types.BMVert)]
+                #shift list to start with a non manifold edge if needed
+                base_ind = eds_all.index(eds_non_man[0])
+                eds_all = eds_all[base_ind:] + eds_all[:base_ind]
                 
-                average_edge_cuts(bme_patch, patch_hole_edges, new_edges, cuts =1)
-                triangle_geom = triangulate(bme_patch,new_faces)
+                #vector representation of edges
+                eds_vecs = [ed.other_vert(v).co - v.co for ed in eds_all]
                 
-                perim_edges = [ed for ed in bme_patch.edges if not ed.is_manifold]
-                interior_edges = [ed for ed in bme_patch.edges if ed.is_manifold]
-                interior_verts = [v for v in bme_patch.verts if not v.is_boundary] 
-                smooth_verts(bme_patch,interior_verts)
+                if len(eds_non_man) != 2:
+                    print("more than 2 non manifold edges, loop self intersects or there is a dangling edge")
+                    return 2 * math.pi, None, None
                 
-                collapse_short_edges(bme_patch, perim_edges, interior_edges, threshold = .9)
+                va = eds_non_man[0].other_vert(v)
+                vb = eds_non_man[1].other_vert(v)
                 
+                Va = va.co - v.co
+                Vb = vb.co - v.co
                 
-                interior_verts = [v for v in bme_patch.verts if not v.is_boundary] 
-                print('%i interior verts' % len(interior_verts))
-                smooth_verts(bme_patch,interior_verts)
+                angle = Va.angle(Vb)
                 
+                #check for connectivity
+                if len(eds_all) == 2:
+                    if any([ed.other_vert(va) == vb for ed in vb.link_edges]):
+                        #already a tri over here
+                        print('va and vb connect')
+                        return 2 * math.pi, None, None
                 
-                clean_verts(bme_patch, bme_patch.faces)
-                
-                interior_verts = [v for v in bme_patch.verts if not v.is_boundary] 
-                print('%i interior verts' % len(interior_verts))
-                smooth_verts(bme_patch,interior_verts)
-                
-                triangulate(bme_patch, bme_patch.faces)
-                interior_verts = [v for v in bme_patch.verts if not v.is_boundary]
-                smooth_verts(bme_patch, interior_verts)
-                
-                #bm.verts.index_update()
-                #bmesh.update_edit_mesh(obj.data) 
-                #bmesh.ops.recalc_face_normals(bm,faces=bm.faces)
-                #bmesh.update_edit_mesh(obj.data)
-                
-                #join the patch back into original bmesh
-                #perim_map = {}
-                
-        for i, bme_patch in enumerate(bme_patches):
-            
-            print('merging %i patch into bmesh' % i)
-            print('it as % i verts and %i faces' % (len(bme_patch.verts), len(bme_patch.faces)))
- 
-            join_bmesh(bme_patch, bme, {})
-            bme_patch.free()
-            bme.verts.ensure_lookup_table()
-            bme.edges.ensure_lookup_table()
-            bme.faces.ensure_lookup_table()        
+                    elif any([f in eds[0].link_faces for f in eds[1].link_faces]):
+                        print('va and vb share face')
+                        return 2 * math.pi, None, None
                     
-        bmesh.ops.recalc_face_normals(bme,faces=bme.faces)                
-        return fill_ok
-    
+                    else: #completely regular situation
+                        
+                        if Vb.cross(Va).dot(v.normal) < 0:
+                            print('keep normals consistent reverse')
+                            return angle, vb, va
+                        else:
+                            
+                            return angle, va, vb
+                
+                elif len(eds_all) > 2:
+                    #sort edges ccw by normal, starting at eds_nm[0]
+                    eds_sorted = sort_objects_by_angles(v.normal, eds_all, eds_vecs)
+                    vecs_sorted = [ed.other_vert(v).co - v.co for ed in v.link_edges]
+                    deltas = delta_angles(v.normal, vecs_sorted)
+                    ed1_ind = eds_sorted.index(eds_non_man[1])
+                    
+                    delta_forward = sum(deltas[:ed1_ind])
+                    delta_reverse = sum(deltas[ed1_ind:])
+                    
+                    if ed1_ind == len(eds_all) - 1:
+                        
+                        if report:
+                            print('ed_nm1 is last in the loop')
 
+                        if delta_reverse > math.pi:
+                            
+                            if report:
+                                print('delta revers >180 so ret 2pi - angle')
+                            return 2*math.pi - angle, va, vb
+                        
+                        else:
+                            if report:
+                                print('delta revers <180 so ret angle')
+                            return angle, va, vb  
+                        
+                    elif ed1_ind == 1:
+                        if report:
+                            print('ed_nm1 is index 1 in the loop')
+                            
+                        if delta_forward > math.pi:
+                            if report:
+                                print('delta forward > 180 so ret 2pi - angle')
+                            return 2*math.pi - angle, va, vb
+                        else:
+                            if report:
+                                print('delta revers < 180 so ret angle')
+                            return angle, vb, va  #notice reverse Va, Vb to mainatin normals
+                        
+                        
+                    else:
+                        print('BIG PROBLEM IN ANALYZING THIS VERTEX')
+                        #big problems....edges on both sides
+                return angle, va, vb
+                
+            #initiate the front and calc angles
+            angles = {}
+            neighbors = {}
+            verts = [bme.verts[i] for i in vs]
+            for v in verts:
+                ang, va, vb = calc_angle(v)
+                angles[v] = ang
+                neighbors[v] = (va, vb)
+            front = set(verts)   
+            iters = 0 
+            while len(front) > 4 and iters < max_iters:
+                iters += 1
+                print('      ')
+                print('   #################   ')
+                print('this is the %i iteration' % iters)
+                
+                v_small = min(front, key = angles.get)
+                smallest_angle = angles[v_small]
+                
+                print('the smallest v is %i' % v_small.index)
+                print('the smallest angle is %f' % smallest_angle)
+                
+                va, vb = neighbors[v_small]
+                
+                vec_a = va.co - v_small.co
+                vec_b = vb.co - v_small.co
+                
+                Ra, Rb = vec_a.length, vec_b.length
+                
+                R_13 = .67*Ra + .33*Rb
+                R_12 = .5*Ra + .5*Rb
+                R_23 = .33*Ra + .67*Rb
+                
+                print((R_13, R_12, R_23))
+                
+                vec_a.normalize()
+                vec_b.normalize()
+                v_13 = vec_a.lerp(vec_b, .33) #todo, verify lerp
+                v_12 = vec_a.lerp(vec_b, .5)
+                v_23 = vec_a.lerp(vec_b, .67)
+                
+                v_13.normalize()
+                v_12.normalize()
+                v_23.normalize()
+                
+                if smallest_angle < math.pi/180 * 75:
+                    print(' < 75 degrees situation')
+                    try:
+                        f = bme.faces.new((vb, v_small, va))
+                        f.normal_update()
+                    except ValueError:
+                        print('concavity with face on back side')
+                        angles[v_small] = 2*math.pi
+                
+                    #Remove v from the front
+                    front.remove(v_small)
+                    angles.pop(v_small, None)
+                    neighbors.pop(v_small, None)
+                    
+                    #update angles and neigbors of va and vb
+                    va.normal_update()
+                    ang, v_na, v_nb = calc_angle(va)
+                    angles[va] = ang
+                    neighbors[va] = (v_na, v_nb)
+    
+                    vb.normal_update()
+                    ang, v_na, v_nb = calc_angle(vb)
+                    angles[vb] = ang
+                    neighbors[vb] = (v_na, v_nb)
+                                        
+                elif smallest_angle < math.pi/180 * 135:
+                    print('75 to 135 degrees situation')
+                    v_new_co = v_small.co + R_12 * v_12
+                    
+                    v_new = bme.verts.new(v_new_co)
+                    #bme.faces.new((va, v_small, v_new))
+                    #bme.faces.new((v_new, v_small, vb))
+                    
+                    f1 = bme.faces.new((v_new, v_small, va))
+                    f2 = bme.faces.new((vb, v_small, v_new))
+                    
+                    f1.normal_update()
+                    f2.normal_update()
+                    
+                    
+                    front.add(v_new)
+                    front.remove(v_small)
+                    angles.pop(v_small, None)
+                    neighbors.pop(v_small, None)
+                    
+                    v_new.normal_update()
+                    ang, v_na, v_nb = calc_angle(v_new)
+                    angles[v_new] = ang
+                    neighbors[v_new] = (v_na, v_nb)
+                    v_new.select_set(True)
+                    
+                    va.normal_update()
+                    ang, v_na, v_nb = calc_angle(va)
+                    angles[va] = ang
+                    neighbors[va] = (v_na, v_nb)
+    
+                    print('previous angle for vb is %f' % angles[vb])
+                    vb.normal_update()
+                    ang, v_na, v_nb = calc_angle(vb, report = True)
+                    angles[vb] = ang
+                    neighbors[vb] = (v_na, v_nb)
+                    vb.select_set(True)
+                    print('new angle for vb is %f' % ang)
+                    
+                else:
+                    print('> 135 degrees situation')
+                    v_new_coa = v_small.co + R_13 * v_13
+                    v_new_cob = v_small.co + R_23 * v_23
+                    
+                    v_new_a = bme.verts.new(v_new_coa)
+                    v_new_b = bme.verts.new(v_new_cob)
+                    
+                    #bme.faces.new((va, v_small, v_new_a))
+                    #bme.faces.new((v_new_a, v_small, v_new_b))
+                    #bme.faces.new((v_new_b, v_small, vb))
+                    
+                    f1 = bme.faces.new((v_new_a, v_small, va))
+                    f2 = bme.faces.new((v_new_b, v_small, v_new_a))
+                    f3 = bme.faces.new((vb, v_small, v_new_b))
+                    
+                    f1.normal_update()
+                    f2.normal_update()
+                    f3.normal_update()
+                    
+                    #update the 2 newly created verts
+                    front.update([v_new_a, v_new_b])
+                    front.remove(v_small)
+                    angles.pop(v_small, None)
+                    neighbors.pop(v_small, None)
+            
+                    v_new_a.normal_update()
+                    ang, v_na, v_nb = calc_angle(v_new_a)
+                    angles[v_new_a] = ang
+                    neighbors[v_new_a] = (v_na, v_nb)
+    
+                    v_new_b.normal_update()
+                    ang, v_na, v_nb = calc_angle(v_new_b)
+                    angles[v_new_b] = ang
+                    neighbors[v_new_b] = (v_na, v_nb)
+                    
+                    #update the information on the neighbors
+                    va.normal_update()
+                    ang, v_na, v_nb = calc_angle(va)
+                    angles[va] = ang
+                    neighbors[va] = (v_na, v_nb)
+    
+                    vb.normal_update()
+                    ang, v_na, v_nb = calc_angle(vb)
+                    angles[vb] = ang
+                    neighbors[vb] = (v_na, v_nb)
+    
+    def invoke(self, context, event): 
+        return context.window_manager.invoke_props_dialog(self, width=300) 
     
     def execute(self,context):
         obj = context.active_object
@@ -270,7 +439,8 @@ class TriangleFill(bpy.types.Operator):
         eds = [e.index for e in bme.edges if e.select]
         for ed in bme.edges:
             ed.select_set(False)
-        self.triangulate_fill(bme, eds)
+        self.triangulate_fill(bme, eds, self.iter_max)
+        bme.select_flush(True)
         bmesh.update_edit_mesh(obj.data)
         bpy.ops.ed.undo_push(message="Triangle Fill")
         return{'FINISHED'}

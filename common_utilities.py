@@ -580,3 +580,42 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
 def zip_pairs(l):
     for p in zip(l, itertools.chain(l[1:],l[:1])):
         yield p
+        
+def vector_angle_between(v0, v1, vcross):
+    a = v0.angle(v1)
+    d = v0.cross(v1).dot(vcross)
+    return a if d<0 else 2*math.pi - a
+
+def vector_angle_between_near_parallel(v0, v1, vcross):
+    a = v0.angle(v1)
+    d = v0.cross(v1).dot(vcross)
+    return a if d<0 else 2*math.pi - a
+
+def sort_objects_by_angles(vec_about, l_objs, l_vecs):
+    '''
+    sort a list of objects, around a normal vector,
+    with a corresponding list of vectors.
+    the first object, vector pair will remain the 0th item in the list
+    and others will be sorted relative to it
+    '''
+    if len(l_objs) <= 1:  return l_objs
+    o0,v0 = l_objs[0],l_vecs[0]
+    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
+    l_inds = sorted(range(len(l_objs)), key=lambda i: l_angles[i])
+    return [l_objs[i] for i in l_inds]
+
+def delta_angles(vec_about, l_vecs):
+    '''
+    will find the difference betwen each element and the next element in the list
+    this is a foward difference.  Eg delta[n] = item[n+1] - item[n]
+    
+    deltas should add up to 2*pi
+    '''
+    
+    v0 = l_vecs[0]
+    l_angles = [0] + [vector_angle_between(v0,v1,vec_about) for v1 in l_vecs[1:]]
+    
+    L = len(l_angles)
+    
+    deltas = [l_angles[n + 1] - l_angles[n] for n in range(0, L-1)] + [2*math.pi - l_angles[-1]]
+    return deltas
