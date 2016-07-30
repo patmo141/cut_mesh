@@ -5,6 +5,7 @@ Created on Jul 12, 2016
 '''
 import math
 import numpy as np
+import time
 
 import bpy
 import bmesh
@@ -198,7 +199,7 @@ def calc_angle(v):
             
             else:
                 #PROBLEMS!
-                print("BIG BIG PROBLEMS")
+                #print("Sorted angle is %i in the list" % ed1_ind)
                 return angle, va, vb
         
         else:
@@ -231,9 +232,9 @@ class TriangleFill(bpy.types.Operator):
     
     res_mode = EnumProperty(items=res_modes, default = "AVG") #default = 0?
     resolution = FloatProperty(default = 0.00, description = 'Set the target edge length in fill, used with "USER" mode')
-    smooth_iters = IntProperty(default = 5, name = 'Smooth Iterations')
+    smooth_iters = IntProperty(default = 20, name = 'Smooth Iterations')
     
-    iter_max = IntProperty(default = 1000, name = 'Max Iterations')
+    iter_max = IntProperty(default = 10000, name = 'Max Iterations')
                 
     def triangulate_fill(self,bme,edges, max_iters, res_mode, resolution, smooth_iters = 1):
         
@@ -273,6 +274,7 @@ class TriangleFill(bpy.types.Operator):
                 neighbors[v] = (va, vb)
             front = set(verts)   
             iters = 0 
+            start = time.time()
             while len(front) > 3 and iters < max_iters:
                 iters += 1
                 
@@ -424,7 +426,9 @@ class TriangleFill(bpy.types.Operator):
                 neighbors[vb] = (v_na, v_nb) 
     
             print('done at %i iterations' % iters)
-            
+            finish = time.time()
+            print('Took %f seconds to fill' % (finish-start))
+                
             if len(front) <= 3:
                 print('hooray, reached the end')
                 
@@ -441,7 +445,11 @@ class TriangleFill(bpy.types.Operator):
                 print('smoothing %i new verts' % len(new_vs))
                 
                 exclude = {}
+                start = time.time()
                 relax_bmesh(bme, new_vs, exclude, iterations= smooth_iters, spring_power = .2)
+                
+                finish = time.time()
+                print('Took %f seconds to smooth' % (finish-start))
                 #for i in range(0, smooth_iters):
                 #    bmesh.ops.smooth_vert(bme, verts = new_vs, factor = 1)
                 
