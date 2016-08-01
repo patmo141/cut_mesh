@@ -47,13 +47,15 @@ class PolyLineKnife(object):
         self.cut_pts = []  #local points
         self.normals = []
         
-        self.face_map = []  #all the faces that user drawn poly line fall upon
+        self.face_map = []  #all the faces that user drawn poly line points fall upon
         self.face_changes = [] #the indices where the next point lies on a different face
-        self.face_groups = dict()  #maps bmesh face index to all the points in user drawn polyline which fall upon it
+        self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
+                                    #Important for multi cuts on a single 
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
         
-        self.ed_map = []  #existing edges in bmesh crossed by cut line
-        self.new_cos = []  #location of crosses
+        self.ed_map = []  #existing edges in bmesh crossed by cut line.  list of type BMEdge
+        self.new_cos = []  #location of crosses.  list of tyep Vector().  Does not include user clicked noew positions
+        self.face_chain = set()  #all faces crossed by the cut curve. set of type BMFace
         
         
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
@@ -75,7 +77,7 @@ class PolyLineKnife(object):
         else:
             self.kd = None
             
-        self.face_chain = set()  #all faces crossed by the cut curve
+        
         if ui_type not in {'SPARSE_POLY','DENSE_POLY', 'BEZIER'}:
             self.ui_type = 'SPARSE_POLY'
         else:
@@ -486,8 +488,11 @@ class PolyLineKnife(object):
                     print('group already in dictionary')
                     exising_group = self.face_groups[last_face_ind]
                     if 0 not in exising_group:
-                        print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
+                        print('LOOKS LIKE WE CLICKED SAME FACE MULTIPLE TIMES')
                         print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
+                        #TODO....GENERATE SOME ERROR
+                        #TODO....REMOVE SELF INTERSECTIONS IN ORIGINAL PATH
+                        
                     self.face_groups[last_face_ind] = group + exising_group #we have wrapped, add this group to the old
             
             else:
@@ -499,7 +504,6 @@ class PolyLineKnife(object):
                     
                     if self.cyclic:
                         self.face_changes.append(i)
-                        
                         
                     if ind not in self.face_groups:
                         print('final group not added to dictionary yet')
@@ -570,6 +574,7 @@ class PolyLineKnife(object):
                 
             if self.face_map[i] != last_face_ind: #we have found a new face
                 self.face_changes.append(i-1)
+                #Face changes might better be described as edge crossings
                 
                 if last_face_ind not in self.face_groups: #previous face has not been mapped before
                     self.face_groups[last_face_ind] = group
@@ -592,7 +597,6 @@ class PolyLineKnife(object):
                     
                     if self.cyclic:
                         self.face_changes.append(i)
-                        
                         
                     if self.face_map[i] not in self.face_groups:
                         #print('final group not added to dictionary yet')
@@ -712,6 +716,10 @@ class PolyLineKnife(object):
 
             n_p1 = (ind + 1) % len(self.cut_pts)
             ind_p1 = self.face_map[n_p1]
+            
+            
+            n_m1 = (ind - 1)
+            ind_m1 = self.face_map[n_m1]
             #print('walk on edge pair %i, %i' % (m, n_p1))
             #print('original faces in mesh %i, %i' % (self.face_map[ind], self.face_map[ind_p1]))
             
@@ -719,33 +727,17 @@ class PolyLineKnife(object):
                 print('not cyclic, we are done here')
                 break
             
-            
             f0 = self.bme.faces[self.face_map[ind]]
-            #f1 = self.bme.faces[self.face_map[ind_p1]]
-            f1 = self.bme.faces[self.face_map[n_p1]]
+            self.face_chain.add(f0)
             
+            f1 = self.bme.faces[self.face_map[n_p1]]
             no0 = self.normals[ind]
-            #no1 = self.normals[ind_p1]
             no1 = self.normals[n_p1]
             
             surf_no = imx.to_3x3() * no0.lerp(no1, 0.5)  #must be a better way.
-            
-            #normal method 1
-            #e_vec = self.cut_pts[ind_p1] - self.cut_pts[ind]
+
             e_vec = self.cut_pts[n_p1] - self.cut_pts[ind]
             
-            #normal method 2
-            #v0 = self.cut_pts[ind] - self.cut_pts[ind-1]
-            #v0.normalize()
-            #v1 = self.cut_pts[ind + 1] - self.cut_pts[ind]
-            #v1.normalize()
-            
-            #ang = v0.angle(v1, 0)
-            #if ang > 1 * math.pi/180:
-            #    curve_no = v0.cross(v1)
-            #    cut_no = e_vec.cross(curve_no)
-                
-            #else: #method 2 using surface normal
             cut_no = e_vec.cross(surf_no)
                 
             #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
@@ -756,6 +748,7 @@ class PolyLineKnife(object):
             for ed in f0.edges:
                 if f1 in ed.link_faces:
                     cross_ed = ed
+                    self.face_chain.add(f1)
                     break
                 
             #if no shared edge, need to cut across to the next face    
@@ -787,7 +780,9 @@ class PolyLineKnife(object):
                         print('Epsilon was too small, relaxing epsilon')
                         epp *= 10
                     elif len(vs) == 0 and error:
-                        print("too bad, couldn't adjust")
+                        print('too bad, couldnt adjust due to ' + error)
+                        print(p_face)
+                        print(f0)
                         break
                 
                 if not len(vs):
@@ -813,7 +808,9 @@ class PolyLineKnife(object):
                         elif len(vs) == 0 and error == 'EPSILON':
                             epp *= 10
                         elif len(vs) == 0 and error:
-                            print('too bad, couldnt adjust')
+                            print('too bad, couldnt adjust due to ' + error)
+                            print(p_face)
+                            print(f0)
                             break
                         
                 if len(vs):
@@ -826,7 +823,8 @@ class PolyLineKnife(object):
                     for v,ed in zip(vs,eds_crossed):
                         self.new_cos.append(v)
                         self.ed_map.append(ed)
-                       
+                    
+                    print('crossed %i faces' % len(faces_crossed))   
                     self.face_chain.update(faces_crossed)
                         
                     if ind == len(self.face_changes) - 1 and self.cyclic:
@@ -875,10 +873,7 @@ class PolyLineKnife(object):
         old_fgs = self.face_groups
         
         self.preprocess_points()
-        
-        
-        
-        
+              
     def calc_ed_pcts(self):
         '''
         not used until bmesh.ops uses the percentage index
@@ -915,6 +910,172 @@ class PolyLineKnife(object):
             f.select_set(False)
         #for f in inner_faces:
         #    f.select_set(True)
+    
+    def confirm_cut_to_mesh_no_ops(self):
+        
+        if len(self.bad_segments): return  #can't do this with bad segments!!
+        
+        if self.split: return #already split! no going back
+    
+        for v in self.bme.verts:
+            v.select_set(False)
+        for ed in self.bme.edges:
+            ed.select_set(False)  
+        for f in self.bme.faces:
+            f.select_set(False)
+                
+        start = time.time()
+    
+        #Create new vetices
+        new_vert_ed_map = {}
+        new_bmverts = [self.bme.verts.new(co) for co in self.new_cos]
+        for bmed, bmvert in zip(self.ed_map, new_bmverts):
+            if bmed not in new_vert_ed_map:
+                new_vert_ed_map[bmed] = [bmvert]
+            else:
+                print('Ed crossed multiple times.')
+                new_vert_ed_map[bmed] += [bmvert]
+            
+        finish = time.time()
+        print('took %f seconds to create %i new verts and map them to edges' % (start-finish, len(new_bmverts)))
+        start = finish
+        
+        #SPLIT ALL THE CROSSED FACES
+        fast_ed_map = set(self.ed_map)
+        del_faces = []
+        new_faces = []
+        
+        print('len of face chain %i' % len(self.face_chain))
+        for bmface in self.face_chain:
+            
+            #scenario 1, it was simply crossed by cut plane
+            #no user clicked points
+            eds_crossed = [ed for ed in bmface.edges if ed in fast_ed_map]
+            
+            if bmface.index not in self.face_groups and len(eds_crossed) == 2:
+                print('didnt clic on it, crossed 2 edges')
+                ed0 = min(eds_crossed, key = self.ed_map.index)
+                
+                if ed0 == eds_crossed[0]: 
+                    ed1 = eds_crossed[1] 
+                else: 
+                    ed1 = eds_crossed[0]
+                
+                for v in ed0.verts:
+                    new_face_verts = [new_vert_ed_map[ed0][0]]
+                    next_v = ed0.other_vert(v)
+                    next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != ed0][0] #TODO, what if None?
+                    
+                    iters = 0  #safety for now, no 100 vert NGONS allowed!
+                    while next_ed != None and iters < 100:
+                        iters += 1
+                        if next_ed == ed1:
+                            new_face_verts += [next_v]
+                            new_face_verts += [new_vert_ed_map[ed1][0]]
+                            break
+                        else:
+                            new_face_verts += [next_v]
+                            next_v = next_ed.other_vert(next_v)
+                            next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != next_ed][0]
+                        
+                    
+                    new_faces += [self.bme.faces.new(tuple(new_face_verts))]
+                del_faces += [bmface]
+            
+            elif bmface.index in self.face_groups and len(eds_crossed) == 2:
+                print('clicked on it and crosses 2 edges')
+                ed0 = min(eds_crossed, key = self.ed_map.index) #first edge crossed by line.  important to start with this one to get face connectivity right
+                if ed0 == eds_crossed[0]: 
+                    ed1 = eds_crossed[1] 
+                else: 
+                    ed1 = eds_crossed[0]
+                    
+                #make the new verts corresponding to the user click on bmface
+                inner_vert_cos = [self.cut_pts[i] for i in self.face_groups[bmface.index]]
+                inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
+                inner_verts.reverse()
+                
+                for v in ed0.verts:
+                    new_face_verts = inner_verts + [new_vert_ed_map[ed0][0]]
+                    next_v = ed0.other_vert(v)
+                    next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != ed0][0]
+                    
+                    iters = 0  #safety for now, no 100 vert NGONS allowed!
+                    while next_ed != None and iters < 100:
+                        iters += 1
+                        if next_ed == ed1:
+                            new_face_verts += [next_v]
+                            new_face_verts += [new_vert_ed_map[ed1][0]]
+                            
+                            break
+                        else:
+                            new_face_verts += [next_v]
+                            next_v = next_ed.other_vert(next_v)
+                            next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != next_ed][0]
+                        
+                    
+                    new_faces += [self.bme.faces.new(tuple(new_face_verts))]
+                del_faces += [bmface]
+                    
+            elif bmface.index in self.face_groups and len(eds_crossed) == 1:
+                
+                print('ONE EDGE CROSSED TWICE?')
+                
+                ed0 = eds_crossed[0]
+                
+                #make the new verts corresponding to the user click on bmface
+                inner_vert_cos = [self.cut_pts[i] for i in self.face_groups[bmface.index]]
+                inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
+
+                print('Crossed the edge %i times' % len(new_vert_ed_map[ed0]))
+                
+                #A new face made entirely out of new verts
+                new_face_verts = [new_vert_ed_map[ed0][0]] + inner_verts + [new_vert_ed_map[ed0][1]]  
+                new_faces += [self.bme.faces.new(tuple(new_face_verts))]
+        
+                #The old face, with new verts inserted
+                loc = new_vert_ed_map[ed0][1].co
+                v_next = min(ed0.verts, key = lambda x: (x.co - loc).length)
+                v_end = ed0.other_vert(v_next)
+                
+                next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != ed0][0]
+                iters = 0
+                while next_ed != None and iters < 100:
+                    iters += 1
+                    if next_ed == ed0:
+                        new_face_verts += [v_end]
+                        break
+                    
+                    else:
+                        new_face_verts += [v_next]
+                        v_next = next_ed.other_vert(v_next)
+                        next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
+                    
+                
+                new_faces += [self.bme.faces.new(tuple(new_face_verts))]
+                del_faces += [bmface]
+                
+            else:
+                print('\n')
+                print('THIS SCENARIO IS NOT  ACCOUNTED FOR YET')
+                print('This is a user clicked face ' + str(bmface.index in self.face_groups))
+                print('%i edges were crossed on this face' % len(eds_crossed))   
+        
+        
+        self.bme.verts.ensure_lookup_table()
+        self.bme.edges.ensure_lookup_table()
+        self.bme.faces.ensure_lookup_table()
+        
+        bmesh.ops.delete(self.bme, geom = del_faces, context = 5)
+        bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
+        
+        #ngons = [f for f in new_faces if len(f.verts) > 4]
+        #bmesh.ops.triangulate(self.bme, faces = ngons)
+        
+        #self.perimeter_edges = list(set(new_edges) | set(newer_edges))        
+        finish = time.time()
+        print('took %f seconds' % (finish-start))
+        self.split = True
                  
     def confirm_cut_to_mesh(self):
         
@@ -1133,7 +1294,7 @@ class PolyLineKnife(object):
         
         mode:  Enum in {'DUPLICATE', 'DELETE', 'SPLIT', 'SEPARATE'}
         '''
-        if not (self.split and self.face_seed): return
+        #if not (self.split and self.face_seed): return
         
         start = time.time()
         self.find_select_inner_faces()
@@ -1203,21 +1364,21 @@ class PolyLineKnife(object):
             This is destructive method
             '''
             if not self.split: return
-            print('There are %i perimeter edges' % len(self.perimeter_edges))
+            #print('There are %i perimeter edges' % len(self.perimeter_edges))
             
-            old_eds = set([e for e in self.bme.edges])    
-            gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
+            #old_eds = set([e for e in self.bme.edges])    
+            #gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
             #this dictionary is bad...just empy stuff
             
-            self.bme.verts.ensure_lookup_table()
-            self.bme.edges.ensure_lookup_table()
-            self.bme.faces.ensure_lookup_table()
+            #self.bme.verts.ensure_lookup_table()
+            #self.bme.edges.ensure_lookup_table()
+            #self.bme.faces.ensure_lookup_table()
             
-            current_edges = set([e for e in self.bme.edges])           
-            new_edges = current_edges - old_eds
-            for ed in new_edges:
-                ed.select_set(True)
-            print('There are %i new edges' % len(new_edges))
+            #current_edges = set([e for e in self.bme.edges])           
+            #new_edges = current_edges - old_eds
+            #for ed in new_edges:
+            #    ed.select_set(True)
+            #print('There are %i new edges' % len(new_edges))
             
             self.bme.to_mesh(self.cut_ob.data)
             

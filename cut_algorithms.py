@@ -288,6 +288,7 @@ def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from,
 
     f_cur = next(f for f in bme.edges[e_ind_from].link_faces if f.index != f_ind_from) #There is occasionally error here
     find_current = f_cur.index
+    faces_crossed += [f_cur]
     
     #find the edges we might cross at the end, make sure where we are headed is valid
     #co_end will be bweteen edges 0,1  2,3  3,4 even if f_end is a concve ngon sith 4,6,8... intersections
@@ -433,6 +434,7 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
         
     f_cur = next(f for f in bme.edges[e_ind_from].link_faces if f.index != f_ind_from)
     find_current = f_cur.index
+    faces_crossed += [f_cur]
     
     #find the edges we might cross at the end, make sure where we are headed is valid
     #co_end will be bweteen edges 0,1  2,3  3,4 even if f_end is a concve ngon sith 4,6,8... intersections
@@ -585,6 +587,11 @@ def path_between_2_points(bme, bvh, pt_a, pt_b,
         loc_a, no_a, ind_a, d_a = bvh.find_nearest(pt_a)
         loc_b, no_b, ind_b, d_b = bvh.find_nearest(pt_b)
     
+    
+    if prev_face and (prev_face.index == ind_a or prev_face.index == ind_b):
+        print('dumb rule!')
+        prev_face = None
+        
     if use_limit:
         #grow selection from A to B and from B to A this way we get good connectivity
         faces_a = grow_selection_to_find_face(bme, bme.faces[ind_a], bme.faces[ind_b])
@@ -765,6 +772,9 @@ def cross_section_2seeds_ver1(bme, point, normal,
     bmedges = bmface.edges
     ei_init = find_bmedges_crossing_plane(pt, no, bmedges, epsilon)
     
+    if prev_face and (prev_face.index == seed_index0 or prev_face.index == seed_index1):
+        print('dumb rule!')
+        prev_face = None
     if len(ei_init) < 2:
         print('warning: it should not reach here! len(ei_init) = %d' % len(ei_init))
         print('lengths = ' + str([(edge.verts[0].co-edge.verts[1].co).length for edge in bmedges]))

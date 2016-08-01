@@ -45,8 +45,9 @@ class Polytrim_UI_ModalWait():
             return 'main' 
         if eventd['press'] == 'D':
             if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
-                self.knife.confirm_cut_to_mesh()
-                return 'main' 
+                self.knife.confirm_cut_to_mesh_no_ops()
+                self.knife.split_geometry(eventd['context'], mode = 'SPLIT')
+                return 'finish' 
             
         if eventd['press'] == 'E':     
             if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
