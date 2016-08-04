@@ -584,9 +584,13 @@ class PolyLineKnife(object):
                     print('group already in dictionary')
                     exising_group = self.face_groups[last_face_ind]
                     if 0 not in exising_group:
-                        print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
+                        print('LOOKS LIKE WE CLICKED ON SAME FACE MULTIPLE TIMES')
                         print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                    self.face_groups[last_face_ind] = group + exising_group #we have wrapped, add this group to the old
+                        print('THEREFORE SOME VERTS MAY NOT BE ACCOUNTED FOR...')
+                    
+                    
+                    else:
+                        self.face_groups[last_face_ind] = group + exising_group #we have wrapped, add this group to the old
             
             else:
                 if i != 0:
@@ -609,7 +613,8 @@ class PolyLineKnife(object):
                         if 0 not in exising_group:
                             print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
                             print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                        self.face_groups[self.face_map[i]] = group + exising_group
+                        else:
+                            self.face_groups[self.face_map[i]] = group + exising_group
                         
                 else:
                     #print('group already in dictionary')
@@ -617,7 +622,8 @@ class PolyLineKnife(object):
                     if 0 not in exising_group:
                         print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
                         print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                    self.face_groups[self.face_map[i]] = group + exising_group
+                    else:
+                        self.face_groups[self.face_map[i]] = group + exising_group
         
         #clean up face groups if necessary
         #TODO, get smarter about not adding in these
@@ -954,6 +960,11 @@ class PolyLineKnife(object):
             
             if bmface.index not in self.face_groups and len(eds_crossed) == 2:
                 print('didnt clic on it, crossed 2 edges')
+                
+                if any([len(new_vert_ed_map[ed]) > 1 for ed in eds_crossed]):
+                    print('2 edges with some double crossed! skipping this face')
+                    continue
+                   
                 ed0 = min(eds_crossed, key = self.ed_map.index)
                 
                 if ed0 == eds_crossed[0]: 
@@ -1057,11 +1068,80 @@ class PolyLineKnife(object):
                 
             else:
                 print('\n')
-                print('THIS SCENARIO IS NOT  ACCOUNTED FOR YET')
+                print('THIS SCENARIO MAY NOT  ACCOUNTED FOR YET')
                 print('This is a user clicked face ' + str(bmface.index in self.face_groups))
                 print('%i edges were crossed on this face' % len(eds_crossed))   
         
-        
+                if bmface.index in self.face_groups:
+                    print('cant cross face twice and have user point on it...ignoring user clicked points')
+                
+                print('These are original crossings')
+                print([ed.index for ed in eds_crossed])
+                
+                sorted_eds_crossed = sorted(eds_crossed, key = self.ed_map.index)   
+                    
+                print('These are crossings in order they were encountered')
+                print([ed.index for ed in sorted_eds_crossed])
+                
+                
+                    
+                ed0 = sorted_eds_crossed[0]
+                ed1 = sorted_eds_crossed[1]
+                ed2 = sorted_eds_crossed[2]
+                corners = set([v for v in bmface.verts])
+                for v in ed0.verts:
+                    corners.remove(v)
+                    new_face_verts = [new_vert_ed_map[ed0][0], v]
+                    next_ed = [ed for ed in v.link_edges if ed in bmface.edges and ed != ed0][0]
+                    v_next = v
+                    while next_ed:
+                        
+                        if next_ed in sorted_eds_crossed:
+                            if len(new_vert_ed_map[next_ed]) > 1:
+                                loc = v_next.co
+                                #choose the intersection closest to the corner vertex
+                                v_last = min(new_vert_ed_map[next_ed], key = lambda x: (x.co - loc).length)
+                                new_face_verts += [v_last]
+                            else:
+                                new_face_verts += [new_vert_ed_map[next_ed][0]]
+                                
+                                #need to keep walking to find the next ed crossings
+                            
+                                v_next = next_ed.other_vert(v_next)
+                                next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
+                                while next_ed != ed1:
+                                    v_next = next_ed.other_vert(v_next)
+                                    next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]        
+                        
+                                vs = sorted(new_vert_ed_map[ed1], key = lambda x: (x.co - v_next.co).length)
+                                new_face_verts += vs
+                                    
+                            new_faces += [self.bme.faces.new(tuple(new_face_verts))]
+                            break
+                                
+                        v_next = next_ed.other_vert(v_next)
+                        next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
+                        new_face_verts += [v_next]
+                        corners.remove(v_next)
+                
+                #final corner
+                print('There shouldnt be too many left in corners %i' % len(corners))
+                v0 = [v for v in corners if v in ed2.verts][0]
+                vf = min(new_vert_ed_map[ed1], key = lambda x: (x.co - v0.co).length)
+                new_face_verts = [new_vert_ed_map[ed2][0], v0, vf]
+                new_faces += [self.bme.faces.new(tuple(new_face_verts))]
+                del_faces += [bmface]
+                
+                
+                #sum up total crossings
+                #find excluded corners?
+                
+                #inner face
+                #new_face_verts = [new_vert_ed_map[sorted_eds_crossed[0]][0]]
+                
+                
+                    
+                    
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
