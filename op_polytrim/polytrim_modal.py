@@ -34,9 +34,13 @@ class CGC_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_U
             #showErrorMessage('Object Mode please')
             return False
         
+        if not context.object:
+            return False
+        
         if context.object.type != 'MESH':
             #showErrorMessage('Must select a mesh object')
             return False
+        
         
         return True
     

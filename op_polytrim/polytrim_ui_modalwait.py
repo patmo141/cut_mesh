@@ -35,23 +35,18 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'RIGHTMOUSE':
             self.knife.click_delete_point(mode = 'mouse')
             return 'main'
-        
-        #if eventd['press'] == 'X':
-        #    self.knife.delete_selected(mode = 'selected')
-        #    return 'main'
-        
+                
         if eventd['press'] == 'C':
             self.knife.make_cut()
             return 'main' 
         if eventd['press'] == 'D':
             if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
                 self.knife.confirm_cut_to_mesh_no_ops()
-                self.knife.split_geometry(eventd['context'], mode = 'SPLIT')
-                return 'finish' 
+                return 'main' 
             
         if eventd['press'] == 'E':     
             if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
-                self.knife.split_geometry(eventd['context'])
+                self.knife.split_geometry(eventd['context'], mode = 'KNIFE')
                 return 'finish' 
         if eventd['press'] == 'P':
             #self.knife.preview_mesh(eventd['context'])
@@ -69,8 +64,6 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'SHIFT+D':
             self.knife.split_geometry(eventd['context'], mode = 'DUPLICATE')
             return 'finish'
-        
-        
             
         if eventd['press'] == 'S':
             return 'inner'
