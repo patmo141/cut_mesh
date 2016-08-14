@@ -7,7 +7,7 @@ import time
 
 import bpy
 import bmesh
-from mathutils import Vector, Matrix, kdtree
+from mathutils import Vector, Matrix, Color, kdtree
 from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
@@ -1454,6 +1454,19 @@ class PolyLineKnife(object):
             output_bme.to_mesh(new_data)
             context.scene.objects.link(new_ob)
             
+            # Get material
+            mat = bpy.data.materials.get("Polytrim Material")
+            if mat is None:
+                # create material
+                mat = bpy.data.materials.new(name="Polytrim Material")
+                mat.diffuse_color = Color((0.1, .5, .8))
+            # Assign it to object
+            if new_ob.data.materials:
+                # assign to 1st material slot
+                new_ob.data.materials[0] = mat
+            else:
+                # no slots
+                new_ob.data.materials.append(mat)
             
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
             self.bme.to_mesh(self.cut_ob.data)
@@ -1536,6 +1549,22 @@ class PolyLineKnife(object):
             output_bme.to_mesh(new_data)
             context.scene.objects.link(new_ob)
             
+            # Get material
+            mat = bpy.data.materials.get("Polytrim Material")
+            if mat is None:
+                # create material
+                mat = bpy.data.materials.new(name="Polytrim Material")
+                mat.diffuse_color = Color((0.1, .5, .8))
+            # Assign it to object
+            if new_ob.data.materials:
+                # assign to 1st material slot
+                new_ob.data.materials[0] = mat
+            else:
+                # no slots
+                new_ob.data.materials.append(mat)
+            
+            bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
+            self.bme.to_mesh(self.cut_ob.data)
             self.bme.free()
             
             
