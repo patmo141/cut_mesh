@@ -3,6 +3,8 @@ Created on Oct 11, 2015
 
 @author: Patrick
 '''
+from ..common_utilities import showErrorMessage
+
 class Polytrim_UI_ModalWait():
     
     def modal_wait(self,context,eventd):
@@ -38,19 +40,27 @@ class Polytrim_UI_ModalWait():
                 
         if eventd['press'] == 'C':
             self.knife.make_cut()
+            context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
+        
             return 'main' 
+        
         if eventd['press'] == 'D':
             if not self.knife.face_seed:
-                print('MUST SELECT A SEED FACE FIRST')
+                showErrorMessage('Must select seed point first')
                 return 'main'
+            
             if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
                 self.knife.confirm_cut_to_mesh_no_ops()
+                
+                context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
+        
                 return 'main' 
             
         if eventd['press'] == 'K':     
             if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
                 self.knife.split_geometry(eventd['context'], mode = 'KNIFE')
                 return 'finish' 
+        
         if eventd['press'] == 'P':
             #self.knife.preview_mesh(eventd['context'])
             self.knife.split_geometry(eventd['context'], mode = 'SEPARATE')

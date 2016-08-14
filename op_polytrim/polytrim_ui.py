@@ -27,7 +27,7 @@ class Polytrim_UI:
         
         self.knife = PolyLineKnife(context,context.object)
         context.window.cursor_modal_set('CROSSHAIR')
-        context.area.header_text_set('Poly Trim Mesh')
+        context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
         
     def end_ui(self, context):            
         context.area.header_text_set()
