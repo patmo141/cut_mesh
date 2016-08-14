@@ -40,11 +40,14 @@ class Polytrim_UI_ModalWait():
             self.knife.make_cut()
             return 'main' 
         if eventd['press'] == 'D':
+            if not self.knife.face_seed:
+                print('MUST SELECT A SEED FACE FIRST')
+                return 'main'
             if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
                 self.knife.confirm_cut_to_mesh_no_ops()
                 return 'main' 
             
-        if eventd['press'] == 'E':     
+        if eventd['press'] == 'K':     
             if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
                 self.knife.split_geometry(eventd['context'], mode = 'KNIFE')
                 return 'finish' 
