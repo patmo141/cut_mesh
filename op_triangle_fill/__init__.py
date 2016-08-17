@@ -134,6 +134,10 @@ def calc_angle(v):
                 
     #use link edges and non_man eds
     eds_non_man = [ed for ed in v.link_edges if not ed.is_manifold]
+    if len(eds_non_man) == 0:
+        print('this is not a hole perimeter vertex')
+        return 2 * math.pi, None, None
+        
     eds_all = [ed for ed in v.link_edges]
     
     #shift list to start with a non manifold edge if needed
