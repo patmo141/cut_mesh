@@ -43,6 +43,7 @@ from .op_polytrim.polytrim_modal import CGC_Polytrim
 from .op_geopath.geopath_modal import CGC_Geopath
 from .op_slice.slice_modal import CGC_Slice
 from .op_triangle_fill import TriangleFill
+from .convenience import CUTMESH_OT_delete_strokes, CUTMESH_OT_hide_strokes, CUTMESH_OT_join_strokes
 
 def register(): 
     #bpy.utils.register_class(CutMeshPreferences) #TODO
@@ -52,6 +53,9 @@ def register():
     bpy.utils.register_class(CGC_Geopath)
     bpy.utils.register_class(CGC_Slice)
     bpy.utils.register_class(TriangleFill)
+    bpy.utils.register_class(CUTMESH_OT_delete_strokes)
+    bpy.utils.register_class(CUTMESH_OT_hide_strokes)
+    bpy.utils.register_class(CUTMESH_OT_join_strokes)
     
 def unregister():
     #bpy.utils.register_class(CutMeshPreferences)  #TODO
@@ -61,3 +65,6 @@ def unregister():
     bpy.utils.unregister_class(CGC_Geopath)
     bpy.utils.unregister_class(CGC_Slice)
     bpy.utils.unregister_class(TriangleFill)
+    bpy.utils.unregister_class(CUTMESH_OT_delete_strokes)
+    bpy.utils.unregister_class(CUTMESH_OT_hide_strokes)
+    bpy.utils.unregister_class(CUTMESH_OT_join_strokes)

@@ -1563,8 +1563,8 @@ class PolyLineKnife(object):
                 # no slots
                 new_ob.data.materials.append(mat)
             
-            bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
-            self.bme.to_mesh(self.cut_ob.data)
+            #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
+            #self.bme.to_mesh(self.cut_ob.data)
             self.bme.free()
             
             
