@@ -50,6 +50,7 @@ class PolyLineKnife(object):
         self.face_map = []  #all the faces that user drawn poly line points fall upon
         self.face_changes = [] #the indices where the next point lies on a different face
         self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
+        #self.prev_region = []
                                     #Important for multi cuts on a single 
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
         
@@ -297,7 +298,11 @@ class PolyLineKnife(object):
         if self.hovered[0] == 'POINT':
             self.selected = self.hovered[1]
             if self.hovered[1] == 0 and not self.start_edge:  #clicked on first bpt, close loop
-                self.cyclic = self.cyclic == False
+                #can not  toggle cyclic any more, once it's on it remains on
+                if self.cyclic:
+                    return
+                else:
+                    self.cyclic = True
             return
          
         elif self.hovered[0] == 'EDGE':  #cut in a new point
@@ -342,8 +347,6 @@ class PolyLineKnife(object):
         else:
             res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
         
-         
-        
         if len(self.non_man_points):
             co3d, index, dist = self.kd.find(mx * loc)
 
@@ -371,13 +374,13 @@ class PolyLineKnife(object):
                 screen_d1 = (self.mouse - screen_1).length
                 screen_dv = (self.mouse - screen_v).length
                 
-                if 0 < d0 <= 1 and screen_d0 < 30:
+                if 0 < d0 <= 1 and screen_d0 < 20:
                     self.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
                     return
-                elif 0 < d1 <= 1 and screen_d1 < 30:
+                elif 0 < d1 <= 1 and screen_d1 < 20:
                     self.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
                     return
-                elif screen_dv < 30:
+                elif screen_dv < 20:
                     if abs(d0) < abs(d1):
                         self.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
                         return
@@ -404,49 +407,89 @@ class PolyLineKnife(object):
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
         #loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+        ''' '''
         
-        
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: 
+                #do some shit
+                pass
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+            if not res:
+                #do some shit
+                pass
+            
         if len(self.pts) == 0:
             self.hovered = [None, -1]
             self.hover_non_man(context, x, y)
             return
 
         def dist(v):
+            if v == None:
+                return 100000000
             diff = v - Vector((x,y))
             return diff.length
         
         
-        screen_pts =  [loc3d_reg2D(context.region, context.space_data.region_3d, pt) for pt in self.pts]
-        closest_point = min(screen_pts, key = dist)
+        def dist3d(v3):
+            if v3 == None:
+                return 100000000
+            delt = v3 - loc
+            return delt.length
         
-        if (closest_point - Vector((x,y))).length  < 20:
-            self.hovered = ['POINT',screen_pts.index(closest_point)]
+        closest_3d_point = min(self.pts, key = dist3d)
+        screen_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_point))
+        
+        if screen_dist  < 20:
+            self.hovered = ['POINT',self.pts.index(closest_3d_point)]
             return
 
         if len(self.pts) < 2: 
             self.hovered = [None, -1]
             return
-                    
+        
+        line_inters3d = []
+                
         for i in range(0,len(self.pts)):   
-            a  = loc3d_reg2D(context.region, context.space_data.region_3d,self.pts[i])
-            next = (i + 1) % len(self.pts)
-            b = loc3d_reg2D(context.region, context.space_data.region_3d,self.pts[next])
             
-            if b == 0 and not self.cyclic:
+            nexti = (i + 1) % len(self.pts)
+            if next == 0 and not self.cyclic:
                 self.hovered = [None, -1]
                 return
+                 
+            intersect3d = intersect_point_line(self.cut_ob.matrix_world * loc, self.pts[i], self.pts[nexti])
             
-            if a and b:
-                intersect = intersect_point_line(Vector((x,y)).to_3d(), a.to_3d(),b.to_3d()) 
-                if intersect:
-                    dist = (intersect[0].to_2d() - Vector((x,y))).length_squared
-                    bound = intersect[1]
-                    if (dist < 400) and (bound < 1) and (bound > 0):
-                        self.hovered = ['EDGE',i]
-                        return
-                    
+            if intersect3d != None:
+                dist3d = (intersect3d[0] - loc).length
+                bound3d = intersect3d[1]
+                if  (bound3d < 1) and (bound3d > 0):
+                    line_inters3d += [dist3d]
+                    #print('intersect line3d success')
+                else:
+                    line_inters3d += [1000000]
+            else:
+                line_inters3d += [1000000]
+        
+        
+        i = line_inters3d.index(min(line_inters3d))
+        nexti = (i + 1) % len(self.pts)  
+   
+        a  = loc3d_reg2D(context.region, context.space_data.region_3d,self.pts[i])
+        b = loc3d_reg2D(context.region, context.space_data.region_3d,self.pts[nexti])
+        
+        if a and b:
+            intersect = intersect_point_line(Vector((x,y)).to_3d(), a.to_3d(),b.to_3d())      
+            dist = (intersect[0].to_2d() - Vector((x,y))).length_squared
+            bound = intersect[1]
+            if (dist < 400) and (bound < 1) and (bound > 0):
+                self.hovered = ['EDGE', i]        
+                return
+             
         self.hovered = [None, -1]
-        self.hover_non_man(context, x, y)  #todo, optimize because double ray cast per mouse move!
+        
+        if self.start_edge != None:
+            self.hover_non_man(context, x, y)  #todo, optimize because double ray cast per mouse move!
           
     def snap_poly_line(self):
         '''
@@ -672,16 +715,26 @@ class PolyLineKnife(object):
             res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
         
             
-        if face_ind != -1:
+        if face_ind != -1 and face_ind not in [f.index for f in self.face_chain]:
             self.face_seed = self.bme.faces[face_ind]
             print('face selected!!')
-            return True
+            return 1
             
+        elif face_ind != -1 and face_ind  in [f.index for f in self.face_chain]:
+            print('face too close to boundary')
+            return -1
         else:
             self.face_seed = None
             print('face not selected')
-            return False
-                     
+            return 0
+    
+    def preview_region(self):
+        if self.face_seed == None:
+            return
+        
+        #face_set = flood_selection_faces(self.bme, self.face_chain, self.face_seed, max_iters = 5000)
+        #self.prev_region = [f.calc_center_median() for f in face_set]
+              
     def make_cut(self):
         if self.split: return #already did this, no going back!
         mx = self.cut_ob.matrix_world
@@ -1218,8 +1271,34 @@ class PolyLineKnife(object):
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
-            
-        bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
+        
+        self.bme.normal_update()
+        
+        #normal est
+        to_test = set(new_faces)
+        iters = 0
+        while len(to_test) and iters < 10:
+            iters += 1
+            print('test round %i' % iters)
+            to_remove = []
+            for test_f in to_test:
+                link_faces = []
+                for ed in test_f.edges:
+                    if len(ed.link_faces) > 1:
+                        for f in ed.link_faces:
+                            if f not in to_test:
+                                link_faces += [f]
+                if len(link_faces)== 0:    
+                    continue
+                
+                if test_f.normal.dot(link_faces[0].normal) < 0:
+                    print('NEEDS FLIP')
+                    test_f.normal_flip()   
+                else:
+                    print('DOESNT NEED FLIP')
+                to_remove += [test_f]
+            to_test.difference_update(to_remove)
+        #bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
         
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
@@ -1415,13 +1494,20 @@ class PolyLineKnife(object):
         start = time.time()
         self.find_select_inner_faces()
         
+        self.bme.verts.ensure_lookup_table()
+        self.bme.edges.ensure_lookup_table()
+        self.bme.faces.ensure_lookup_table()
+            
+        #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
+        #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
+        
         if mode == 'KNIFE':
             '''
             this mode just confirms the new cut edges to the mesh
             does not separate them
             '''
-            self.bme.to_mesh(self.cut_ob.data)
             
+            self.bme.to_mesh(self.cut_ob.data)
             
         if mode == 'SEPARATE':
             '''
@@ -1454,6 +1540,7 @@ class PolyLineKnife(object):
             output_bme.to_mesh(new_data)
             context.scene.objects.link(new_ob)
             
+            
             # Get material
             mat = bpy.data.materials.get("Polytrim Material")
             if mat is None:
@@ -1470,6 +1557,7 @@ class PolyLineKnife(object):
             
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
             self.bme.to_mesh(self.cut_ob.data)
+            
         
         
         elif mode == 'DELETE':
@@ -1493,6 +1581,7 @@ class PolyLineKnife(object):
             
             self.bme.to_mesh(self.cut_ob.data)
             self.bme.free()
+            
             
         elif mode == 'SPLIT':
             '''
@@ -1630,6 +1719,8 @@ class PolyLineKnife(object):
             vs = self.face_seed.verts
             common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v.co for v in vs], 4, color = (1,1,.1,1))
             
+            #if len(self.prev_region):
+            #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.prev_region], 2, color = (1,1,.1,.2))
             
         if len(self.new_cos):
             if self.split: 

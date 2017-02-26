@@ -10,11 +10,11 @@ from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
 
 
-class CGC_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_UI_Tools, Polytrim_UI_Draw):
-    ''' CG Cookie Polytrim Modal Editor '''
+class CutMesh_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_UI_Tools, Polytrim_UI_Draw):
+    ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
-    bl_idname      = "cgcookie.polytrim"
+    bl_idname      = "cut_mesh.polytrim"
     bl_label       = "Polytrim"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
@@ -54,6 +54,8 @@ class CGC_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_U
     
     def end_commit(self, context):
         ''' Called when tool is committing '''
+        
+        
         self.cleanup(context, 'commit')
     
     def end_cancel(self, context):

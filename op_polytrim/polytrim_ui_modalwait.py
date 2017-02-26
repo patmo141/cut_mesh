@@ -15,6 +15,7 @@ class Polytrim_UI_ModalWait():
 
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':
+            context.area.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
             if self.knife.grab_initiate():
                 return 'grab'
             else:
@@ -39,22 +40,16 @@ class Polytrim_UI_ModalWait():
             return 'main'
                 
         if eventd['press'] == 'C':
+            if self.knife.start_edge != None and self.knife.end_edge == None:
+                showErrorMessage('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
+            
+            if self.knife.start_edge == None and not self.knife.cyclic:
+                showErrorMessage('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
+                    
             self.knife.make_cut()
             context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
         
             return 'main' 
-        
-        if eventd['press'] == 'D':
-            if not self.knife.face_seed:
-                showErrorMessage('Must select seed point first')
-                return 'main'
-            
-            if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
-                self.knife.confirm_cut_to_mesh_no_ops()
-                
-                context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
-        
-                return 'main' 
             
         if eventd['press'] == 'K':     
             if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
@@ -79,6 +74,23 @@ class Polytrim_UI_ModalWait():
             return 'finish'
             
         if eventd['press'] == 'S':
+            if len(self.knife.bad_segments) != 0:
+                showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
+                context.area.header_text_set("Fix Red segments by moving control points then press 'S'")
+                return 'main'
+            
+            if self.knife.start_edge == None and not self.knife.cyclic:
+                showErrorMessage('Finish closing cut boundary loop')
+                return 'main'
+            elif self.knife.start_edge != None and self.knife.end_edge == None:
+                showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
+                return 'main'
+            elif len(self.knife.new_cos) == 0:
+                showErrorMessage('Press "C" to preview the cut success before setting the seed')
+                return 'main'
+            
+            context.window.cursor_modal_set('EYEDROPPER')
+            context.area.header_text_set("Left Click Region to select area to cut")
             return 'inner'
           
         if eventd['press'] == 'RET' :
@@ -96,12 +108,19 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
             self.knife.grab_confirm()
-            self.knife.make_cut()
+            
+            if len(self.knife.bad_segments):
+                self.knife.make_cut()
+            elif (len(self.knife.new_cos) and self.cyclic) or (self.knife.start_edge != None and self.knife.end_edge != None):
+                self.knife.make_cut()
+            
             return 'main'
         
         elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
             #put it back!
             self.knife.grab_cancel()
+            context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
+        
             return 'main'
         
         elif eventd['type'] == 'MOUSEMOVE':
@@ -128,12 +147,22 @@ class Polytrim_UI_ModalWait():
     def modal_inner(self,context,eventd):
         
         if eventd['press'] == 'LEFTMOUSE':
-            print('left click modal inner')
+            
             x,y = eventd['mouse']
-            if self.knife.click_seed_select(context, x,y):
-                print('seed set')
+            result = self.knife.click_seed_select(context, x,y) 
+            if result == 1:
+                context.window.cursor_modal_set('CROSSHAIR')
+                
+                if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
+                    self.knife.confirm_cut_to_mesh_no_ops()
+                    context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
                 return 'main'
+            
+            elif result == -1:
+                showErrorMessage('Seed is too close to cut boundary, try again more interior to the cut')
+                return 'inner'
             else:
+                showErrorMessage('Seed not found, try again')
                 return 'inner'
         
         if eventd['press'] in {'RET', 'ESC'}:
