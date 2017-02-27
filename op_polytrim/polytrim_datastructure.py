@@ -277,6 +277,7 @@ class PolyLineKnife(object):
             elif len(self.pts) and not self.start_edge:
                 self.selected = -1
                 return
+            
             elif len(self.pts) and self.start_edge:
                 self.end_edge = ed
                 
@@ -311,15 +312,32 @@ class PolyLineKnife(object):
             self.normals.insert(self.hovered[1]+1, view_vector)
             self.face_map.insert(self.hovered[1]+1, face_ind)
             self.selected = self.hovered[1] + 1
+            
+            if len(self.new_cos):
+                self.make_cut()
             return
     
     def click_delete_point(self, mode = 'mouse'):
         if mode == 'mouse':
-            if not self.hovered[0] == 'POINT': return
+            if self.hovered[0] != 'POINT': return
+            
             self.pts.pop(self.hovered[1])
             self.cut_pts.pop(self.hovered[1])
             self.normals.pop(self.hovered[1])
             self.face_map.pop(self.hovered[1])
+            print('')
+            print('DELETE POINT')
+            print(self.hovered)
+            print('')
+            
+            if self.end_edge != None and self.hovered[1] == len(self.cut_pts): #notice not -1 because we popped 
+                print('deteted last non man edge')
+                self.end_edge = None
+                self.new_cos = []
+                self.selected = -1
+                
+                return
+              
         
         else:
             if self.selected == -1: return
@@ -327,6 +345,9 @@ class PolyLineKnife(object):
             self.cut_pts.pop(self.selected)
             self.normals.pop(self.selected)
             self.face_map.pop(self.selected)
+            
+        if len(self.new_cos):
+            self.make_cut()
  
     def hover_non_man(self,context,x,y):
         region = context.region
