@@ -119,9 +119,9 @@ class Polytrim_UI_ModalWait():
             elif len(self.knife.new_cos) and (self.knife.cyclic or (self.knife.start_edge != None and self.knife.end_edge != None)):
                 self.knife.make_cut()
             
-            if len(self.knife.new_cos) and len(self.bad_segments) == 0:
+            if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0:
                 context.area.header_text_set("Poly Trim.  When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
-            elif len(self.knife.new_cos) and len(self.bad_segments) != 0:
+            elif len(self.knife.new_cos) and len(self.knife.bad_segments) != 0:
                 context.area.header_text_set("Poly Trim.  Fix Bad segments so that no segments are red!")
             
             else: 
