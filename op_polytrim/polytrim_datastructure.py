@@ -448,6 +448,7 @@ class PolyLineKnife(object):
 
         def dist(v):
             if v == None:
+                print('v off screen')
                 return 100000000
             diff = v - Vector((x,y))
             return diff.length
@@ -456,7 +457,7 @@ class PolyLineKnife(object):
         def dist3d(v3):
             if v3 == None:
                 return 100000000
-            delt = v3 - loc
+            delt = v3 - self.cut_ob.matrix_world * loc
             return delt.length
         
         closest_3d_point = min(self.pts, key = dist3d)
