@@ -18,6 +18,7 @@ class CutMesh_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytr
     bl_label       = "Polytrim"
     bl_space_type  = 'VIEW_3D'
     bl_region_type = 'TOOLS'
+    bl_options = {'REGISTER','UNDO'}
     
     def __init__(self):
         FSM = {}

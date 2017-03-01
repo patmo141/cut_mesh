@@ -1186,7 +1186,11 @@ class PolyLineKnife(object):
                 print('\n')
                 print('THIS SCENARIO MAY NOT  ACCOUNTED FOR YET')
   
-        
+                print('There are %i eds crossed' % len(eds_crossed))
+                print('BMFace index %i' % bmface.index)
+                print('These are the face groups')
+                print(self.face_groups)
+                
                 if bmface.index in self.face_groups:
                     print('cant cross face twice and have user point on it...ignoring user clicked points')
                     errors += [(bmface, 'CLICK AND DOUBLE CROSS')]

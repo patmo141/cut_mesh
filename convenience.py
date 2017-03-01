@@ -82,5 +82,4 @@ class CUTMESH_OT_delete_strokes(bpy.types.Operator):
         context.scene.objects.active = ob
         
         bpy.ops.object.delete(use_global = True)
-        context.obejct.name = 'polyknife_joined'
         return {'FINISHED'}
