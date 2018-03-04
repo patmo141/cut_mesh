@@ -133,7 +133,7 @@ def clean_verts(bm, interior_faces):
 def calc_angle(v):
                 
     #use link edges and non_man eds
-    eds_non_man = [ed for ed in v.link_edges if not ed.is_manifold]
+    eds_non_man = [ed for ed in v.link_edges if len(ed.link_faces) == 1]
     if len(eds_non_man) == 0:
         print('this is not a hole perimeter vertex')
         return 2 * math.pi, None, None
@@ -239,15 +239,23 @@ class TriangleFill(bpy.types.Operator):
     smooth_iters = IntProperty(default = 20, name = 'Smooth Iterations')
     
     iter_max = IntProperty(default = 10000, name = 'Max Iterations')
+    
+    max_hole = IntProperty(default = 150, name = 'Max hole size to fill')
                 
     def triangulate_fill(self,bme,edges, max_iters, res_mode, resolution, smooth_iters = 1):
         
         ed_loops = edge_loops_from_bmedges(bme, edges, ret = {'VERTS','EDGES'})
-        
+                    
+            
         for vs, eds in zip(ed_loops['VERTS'], ed_loops['EDGES']):
             if vs[0] != vs[-1]: 
                 print('not a closed loop')
                 continue
+            
+            if len(vs) > self.max_hole:
+                print('hole perimeter too big long')
+                continue
+            
             bme.verts.ensure_lookup_table()
             bme.edges.ensure_lookup_table()
             bme.faces.ensure_lookup_table()
@@ -471,19 +479,33 @@ class TriangleFill(bpy.types.Operator):
     def execute(self,context):
         obj = context.active_object
         
-        if context.mode != 'EDIT_MESH':
-            print('No Edit mode...EDIT MESH?')
-            print(context.mode)
-            return {'CANCELLED'}
+        if context.mode == 'EDIT_MESH':
+
         
-        bme = bmesh.from_edit_mesh(obj.data)
-        eds = [e.index for e in bme.edges if e.select]
-        for ed in bme.edges:
-            ed.select_set(False)
-        
-        self.triangulate_fill(bme, eds, self.iter_max, self.res_mode, self.resolution, self.smooth_iters)
-        
-        bme.select_flush(True)
-        bmesh.update_edit_mesh(obj.data)
-        bpy.ops.ed.undo_push(message="Triangle Fill")
+            bme = bmesh.from_edit_mesh(obj.data)
+            eds = [e.index for e in bme.edges if e.select]
+            for ed in bme.edges:
+                ed.select_set(False)
+            
+            self.triangulate_fill(bme, eds, self.iter_max, self.res_mode, self.resolution, self.smooth_iters)
+            
+            bme.select_flush(True)
+            bmesh.update_edit_mesh(obj.data)
+            bpy.ops.ed.undo_push(message="Triangle Fill")
+            
+        elif context.mode == 'OBJECT' and obj.type == 'MESH':
+            
+            bme = bmesh.new()
+            bme.from_mesh(obj.data)
+            bme.edges.ensure_lookup_table()
+            bme.verts.ensure_lookup_table()
+            eds = [ed.index for ed in bme.edges if len(ed.link_faces) == 1]
+            
+            self.triangulate_fill(bme, eds, self.iter_max, self.res_mode, self.resolution, self.smooth_iters)
+            
+            bme.to_mesh(obj.data)
+            obj.data.update()
+            bme.free()
+            
+            
         return{'FINISHED'}

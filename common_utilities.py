@@ -473,6 +473,7 @@ def space_evenly_on_path(verts, edges, segments, shift = 0, debug = False):  #pr
                 
     return
         new_verts - list of new Vert Locations type list[Mathutils.Vector]
+        eds - list of tuples representing edges as vert index pairs
     '''
     
     if len(verts) < 2:

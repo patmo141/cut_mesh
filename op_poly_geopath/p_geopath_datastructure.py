@@ -7,17 +7,19 @@ import time
 
 import bpy
 import bmesh
-from mathutils import Vector, Matrix, Color, kdtree
+from mathutils import Vector, Matrix, Vector, kdtree, Color
 from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
+from ..geodesic import geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
 from ..common_utilities import bversion
 
-class PolyLineKnife(object):
+
+class PolyGeodesicPath(object):
     '''
     A class which manages user placed points on an object to create a
     poly_line, adapted to the objects surface.
@@ -99,6 +101,9 @@ class PolyLineKnife(object):
         self.perimeter_edges = []
         self.inner_faces = []
         self.face_seed = None
+        
+        
+        self.geo_segments = []
     
     def reset_vars(self):
         '''
@@ -292,7 +297,7 @@ class PolyLineKnife(object):
             self.pts += [mx * loc]
             self.cut_pts += [loc]
             #self.normals += [no]
-            self.normals += [view_vector] #try this, because fase normals are difficult
+            self.normals += [view_vector] #try this, because face normals are difficult
             self.face_map += [face_ind]
             self.selected = len(self.pts) -1
                 
@@ -312,9 +317,6 @@ class PolyLineKnife(object):
             self.normals.insert(self.hovered[1]+1, view_vector)
             self.face_map.insert(self.hovered[1]+1, face_ind)
             self.selected = self.hovered[1] + 1
-            
-            if len(self.new_cos):
-                self.make_cut()
             return
     
     def click_delete_point(self, mode = 'mouse'):
@@ -757,6 +759,68 @@ class PolyLineKnife(object):
         #face_set = flood_selection_faces(self.bme, self.face_chain, self.face_seed, max_iters = 5000)
         #self.prev_region = [f.calc_center_median() for f in face_set]
               
+    
+    def make_geodesic_cut(self):
+        if self.split: return #already did this, no going back!
+        mx = self.cut_ob.matrix_world
+        imx = mx.inverted()
+        print('\n')
+        print('BEGIN Geodesic Cuts')
+        
+        self.new_cos = []
+        self.ed_map = []
+        
+        self.face_chain = set()
+        self.preprocess_points()
+        self.bad_segments = []
+        
+        self.new_ed_face_map = dict()
+        
+        #print('there are %i cut points' % len(self.cut_pts))
+        #print('there are %i face changes' % len(self.face_changes))
+
+        for m, ind in enumerate(self.face_changes):
+
+            
+            if m == 0 and not self.cyclic:
+                self.ed_map += [self.start_edge]
+                #self.new_cos += [imx * self.cut_pts[0]]
+                self.new_cos += [self.cut_pts[0]]
+                
+                
+            n_p1 = (ind + 1) % len(self.cut_pts)
+            ind_p1 = self.face_map[n_p1]
+            
+            
+            n_m1 = (ind - 1)
+            ind_m1 = self.face_map[n_m1]
+            #print('walk on edge pair %i, %i' % (m, n_p1))
+            #print('original faces in mesh %i, %i' % (self.face_map[ind], self.face_map[ind_p1]))
+            
+            if n_p1 == 0 and not self.cyclic:
+                print('not cyclic, we are done here')
+                break
+            
+            #get the start and end faces
+            f0 = self.bme.faces[self.face_map[ind]]
+            f1 = self.bme.faces[self.face_map[n_p1]]
+            
+            #get the face locations (local coords)
+            p0 = self.cut_pts[ind]
+            p1 = self.cut_pts[n_p1]
+            
+            geo = GeoPath(self.bme, self.bvh, self.cut_ob.matrix_world)
+            geo.seed = f0
+            geo.seed_loc = p0
+            geo.target = f1
+            geo.target_loc = p1
+            
+            geo.calculate_walk()
+            
+            self.geo_segments += [geo]
+                
+            
+    
     def make_cut(self):
         if self.split: return #already did this, no going back!
         mx = self.cut_ob.matrix_world
@@ -1499,7 +1563,7 @@ class PolyLineKnife(object):
         cut_bme = bmesh.new()
         cut_me = bpy.data.meshes.new('polyknife_stroke')
         cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
-        cut_ob.hide = True
+        
         bmvs = [cut_bme.verts.new(co) for co in self.cut_pts]
         for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
             cut_bme.edges.new((v0,v1))
@@ -1748,18 +1812,198 @@ class PolyLineKnife(object):
             #if len(self.prev_region):
             #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.prev_region], 2, color = (1,1,.1,.2))
             
-        if len(self.new_cos):
-            if self.split: 
-                color = (.1, .1, .8, 1)
-            else: 
-                color = (.2,.5,.2,1)
-            common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
-        if len(self.bad_segments):
-            for ind in self.bad_segments:
-                m = self.face_changes.index(ind)
-                m_p1 = (m + 1) % len(self.face_changes)
-                ind_p1 = self.face_changes[m_p1]
-                common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
+        if len(self.geo_segments):
+            for geo in self.geo_segments:
+                geo.draw(context)
+        
+class GeoPath(object):
+    '''
+    A class which manages user placed points on an object to create a
+    piecewise path of geodesics, adapted to the objects surface.
+    '''
+    def __init__(self, bme, bvh, mx):   
+        
+        self.bme = bme
+        self.bvh = bvh
+        self.mx = mx
+        
+        self.seed = None  #BMFace
+        self.seed_loc = None #Vector in local coordinates
+        
+        self.target = None
+        self.target_loc = None
+        
+        self.geo_data = [dict(), set(), set(), set()]  #geos, fixed, close, far
+        self.path = []
+    
+    def reset_vars(self):
+        '''
+        '''
+
+        self.seed = None
+        self.seed_loc = None
+        
+        self.target = None
+        self.target_loc = None
+        self.geo_data = [dict(), set(), set(), set()]  #geos, fixed, close, far
+        self.path = []
+        
+        
+    def grab_initiate(self):
+        if self.target != None :
+            self.grab_undo_loc = self.target_loc
+            self.target_undo = self.target
+            self.path_undo = self.path
+            return True
+        else:
+            return False
+       
+    def grab_mouse_move(self,context,x,y):
+        region = context.region
+        rv3d = context.region_data
+        coord = x, y
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+        ray_target = ray_origin + (view_vector * 1000)
+
+        mx = self.cut_ob.matrix_world
+        imx = mx.inverted()
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1:        
+                self.grab_cancel()
+                return
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
+            if not res:
+                self.grab_cancel()
+                return
+        
+        #check if first or end point and it's a non man edge!   
+        geos, fixed, close, far = self.geo_data
+        
+        self.target = self.bme.faces[face_ind]
+        self.target_loc = loc
+        
+        if all([v in fixed for v in self.target.verts]):
+            
+            path_elements, self.path = gradient_descent(self.bme, geos, 
+                                self.target, self.target_loc, epsilon = .0000001)
+            print('great we have already waked the geodesic this far')
+            
+        else:
+            print('continue geo walk until we find it, then get it')
+            continue_geodesic_walk(self.bme, self.seed, self.seed_loc, 
+                           geos, fixed, close, far,
+                           targets =[self.bme.faces[face_ind]], subset = None, max_iters = 100000, min_dist = None)
+            
+            path_elements, self.path = gradient_descent(self.bme, geos, 
+                                self.target, self.target_loc, epsilon = .0000001)
+                   
+    def grab_cancel(self):
+        self.target_loc = self.grab_undo_loc
+        self.target = self.target_undo
+        self.path = self.path_undo
+        return
+    
+    def grab_confirm(self):
+        self.grab_undo_loc = None
+        self.target_undo = None
+        self.path_undo = []
+        
+        return
+               
+    def click_add_seed(self,context,x,y):
+        '''
+        x,y = event.mouse_region_x, event.mouse_region_y
+        
+        this will add a point into the bezier curve or
+        close the curve into a cyclic curve
+        '''
+        region = context.region
+        rv3d = context.region_data
+        coord = x, y
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+        ray_target = ray_origin + (view_vector * 1000)
+        mx = self.cut_ob.matrix_world
+        imx = mx.inverted()
+        
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: 
+                self.selected = -1
+                return
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        
+            if not res:
+                self.selected = -1
+                return
+        self.bme.faces.ensure_lookup_table() #how does this get outdated?
+        self.seed = self.bme.faces[face_ind]
+        self.seed_loc = loc
+        
+        self.geo_data = [dict(), set(), set(), set()]
+                
+    def click_add_target(self, context, x, y):
+        
+        region = context.region
+        rv3d = context.region_data
+        coord = x, y
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+        ray_target = ray_origin + (view_vector * 1000)
+        mx = self.cut_ob.matrix_world
+        imx = mx.inverted()
+            
+        if bversion() < '002.077.000':
+            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            if face_ind == -1: return   
+        else:
+            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+            if not res: return
+                         
+        self.target = self.bme.faces[face_ind]
+        self.target_loc = loc
+        
+        
+        geos, fixed, close, far = geodesic_walk(self.bme, self.seed, self.seed_loc, 
+                                                targets = [self.target], subset = None, max_iters = 100000,
+                                                min_dist = None)
+        
+        path_elements, self.path  = gradient_descent(self.bme, geos, 
+                                self.target, self.target_loc, epsilon = .0000001)
+        
+        self.geo_data = [geos, fixed, close, far]
+        return
+                
+    def calculate_walk(self):
+        
+        geos, fixed, close, far = geodesic_walk(self.bme, self.seed, self.seed_loc, 
+                                                targets = [self.target], subset = None, max_iters = 100000,
+                                                min_dist = None)
+        
+        path_elements, self.path  = gradient_descent(self.bme, geos, 
+                                self.target, self.target_loc, epsilon = .0000001)
+        
+        self.geo_data = [geos, fixed, close, far]
+        
+        return
+        
+    
+    def draw(self,context):
+        if len(self.path):
+            
+            pts = [self.mx * v for v in self.path]
+            common_drawing.draw_polyline_from_3dpoints(context, pts, (.2,.1,.8,1), 3, 'GL_LINE')
+
+        if self.seed_loc != None:
+            common_drawing.draw_3d_points(context, [self.mx * self.seed_loc], 8, color = (1,0,0,1))
+
+        if self.target_loc != None:
+            common_drawing.draw_3d_points(context, [self.mx * self.target_loc], 8, color = (0,1,0,1))
 
 
 class PolyCutPoint(object):
