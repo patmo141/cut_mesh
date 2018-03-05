@@ -4,9 +4,12 @@ Created on Oct 8, 2015
 @author: Patrick
 '''
 import time
+import math
 
 import bpy
 import bmesh
+import bgl
+
 from mathutils import Vector, Matrix, Color, kdtree
 from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
@@ -1712,19 +1715,19 @@ class PolyLineKnife(object):
                     
         if len(self.pts) == 0: return
         
-        if self.cyclic and len(self.pts):
-            common_drawing.draw_polyline_from_3dpoints(context, self.pts + [self.pts[0]], (.1,.2,1,.8), 2, 'GL_LINE_STRIP')
+        #if self.cyclic and len(self.pts):
+        #    common_drawing.draw_polyline_from_3dpoints(context, self.pts + [self.pts[0]], (.1,.2,1,.8), 2, 'GL_LINE_STRIP')
         
-        else:
-            common_drawing.draw_polyline_from_3dpoints(context, self.pts, (.1,.2,1,.8), 2, 'GL_LINE')
+        #else:
+        #    common_drawing.draw_polyline_from_3dpoints(context, self.pts, (.1,.2,1,.8), 2, 'GL_LINE')
         
-        if self.ui_type != 'DENSE_POLY':    
-            common_drawing.draw_3d_points(context,self.pts, 3)
-            common_drawing.draw_3d_points(context,[self.pts[0]], 8, color = (1,1,0,1))
+        #if self.ui_type != 'DENSE_POLY':    
+        #    common_drawing.draw_3d_points(context,self.pts, 3)
+        #    common_drawing.draw_3d_points(context,[self.pts[0]], 8, color = (1,1,0,1))
             
-        else:
-            common_drawing.draw_3d_points(context,self.pts, 4, color = (1,1,1,1)) 
-            common_drawing.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
+        #else:
+        #    common_drawing.draw_3d_points(context,self.pts, 4, color = (1,1,1,1)) 
+        #    common_drawing.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
         
         
         if self.selected != -1 and len(self.pts) >= self.selected + 1:
@@ -1748,12 +1751,12 @@ class PolyLineKnife(object):
             #if len(self.prev_region):
             #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.prev_region], 2, color = (1,1,.1,.2))
             
-        if len(self.new_cos):
-            if self.split: 
-                color = (.1, .1, .8, 1)
-            else: 
-                color = (.2,.5,.2,1)
-            common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
+        #if len(self.new_cos):
+        #    if self.split: 
+        #        color = (.1, .1, .8, 1)
+        #    else: 
+        #        color = (.2,.5,.2,1)
+        #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
         if len(self.bad_segments):
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
@@ -1762,6 +1765,99 @@ class PolyLineKnife(object):
                 common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
 
 
+    def draw3d(self,context):
+        #ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
+        if len(self.pts) == 0: return
+        
+        region,r3d = context.region,context.space_data.region_3d
+        view_dir = r3d.view_rotation * Vector((0,0,-1))
+        view_loc = r3d.view_location - view_dir * r3d.view_distance
+        if r3d.view_perspective == 'ORTHO': view_loc -= view_dir * 1000.0
+        
+        bgl.glEnable(bgl.GL_POINT_SMOOTH)
+        bgl.glDepthRange(0.0, 1.0)
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
+        
+        
+        
+        def set_depthrange(near=0.0, far=1.0, points=None):
+            if points and len(points) and view_loc:
+                d2 = min((view_loc-p).length_squared for p in points)
+                d = math.sqrt(d2)
+                d2 /= 10.0
+                near = near / d2
+                far = 1.0 - ((1.0 - far) / d2)
+            if r3d.view_perspective == 'ORTHO':
+                far *= 0.9999
+            near = max(0.0, min(1.0, near))
+            far = max(near, min(1.0, far))
+            bgl.glDepthRange(near, far)
+            #bgl.glDepthRange(0.0, 0.5)
+            
+        def draw3d_points(context, points, color, size):
+            #if type(points) is types.GeneratorType:
+            #    points = list(points)
+            if len(points) == 0: return
+            bgl.glColor4f(*color)
+            bgl.glPointSize(size)
+            set_depthrange(0.0, 0.997, points)
+            bgl.glBegin(bgl.GL_POINTS)
+            for coord in points: bgl.glVertex3f(*coord)
+            bgl.glEnd()
+            bgl.glPointSize(1.0)
+            
+
+        def draw3d_polyline(context, points, color, thickness, LINE_TYPE, zfar=0.997):
+            
+            if len(points) == 0: return
+            # if type(points) is types.GeneratorType:
+            #     points = list(points)
+            if LINE_TYPE == "GL_LINE_STIPPLE":
+                bgl.glLineStipple(4, 0x5555)  #play with this later
+                bgl.glEnable(bgl.GL_LINE_STIPPLE)  
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*color)
+            bgl.glLineWidth(thickness)
+            set_depthrange(0.0, zfar, points)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for coord in points: bgl.glVertex3f(*coord)
+            bgl.glEnd()
+            bgl.glLineWidth(1)
+            if LINE_TYPE == "GL_LINE_STIPPLE":
+                bgl.glDisable(bgl.GL_LINE_STIPPLE)
+                bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
+                
+        bgl.glLineWidth(1)
+        bgl.glDepthRange(0.0, 1.0)
+        
+        
+        
+        
+        if len(self.new_cos):
+            if self.split: 
+                color = (.1, .1, .8, 1)
+            else: 
+                color = (.2,.5,.2,1)
+            draw3d_polyline(context,[self.cut_ob.matrix_world * v for v in self.new_cos], color, 5, 'GL_LINE_STRIP')
+            
+        
+        
+        else:
+            if self.cyclic and len(self.pts):
+                draw3d_polyline(context, self.pts + [self.pts[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
+            else:
+                draw3d_polyline(context, self.pts,  (.1,.2,1,.8),2, 'GL_LINE' )
+            
+        draw3d_points(context, [self.pts[0]], (.8,.8,.2,1), 10)
+        if len(self.pts) > 1:
+            draw3d_points(context, self.pts[1:], (.2, .2, .8, 1), 6)
+                
+        bgl.glLineWidth(1)
+        bgl.glDepthRange(0.0, 1.0)
+        
+        
+        
+        
 class PolyCutPoint(object):
     
     def __init__(self,co):

@@ -18,7 +18,8 @@ class Polytrim_UI_Draw():
         pass
     
     def draw_3d(self,context):
-        pass
+        self.knife.draw3d(context)
+        
     
     def draw_2d(self,context):
         self.knife.draw(context)
