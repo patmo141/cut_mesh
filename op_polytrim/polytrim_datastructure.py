@@ -65,6 +65,8 @@ class PolyLineKnife(object):
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
         self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
         
+        
+   
         #print(self.non_man_ed_loops)
         self.non_man_points = []
         self.non_man_bmverts = []
@@ -239,6 +241,8 @@ class PolyLineKnife(object):
         self.end_edge_undo = None
         return
                
+    ## Add's a point to the trim line. 
+    # - called in wait mode when LEFTMOUSE is pressed.
     def click_add_point(self,context,x,y):
         '''
         x,y = event.mouse_region_x, event.mouse_region_y
@@ -246,6 +250,8 @@ class PolyLineKnife(object):
         this will add a point into the bezier curve or
         close the curve into a cyclic curve
         '''
+
+        # The next couple chunks of code are repetive. They exist in other functions.
         region = context.region
         rv3d = context.region_data
         coord = x, y
@@ -290,7 +296,8 @@ class PolyLineKnife(object):
             self.face_map += [ed.link_faces[0].index]
             self.normals += [view_vector]
             self.selected = len(self.pts) -1
-        
+
+        # Add pont information to datastructures if nothing is being hovered over
         if self.hovered[0] == None and not self.end_edge:  #adding in a new point at end
             self.pts += [mx * loc]  #Store the world location of the click
             self.cut_pts += [loc]   #store the local location of the click (in cut_object space)
@@ -299,9 +306,11 @@ class PolyLineKnife(object):
             self.face_map += [face_ind]
             self.selected = len(self.pts) -1
                 
+        # If you click point, set it's index to 'selected'
         if self.hovered[0] == 'POINT':
             self.selected = self.hovered[1]
-            if self.hovered[1] == 0 and not self.start_edge:  #clicked on first bpt, close loop
+            # If click is first point
+            if self.hovered[1] == 0 and not self.start_edge:  
                 #can not  toggle cyclic any more, once it's on it remains on
                 if self.cyclic:
                     return
@@ -309,7 +318,8 @@ class PolyLineKnife(object):
                     self.cyclic = True
             return
          
-        elif self.hovered[0] == 'EDGE':  #cut in a new point
+        # If an edge is clicked, cut in a new point
+        elif self.hovered[0] == 'EDGE':  
             self.pts.insert(self.hovered[1]+1, mx * loc)
             self.cut_pts.insert(self.hovered[1]+1, loc)
             self.normals.insert(self.hovered[1]+1, view_vector)
@@ -450,7 +460,7 @@ class PolyLineKnife(object):
                 #do some shit
                 pass
             
-        # if no input points, make hovered[0] = None and stop
+        # if no input points...
         if len(self.pts) == 0:
             self.hovered = [None, -1]
             self.hover_non_man(context, x, y)
@@ -869,13 +879,14 @@ class PolyLineKnife(object):
                 attempts = 0
                 while epp < .0001 and not len(vs) and attempts <= 5:
                     attempts += 1
-                    vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(self.bme, 
-                                                             self.bvh,                                         
-                                                             #self.cut_pts[ind], self.cut_pts[ind_p1],
-                                                             self.cut_pts[ind], self.cut_pts[n_p1], 
-                                                             max_tests = 10000, debug = True, 
-                                                             prev_face = p_face,
-                                                             use_limit = use_limit)
+                    vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(
+                        self.bme, 
+                        self.bvh,                                         
+                        #self.cut_pts[ind], self.cut_pts[ind_p1],
+                        self.cut_pts[ind], self.cut_pts[n_p1], 
+                        max_tests = 10000, debug = True, 
+                        prev_face = p_face,
+                        use_limit = use_limit)
                     if len(vs) and error == 'LIMIT_SET':
                         vs = []
                         use_limit = False
