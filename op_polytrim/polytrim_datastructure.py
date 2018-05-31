@@ -411,7 +411,9 @@ class PolyLineKnife(object):
                     else:
                         self.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
                         return
-                    
+
+    ## Called everytime mouse is moved while in wait mode.
+    # - checks to see what mouse is hovering over (EDGE, POINT, or None) and sets info to variable 'hovered'   
     def hover(self,context,x,y):
         '''
         hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges
@@ -424,12 +426,16 @@ class PolyLineKnife(object):
         
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         
-        
+        # I AM STILL CONFUSED ABOUT THIS Section
+        # | - Also, the same code repeats several times meaning it could be put into it's own function
+        # | - Code above this also repeats
+        # V
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
         ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * 1000)
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
+
         #loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
         ''' '''
         
@@ -444,6 +450,7 @@ class PolyLineKnife(object):
                 #do some shit
                 pass
             
+        # if no input points, make hovered[0] = None and stop
         if len(self.pts) == 0:
             self.hovered = [None, -1]
             self.hover_non_man(context, x, y)
@@ -466,23 +473,26 @@ class PolyLineKnife(object):
         closest_3d_point = min(self.pts, key = dist3d)
         screen_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_point))
         
+        # If an input point is less than 20(some unit) away, stop and set hovered to the input point
         if screen_dist  < 20:
             self.hovered = ['POINT',self.pts.index(closest_3d_point)]
             return
 
+        # If there is 1 input point, stop and set hovered to None
         if len(self.pts) < 2: 
             self.hovered = [None, -1]
             return
         
+        ## ?? What is happening here 
         line_inters3d = []
-                
         for i in range(0,len(self.pts)):   
             
             nexti = (i + 1) % len(self.pts)
             if next == 0 and not self.cyclic:
                 self.hovered = [None, -1]
                 return
-                 
+
+             
             intersect3d = intersect_point_line(self.cut_ob.matrix_world * loc, self.pts[i], self.pts[nexti])
             
             if intersect3d != None:
@@ -496,13 +506,15 @@ class PolyLineKnife(object):
             else:
                 line_inters3d += [1000000]
         
-        
+        ## ?? And here
         i = line_inters3d.index(min(line_inters3d))
         nexti = (i + 1) % len(self.pts)  
-   
+        
+        ## ?? And here
         a  = loc3d_reg2D(context.region, context.space_data.region_3d,self.pts[i])
         b = loc3d_reg2D(context.region, context.space_data.region_3d,self.pts[nexti])
         
+        ## ?? and here, obviously, its stopping and setting hovered to EDGE, but how?
         if a and b:
             intersect = intersect_point_line(Vector((x,y)).to_3d(), a.to_3d(),b.to_3d())      
             dist = (intersect[0].to_2d() - Vector((x,y))).length_squared
@@ -511,6 +523,7 @@ class PolyLineKnife(object):
                 self.hovered = ['EDGE', i]        
                 return
              
+        ## Multiple points, but not hovering over edge or point.
         self.hovered = [None, -1]
         
         if self.start_edge != None:
