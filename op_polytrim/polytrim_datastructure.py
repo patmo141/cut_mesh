@@ -46,7 +46,7 @@ class PolyLineKnife(object):
         self.start_edge = None
         self.end_edge = None
         
-        self.pts = []
+        self.pts = []  #world space  self.cut_ob.matrix_world * local_points
         self.cut_pts = []  #local points
         self.normals = []
         
@@ -292,8 +292,8 @@ class PolyLineKnife(object):
             self.selected = len(self.pts) -1
         
         if self.hovered[0] == None and not self.end_edge:  #adding in a new point at end
-            self.pts += [mx * loc]
-            self.cut_pts += [loc]
+            self.pts += [mx * loc]  #Store the world location of the click
+            self.cut_pts += [loc]   #store the local location of the click (in cut_object space)
             #self.normals += [no]
             self.normals += [view_vector] #try this, because fase normals are difficult
             self.face_map += [face_ind]
@@ -624,6 +624,7 @@ class PolyLineKnife(object):
         
     def preprocess_points(self):
         '''
+        Accomodate for high density cutting on low density geometry
         '''
         if not self.cyclic and not (self.start_edge != None and self.end_edge != None):
             print('not ready!')
@@ -641,7 +642,7 @@ class PolyLineKnife(object):
                 print((self.face_map[i],group))
                 
             if self.face_map[i] != last_face_ind: #we have found a new face
-                self.face_changes.append(i-1)
+                self.face_changes.append(i-1) #this index in cut points, represents an input point that is on a face which has not been evaluted previously
                 #Face changes might better be described as edge crossings
                 
                 if last_face_ind not in self.face_groups: #previous face has not been mapped before
@@ -767,11 +768,12 @@ class PolyLineKnife(object):
         print('\n')
         print('BEGIN CUT ON POLYLINE')
         
-        self.new_cos = []
-        self.ed_map = []
+        self.new_cos = []  #New coordinates created by intersections of mesh edges with cut segments
+        self.ed_map = []  #smarter thing to do might be edge_map = {}  edge_map[ed] = co. Can't cross an edge twice because dictionary reqires
+        
         
         self.face_chain = set()
-        self.preprocess_points()
+        self.preprocess_points()  #put things into different data strucutures and grouping input points with polygong in the cut object
         self.bad_segments = []
         
         self.new_ed_face_map = dict()
@@ -798,8 +800,8 @@ class PolyLineKnife(object):
             #n_p1 = (m + 1) % len(self.face_changes)
             #ind_p1 = self.face_changes[n_p1]
 
-            n_p1 = (ind + 1) % len(self.cut_pts)
-            ind_p1 = self.face_map[n_p1]
+            n_p1 = (ind + 1) % len(self.cut_pts)  #The index of the next cut_pt (input point)
+            ind_p1 = self.face_map[n_p1]  #the face in the cut object which the next cut point falls upon
             
             
             n_m1 = (ind - 1)
@@ -811,23 +813,29 @@ class PolyLineKnife(object):
                 print('not cyclic, we are done here')
                 break
             
-            f0 = self.bme.faces[self.face_map[ind]]
+            f0 = self.bme.faces[self.face_map[ind]]  #<<--- Actualy get the BMFace from the cut_object BMEesh
             self.face_chain.add(f0)
             
-            f1 = self.bme.faces[self.face_map[n_p1]]
-            no0 = self.normals[ind]
-            no1 = self.normals[n_p1]
+            f1 = self.bme.faces[self.face_map[n_p1]] #<<--- Actualy get the BMFace from the cut_object BMEesh
             
+            ###########################
+            ## Define the cutting plane for this segment#
+            ############################
+            
+            no0 = self.normals[ind]  #direction the user was looking when defining the cut
+            no1 = self.normals[n_p1]  #direction the user was looking when defining the cut
             surf_no = imx.to_3x3() * no0.lerp(no1, 0.5)  #must be a better way.
 
             e_vec = self.cut_pts[n_p1] - self.cut_pts[ind]
             
+            
+            #define
             cut_no = e_vec.cross(surf_no)
                 
             #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
             cut_pt = .5*self.cut_pts[n_p1] + 0.5*self.cut_pts[ind]
     
-            #find the shared edge
+            #find the shared edge,, check for adjacent faces for this cut segment
             cross_ed = None
             for ed in f0.edges:
                 if f1 in ed.link_faces:
@@ -838,7 +846,7 @@ class PolyLineKnife(object):
             #if no shared edge, need to cut across to the next face    
             if not cross_ed:
                 if self.face_changes.index(ind) != 0:
-                    p_face = self.bme.faces[self.face_map[ind-1]]
+                    p_face = self.bme.faces[self.face_map[ind-1]]  #previous face to try and be smart about the direction we are going to walk
                 else:
                     p_face = None
                 
@@ -913,7 +921,9 @@ class PolyLineKnife(object):
                         
                     if ind == len(self.face_changes) - 1 and self.cyclic:
                         print('This is the loop closing segment.  %i' % len(vs))
-                else:
+                
+                
+                else:  #we failed to find the next face in the face group
                     self.bad_segments.append(ind)
                     print('cut failure!!!')
                 
