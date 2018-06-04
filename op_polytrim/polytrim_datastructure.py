@@ -143,13 +143,15 @@ class PolyLineKnife(object):
             return False
        
     def grab_mouse_move(self,context,x,y):
+         #  This code repeats several times meaning it could be put into it's own function
+        # | 
+        # V
         region = context.region
         rv3d = context.region_data
         coord = x, y
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
         ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * 1000)
-
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
 
@@ -330,6 +332,9 @@ class PolyLineKnife(object):
                 self.make_cut()
             return
     
+    def click_add_point2(self,context,x,y): 
+        test = 'test'        
+
     def click_delete_point(self, mode = 'mouse'):
         if mode == 'mouse':
             if self.hovered[0] != 'POINT': return
@@ -437,9 +442,6 @@ class PolyLineKnife(object):
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         
         # I AM STILL CONFUSED ABOUT THIS Section
-        # | - Also, the same code repeats several times meaning it could be put into it's own function
-        # | - Code above this also repeats
-        # V
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
         ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * 1000)
@@ -881,7 +883,7 @@ class PolyLineKnife(object):
                     attempts += 1
                     vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(
                         self.bme, 
-                        self.bvh,                                         
+                        self.bvh,       
                         #self.cut_pts[ind], self.cut_pts[ind_p1],
                         self.cut_pts[ind], self.cut_pts[n_p1], 
                         max_tests = 10000, debug = True, 
@@ -911,13 +913,14 @@ class PolyLineKnife(object):
                     attempts = 0
                     while epp < .0001 and not len(vs) and attempts <= 10:
                         attempts += 1
-                        vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(self.bme,
-                                                        cut_pt, cut_no, 
-                                                        f0.index,self.cut_pts[ind],
-                                                        #f1.index, self.cut_pts[ind_p1],
-                                                        f1.index, self.cut_pts[n_p1],
-                                                        max_tests = 10000, debug = True, prev_face = p_face,
-                                                        epsilon = epp)
+                        vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(
+                            self.bme,
+                            cut_pt, cut_no, 
+                            f0.index,self.cut_pts[ind],
+                            #f1.index, self.cut_pts[ind_p1],
+                            f1.index, self.cut_pts[n_p1],
+                            max_tests = 10000, debug = True, prev_face = p_face,
+                            epsilon = epp)
                         if len(vs) and error == 'LIMIT_SET':
                             vs = []
                             use_limit = False
@@ -1740,13 +1743,16 @@ class PolyLineKnife(object):
         print('replace')
         return
                 
-    def draw(self,context):
+    def draw(self,context): 
         
-        
+        print("Hovered", self.hovered)
+
+        ## When hovering over non manifold edge, shows green point
         if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             ed, pt = self.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, color = (.3,1,.3,1))
                     
+        ## If there are no input points, nothing else needs be drawn
         if len(self.pts) == 0: return
         
         #if self.cyclic and len(self.pts):
@@ -1763,20 +1769,22 @@ class PolyLineKnife(object):
         #    common_drawing.draw_3d_points(context,self.pts, 4, color = (1,1,1,1)) 
         #    common_drawing.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
         
-        
+        ## color selected point cyan
         if self.selected != -1 and len(self.pts) >= self.selected + 1:
             common_drawing.draw_3d_points(context,[self.pts[self.selected]], 8, color = (0,1,1,1))
                 
+        ## color hovered point green
         if self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.pts[self.hovered[1]]], 8, color = (0,1,0,1))
-     
+        ##  create/color hovered edge's assist lines, point hover takes priority
         elif self.hovered[0] == 'EDGE':
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
             a = loc3d_reg2D(context.region, context.space_data.region_3d, self.pts[self.hovered[1]])
             next = (self.hovered[1] + 1) % len(self.pts)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, self.pts[next])
-            common_drawing.draw_polyline_from_points(context, [a,self.mouse, b], (0,.2,.2,.5), 2,"GL_LINE_STRIP")  
+            common_drawing.draw_polyline_from_points(context, [a,self.mouse, b], (0,0,1,.2), 2,"GL_LINE_STRIP")  
 
+        ## color face seed points
         if self.face_seed:
             #TODO direct bmesh face drawing util
             vs = self.face_seed.verts
@@ -1791,12 +1799,15 @@ class PolyLineKnife(object):
         #    else: 
         #        color = (.2,.5,.2,1)
         #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
+
+        print("Bad Segments:", self.bad_segments)
+        print("Face Changes:", self.face_changes)
         if len(self.bad_segments):
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
                 m_p1 = (m + 1) % len(self.face_changes)
                 ind_p1 = self.face_changes[m_p1]
-                common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
+                common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,1,.1,1), 4, 'GL_LINE')
 
 
     def draw3d(self,context):
