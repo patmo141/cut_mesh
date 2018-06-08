@@ -28,8 +28,8 @@ class Polytrim_UI_ModalWait():
             return 'main'
         
         if  eventd['press'] == 'LEFTMOUSE':
-            x,y = eventd['mouse']
-            self.knife.click_add_point(context, x,y)  #takes care of selection too
+            x,y = eventd['mouse']  #gather the 2D coordinates of the mouse click
+            self.knife.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
             if self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT':
                 self.sketch = [(x,y)]
                 return 'sketch'
@@ -153,7 +153,7 @@ class Polytrim_UI_ModalWait():
             if not len(self.sketch):
                 return 'main'
             (lx, ly) = self.sketch[-1]
-            ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing
+            ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
             self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
             return 'sketch'
         
