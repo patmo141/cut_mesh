@@ -23,6 +23,9 @@ class Polytrim_UI_Tools():
         print('sketch confirmed')
         if len(self.sketch) < 5 and self.knife.ui_type == 'DENSE_POLY':
             print('sketch too short, cant confirm')
+            
+            if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0:
+                self.knife.cyclic = True  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
             return
         x,y = eventd['mouse']  #coordinates of where LeftMouse was released
         region = context.region
@@ -45,7 +48,7 @@ class Polytrim_UI_Tools():
 
             #add the points in at beginning of line
             if hover_start == 0: 
-                self.knife.cyclic = False  # Correction for having set cyclic equal to True previously
+                #self.knife.cyclic = False  # Correction for having set cyclic equal to True previously
                 self.knife.pts = new_pts[::-1] + self.knife.pts[:]
                 self.knife.normals = [view_vector]*len(sketch_3d[0::5]) + self.knife.normals 
                 self.knife.pts = self.knife.pts[::-1]
