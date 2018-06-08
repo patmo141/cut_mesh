@@ -1719,6 +1719,7 @@ class PolyLineKnife(object):
     def draw(self,context):
         
         
+        #draw a dot over the hovered vertex
         if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             ed, pt = self.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, color = (.3,1,.3,1))
@@ -1740,19 +1741,23 @@ class PolyLineKnife(object):
         #    common_drawing.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
         
         
+        #draw a dot of sepecfic color representing the user selected input point
         if self.selected != -1 and len(self.pts) >= self.selected + 1:
             common_drawing.draw_3d_points(context,[self.pts[self.selected]], 8, color = (0,1,1,1))
-                
+        
+        #pre-highlight the point under the mouse        
         if self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.pts[self.hovered[1]]], 8, color = (0,1,0,1))
      
+        #draw the silly green insertion line when possible to cut a new input point into an existing cut segment
         elif self.hovered[0] == 'EDGE':
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
             a = loc3d_reg2D(context.region, context.space_data.region_3d, self.pts[self.hovered[1]])
             next = (self.hovered[1] + 1) % len(self.pts)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, self.pts[next])
             common_drawing.draw_polyline_from_points(context, [a,self.mouse, b], (0,.2,.2,.5), 2,"GL_LINE_STRIP")  
-
+        
+        #draw the vertices of the seed face yellow
         if self.face_seed:
             #TODO direct bmesh face drawing util
             vs = self.face_seed.verts
@@ -1767,6 +1772,8 @@ class PolyLineKnife(object):
         #    else: 
         #        color = (.2,.5,.2,1)
         #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
+        
+        #draw any bad segments in red
         if len(self.bad_segments):
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
