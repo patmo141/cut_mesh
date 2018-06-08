@@ -25,6 +25,8 @@ class PolyLineKnife(object):
     A class which manages user placed points on an object to create a
     poly_line, adapted to the objects surface.
     '''
+
+    ## Initializing 
     def __init__(self,context, cut_object, ui_type = 'DENSE_POLY'):   
         self.cut_ob = cut_object
         self.bme = bmesh.new()
@@ -105,6 +107,7 @@ class PolyLineKnife(object):
         self.inner_faces = []
         self.face_seed = None
     
+    ## Resets datastructures
     def reset_vars(self):
         '''
         TODOD, parallel workflow will make this obsolete
@@ -133,6 +136,8 @@ class PolyLineKnife(object):
         self.bad_segments = []
         self.face_seed = None
         
+    ## Initiates a grab if point is selected
+    # - called when 'G' is pressed
     def grab_initiate(self):
         if self.selected != -1:
             self.grab_undo_loc = self.pts[self.selected]
@@ -142,10 +147,10 @@ class PolyLineKnife(object):
         else:
             return False
        
+    # 
     def grab_mouse_move(self,context,x,y):
-         #  This code repeats several times meaning it could be put into it's own function
-        # | 
-        # V
+        
+       
         region = context.region
         rv3d = context.region_data
         coord = x, y
@@ -332,9 +337,8 @@ class PolyLineKnife(object):
                 self.make_cut()
             return
     
-    def click_add_point2(self,context,x,y): 
-        test = 'test'        
-
+    ## Delete's a point from the trim line. 
+    # - called in wait mode when RIGHTMOUSE is pressed.
     def click_delete_point(self, mode = 'mouse'):
         if mode == 'mouse':
             if self.hovered[0] != 'POINT': return
@@ -428,7 +432,7 @@ class PolyLineKnife(object):
                         return
 
     ## Called everytime mouse is moved while in wait mode.
-    # - checks to see what mouse is hovering over (EDGE, POINT, or None) and sets info to variable 'hovered'   
+    # - checks to see what mouse is hovering over  and sets info to variable 'hovered'   
     def hover(self,context,x,y):
         '''
         hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges
@@ -441,7 +445,6 @@ class PolyLineKnife(object):
         
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         
-        # I AM STILL CONFUSED ABOUT THIS Section
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
         ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
         ray_target = ray_origin + (view_vector * 1000)
@@ -541,6 +544,7 @@ class PolyLineKnife(object):
         if self.start_edge != None:
             self.hover_non_man(context, x, y)  #todo, optimize because double ray cast per mouse move!
           
+    # ??
     def snap_poly_line(self):
         '''
         only needed if processing an outside mesh
@@ -647,6 +651,8 @@ class PolyLineKnife(object):
                         v_group.pop()
                         self.face_groups[e_ind] = v_group
         
+    ## Fills data strucutures based on trim line and groups input points with polygons in the cut object
+    # - called in make_cut() so that make cut
     def preprocess_points(self):
         '''
         Accomodate for high density cutting on low density geometry
@@ -658,15 +664,19 @@ class PolyLineKnife(object):
         self.face_changes = []
         self.face_groups = dict()
         last_face_ind = None
+
+        # Loop through each input point
         for i, v in enumerate(self.pts):
-            
+
+            # if loop is on first input point
             if i == 0:
                 last_face_ind = self.face_map[i]
                 group = [i]
                 print('first face group index')
                 print((self.face_map[i],group))
                 
-            if self.face_map[i] != last_face_ind: #we have found a new face
+            # if we have found a new face
+            if self.face_map[i] != last_face_ind: 
                 self.face_changes.append(i-1) #this index in cut points, represents an input point that is on a face which has not been evaluted previously
                 #Face changes might better be described as edge crossings
                 
@@ -798,7 +808,7 @@ class PolyLineKnife(object):
         
         
         self.face_chain = set()
-        self.preprocess_points()  #put things into different data strucutures and grouping input points with polygong in the cut object
+        self.preprocess_points()  #put things into different data strucutures and grouping input points with polygons in the cut object
         self.bad_segments = []
         
         self.new_ed_face_map = dict()
@@ -1737,7 +1747,7 @@ class PolyLineKnife(object):
         cut_bme.to_mesh(cut_me)
         context.scene.objects.link(cut_ob)
         cut_ob.show_x_ray = True
-          
+  
     def replace_segment(self,start,end,new_locs):
         #http://stackoverflow.com/questions/497426/deleting-multiple-elements-from-a-list
         print('replace')
@@ -1745,7 +1755,6 @@ class PolyLineKnife(object):
                 
     def draw(self,context): 
         
-        print("Hovered", self.hovered)
 
         ## When hovering over non manifold edge, shows green point
         if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
@@ -1800,14 +1809,13 @@ class PolyLineKnife(object):
         #        color = (.2,.5,.2,1)
         #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
 
-        print("Bad Segments:", self.bad_segments)
-        print("Face Changes:", self.face_changes)
+        ## Draws red line on bad segments
         if len(self.bad_segments):
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
                 m_p1 = (m + 1) % len(self.face_changes)
                 ind_p1 = self.face_changes[m_p1]
-                common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,1,.1,1), 4, 'GL_LINE')
+                common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
 
 
     def draw3d(self,context):
@@ -1839,6 +1847,7 @@ class PolyLineKnife(object):
             bgl.glDepthRange(near, far)
             #bgl.glDepthRange(0.0, 0.5)
             
+        # function for drawing points
         def draw3d_points(context, points, color, size):
             #if type(points) is types.GeneratorType:
             #    points = list(points)
@@ -1851,7 +1860,7 @@ class PolyLineKnife(object):
             bgl.glEnd()
             bgl.glPointSize(1.0)
             
-
+        # function for drawing polylines.
         def draw3d_polyline(context, points, color, thickness, LINE_TYPE, zfar=0.997):
             
             if len(points) == 0: return
@@ -1877,7 +1886,7 @@ class PolyLineKnife(object):
         
         
         
-        
+        # draws the polylines for after 'c' has been pressed/ after make_cut.
         if len(self.new_cos):
             if self.split: 
                 color = (.1, .1, .8, 1)
@@ -1886,14 +1895,15 @@ class PolyLineKnife(object):
             draw3d_polyline(context,[self.cut_ob.matrix_world * v for v in self.new_cos], color, 5, 'GL_LINE_STRIP')
             
         
-        
+        # draw the polylines for before 'c' has been pressed/before make_cut
         else:
             if self.cyclic and len(self.pts):
                 draw3d_polyline(context, self.pts + [self.pts[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
             else:
                 draw3d_polyline(context, self.pts,  (.1,.2,1,.8),2, 'GL_LINE' )
-            
-        draw3d_points(context, [self.pts[0]], (.8,.8,.2,1), 10)
+        
+        # draw points
+        draw3d_points(context, [self.pts[0]], (1,.8,.2,1), 10)
         if len(self.pts) > 1:
             draw3d_points(context, self.pts[1:], (.2, .2, .8, 1), 6)
                 
