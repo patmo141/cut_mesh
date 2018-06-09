@@ -12,6 +12,10 @@ class Polytrim_UI_ModalWait():
         nmode = self.modal_nav(context, eventd)
         if nmode != '':
             return nmode  #stop here and tell parent modal to 'PASS_THROUGH'
+        
+        # test code that will break operator :)
+        #if eventd['press'] == 'F9': bad = 3.14 / 0
+        #if eventd['press'] == 'F10': assert False
 
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':

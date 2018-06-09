@@ -13,6 +13,8 @@ class CGC_Slice(ModalOperator, Slice_UI, Slice_UI_ModalWait, Slice_UI_Draw):
     ''' CG Cookie Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
+    operator_id    = "cgcookie.slice"       # operator_id needs to be the same as bl_idname
+                                            # important: bl_idname is mangled by Blender upon registry :(
     bl_idname      = "cgcookie.slice"
     bl_label       = "Slice"
     bl_space_type  = 'VIEW_3D'
