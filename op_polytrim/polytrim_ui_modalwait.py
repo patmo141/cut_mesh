@@ -154,6 +154,7 @@ class Polytrim_UI_ModalWait():
             x,y = eventd['mouse']
             if not len(self.sketch):
                 return 'main'
+            ## Manipulating sketch data
             (lx, ly) = self.sketch[-1]
             ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
             self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
