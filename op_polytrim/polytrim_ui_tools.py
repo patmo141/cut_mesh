@@ -15,7 +15,7 @@ class Polytrim_UI_Tools():
             #perhaps, self.knife needs some of these methods         
             #self.knife.sketch_confirm(self.setch)        
             #might make sense to hvae self.draw_sketch  -> self.knife?   Subclass of knife?
-            #some logic related to closing the loop or extending the polyline from the first point.
+            
         
         # sketch is too short
         if len(self.sketch) < 5 and self.knife.ui_type == 'DENSE_POLY':
@@ -35,7 +35,6 @@ class Polytrim_UI_Tools():
         hover_start = self.knife.hovered[1] #guaranteed to be a point by criteria to enter sketch mode
         self.knife.hover(context,x,y)  #hover again with current mouse location to see if we have re-entered the existing polyline
         hover_end = self.knife.hovered[1]
-        print(hover_start,hover_end)
    
         ## Getting list of sketch points
         sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)  #at this moment we are going into 3D space, this returns world space locations
@@ -67,7 +66,6 @@ class Polytrim_UI_Tools():
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
                 self.knife.pts = self.knife.pts[:hover_start] + sketch_points
                 self.knife.normals = self.knife.normals[:hover_start] + [view_vector]*len(sketch_points)
-                print('snipped off and added on to the tail')
         
         # user is replacing a segment with a sketch because they initiaiated and terminated the sketch on the line.
         else:  
