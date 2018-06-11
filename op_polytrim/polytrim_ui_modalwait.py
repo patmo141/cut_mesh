@@ -38,15 +38,16 @@ class Polytrim_UI_ModalWait():
             if (self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT') or len(self.knife.pts) == 1:
                 if old_cyclic == False and self.knife.hovered[1] == 0: self.knife.cyclic = False
                 self.sketch = [(x,y)]
-                print("ENTERING SKETCGHING")
                 return 'sketch'
             return 'main'
         
         if eventd['press'] == 'RIGHTMOUSE':
+            x,y = eventd['mouse']
             if self.knife.start_edge != None and self.knife.hovered[1] == 0:
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')
+            self.knife.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
             if len(self.knife.new_cos):
                 self.knife.make_cut()
             return 'main'
