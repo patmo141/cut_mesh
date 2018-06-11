@@ -31,9 +31,10 @@ class Polytrim_UI_ModalWait():
             old_cyclic = self.knife.cyclic
             x,y = eventd['mouse']  #gather the 2D coordinates of the mouse click
             self.knife.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
-            if self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT':
+            if (self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT') or len(self.knife.pts) == 1:
                 if old_cyclic == False and self.knife.hovered[1] == 0: self.knife.cyclic = False
                 self.sketch = [(x,y)]
+                print("ENTERING SKETCGHING")
                 return 'sketch'
             return 'main'
         
