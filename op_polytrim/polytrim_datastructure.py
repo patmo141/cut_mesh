@@ -372,6 +372,100 @@ class PolyLineKnife(object):
         self.end_edge_undo = None
         return
  
+    ## Makes the sketch and rebuilds the list of input points depending on the sketch
+    def make_sketch(self, hover_start, hover_end, sketch_points, view_vector):
+        #User is not connecting back to polyline
+        if self.hovered[0] == None:  
+
+            # Do nothing if it's cyclic
+            if self.cyclic:
+                pass
+
+            # add the points in at beginning of line
+            elif hover_start == 0: 
+                self.pts = sketch_points[::-1] + self.pts[:]
+                self.normals = [view_vector]*len(sketch_points) + self.normals 
+                self.pts = self.pts[::-1]
+                self.normals = self.normals[::-1]
+            
+            # add points at end of line
+            elif hover_start == len(self.pts) - 1:
+                self.cyclic = False  # Correction for having set cyclic equal to True previously
+                self.pts += sketch_points   #filter out 4 out of 5 points to keep data density managable.  TODO, good opportunity for UI tuning>
+                
+                #store the view direction for cutting
+                self.normals += [view_vector]*len(sketch_points) #TODO optimize...don't slice twice, you are smart enough to calc this length!
+
+            # add points midway into the line and trim the rest
+            else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
+                self.pts = self.pts[:hover_start] + sketch_points
+                self.normals = self.normals[:hover_start] + [view_vector]*len(sketch_points)
+        
+        # user is replacing a segment with a sketch because they initiaiated and terminated the sketch on the line.
+        else:  
+            # if start and stop sketch point is same, don't do anything, unless their is only 1 point.
+            if hover_end == hover_start:
+                if len(self.pts) == 1: 
+                    self.pts += sketch_points
+                    self.normals += [view_vector]*len(sketch_points)
+                    self.cyclic = True
+
+            elif self.cyclic:
+                # figure out ammount of points between hover_end and hover_start on both sides
+                last_point_index = len(self.pts) - 1
+                num_between = abs(hover_end - hover_start) - 1
+                if hover_start < hover_end:  num_between_thru_origin = (last_point_index - hover_end) + hover_start
+                else: num_between_thru_origin = (last_point_index - hover_start) + hover_end
+
+                # path through origin point is shorter so cut them out points on those segments/points
+                if num_between_thru_origin <= num_between:
+                    if hover_start > hover_end:  
+                        self.pts = self.pts[hover_end:hover_start] + sketch_points
+                        self.normals = self.normals[hover_end:hover_start] + [view_vector]*len(sketch_points)
+                    else:
+                        self.pts = sketch_points + self.pts[hover_end:hover_start:-1]
+                        self.normals = [view_vector]*len(sketch_points) + self.normals[hover_end:hover_start:-1]
+
+                # path not passing through origin point is shorter so cut points on this path
+                else:
+                    if hover_start > hover_end:  
+                        self.pts = self.pts[:hover_end] + sketch_points[::-1] + self.pts[hover_start:] 
+                        self.normals = self.normals[:hover_end] + [view_vector]*len(sketch_points) + self.normals[hover_start:] 
+                    else:
+                        
+                        self.pts = self.pts[:hover_start] + sketch_points + self.pts[hover_end:] 
+                        self.normals = self.normals[:hover_start] + [view_vector]*len(sketch_points) + self.normals[hover_end:]
+
+            else:
+                #drawing "upstream" relative to self.pts indexing (towards index 0)
+                if hover_start > hover_end:  
+                    # connecting the ends (making cyclic)
+                    if hover_end == 0 and hover_start == len(self.pts) - 1:
+                        self.pts += sketch_points
+                        self.normals += [view_vector]*len(sketch_points)
+                        self.cyclic = True
+                    # add sketch points in
+                    else:
+                        self.pts = self.pts[:hover_end] + sketch_points[::-1] + self.pts[hover_start:]
+                        self.normals = self.normals[:hover_end] + [view_vector]*len(sketch_points) + self.normals[hover_start:]
+                
+                #drawing "downstream" relative to self.pts indexing (away from index 0)
+                else:
+                    # making cyclic
+                    if hover_end == len(self.pts) - 1 and hover_start == 0:
+                        self.pts = sketch_points + self.pts[::-1]
+                        self.normals = [view_vector]*len(sketch_points) + self.normals[::-1]
+                        self.cyclic = True 
+                    # when no points are out
+                    elif hover_end == 0: 
+                        self.pts = self.pts[:1] + sketch_points
+                        self.normals = self.normals[:1] + [view_vector]*len(sketch_points)
+                        self.cyclic = True
+                    # adding sketch points in
+                    else:   
+                        self.pts = self.pts[:hover_start] + sketch_points + self.pts[hover_end:]
+                        self.normals = self.normals[:hover_start]  + [view_vector]*len(sketch_points) + self.normals[hover_end:]
+        
 
     ## ****** HOVER *****
 
