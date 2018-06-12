@@ -236,10 +236,12 @@ class PolyLineKnife(object):
             self.cut_pts.pop(self.hovered[1])
             self.normals.pop(self.hovered[1])
             self.face_map.pop(self.hovered[1])
-            print('')
-            print('DELETE POINT')
-            print(self.hovered)
-            print('')
+
+            # some kinds of deletes make cyclic false again
+            if len(self.pts) <= 2 or self.hovered[1] == 0: self.cyclic = False
+
+            # selected point should only change if selected is deleted
+            if self.selected > self.hovered[1]: self.selected -= 1
             
             if self.end_edge != None and self.hovered[1] == len(self.cut_pts): #notice not -1 because we popped 
                 print('deteted last non man edge')
