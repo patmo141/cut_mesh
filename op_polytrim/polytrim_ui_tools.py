@@ -25,12 +25,12 @@ class Polytrim_UI_Tools():
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, (x,y))  #get the direction under the mouse given the user 3DView perspective matrix
         
         ## Preparing sketch information
-        hover_start = self.knife.hovered[1] #guaranteed to be a point by criteria to enter sketch mode
-        self.knife.hover(context,x,y)  #hover again with current mouse location to see if we have re-entered the existing polyline
-        hover_end = self.knife.hovered[1]
+        hovered_start = self.knife.hovered # need to know what hovered was at the beginning of the sketch
+        self.knife.hover(context,x,y)  #rehover to see where sketch ends
         sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)  #at this moment we are going into 3D space, this returns world space locations
         sketch_points = sketch_3d[0::5] # getting every fifth point
+        view_vectors = [view_vector]*len(sketch_points)
    
         # Make the sketch
-        self.knife.make_sketch(hover_start, hover_end, sketch_points, view_vector)
+        self.knife.make_sketch(hovered_start, sketch_points, view_vector)
         self.knife.snap_poly_line()  #why do this again?

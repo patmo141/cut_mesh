@@ -170,16 +170,20 @@ class PolyLineKnife(object):
                 self.selected = -1
                 return
 
+
+        # if user started on edge and is currently hovering over non man edge
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
             
+            # unselect if it's cyclic and non manifold 
             if self.cyclic:
                 self.selected = -1
                 return
             
-            ed, wrld_loc = self.hovered[1]
+            ed, wrld_loc = self.hovered[1] # hovered[1] is tuple
             
             if len(self.pts) == 0:
                 self.start_edge = ed
+
             elif len(self.pts) and not self.start_edge:
                 self.selected = -1
                 return
@@ -373,9 +377,30 @@ class PolyLineKnife(object):
         return
  
     ## Makes the sketch and rebuilds the list of input points depending on the sketch
-    def make_sketch(self, hover_start, hover_end, sketch_points, view_vector):
+    def make_sketch(self, hovered_start, sketch_points, view_vector):
+        hover_start = hovered_start[1]
+        hovered_end = self.hovered
+        hover_end = hovered_end[1]
+        view_vectors = [view_vector]*len(sketch_points)
+
+        ## Non-manifold sketches first
+        
+        # ending on non manifold edge
+        if hovered_end[0] and "NON_MAN" in hovered_end[0]:
+            self.pts += sketch_points + [hovered_end[1][1]]
+            self.normals += view_vectors + [view_vector]
+            self.end_edge = hovered_end[1][0]
+
+        # starting on non manifold edge
+        elif hovered_start[0] and "NON_MAN" in hovered_start[0]: 
+            self.pts += sketch_points
+            self.normals += view_vectors
+            self.start_edge = hovered_start[1][0]
+
+        ## then manifold sketches
+
         #User is not connecting back to polyline
-        if self.hovered[0] == None:  
+        elif hovered_end[0] == None:  
 
             # Do nothing if it's cyclic
             if self.cyclic:
@@ -384,22 +409,20 @@ class PolyLineKnife(object):
             # add the points in at beginning of line
             elif hover_start == 0: 
                 self.pts = sketch_points[::-1] + self.pts[:]
-                self.normals = [view_vector]*len(sketch_points) + self.normals 
+                self.normals = view_vectors + self.normals 
                 self.pts = self.pts[::-1]
                 self.normals = self.normals[::-1]
             
             # add points at end of line
             elif hover_start == len(self.pts) - 1:
                 self.cyclic = False  # Correction for having set cyclic equal to True previously
-                self.pts += sketch_points   #filter out 4 out of 5 points to keep data density managable.  TODO, good opportunity for UI tuning>
-                
-                #store the view direction for cutting
-                self.normals += [view_vector]*len(sketch_points) #TODO optimize...don't slice twice, you are smart enough to calc this length!
+                self.pts += sketch_points
+                self.normals += view_vectors
 
             # add points midway into the line and trim the rest
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
                 self.pts = self.pts[:hover_start] + sketch_points
-                self.normals = self.normals[:hover_start] + [view_vector]*len(sketch_points)
+                self.normals = self.normals[:hover_start] + view_vectors
         
         # user is replacing a segment with a sketch because they initiaiated and terminated the sketch on the line.
         else:  
@@ -407,7 +430,7 @@ class PolyLineKnife(object):
             if hover_end == hover_start:
                 if len(self.pts) == 1: 
                     self.pts += sketch_points
-                    self.normals += [view_vector]*len(sketch_points)
+                    self.normals += view_vectors
                     self.cyclic = True
 
             elif self.cyclic:
@@ -421,20 +444,20 @@ class PolyLineKnife(object):
                 if num_between_thru_origin <= num_between:
                     if hover_start > hover_end:  
                         self.pts = self.pts[hover_end:hover_start] + sketch_points
-                        self.normals = self.normals[hover_end:hover_start] + [view_vector]*len(sketch_points)
+                        self.normals = self.normals[hover_end:hover_start] + view_vectors
                     else:
                         self.pts = sketch_points + self.pts[hover_end:hover_start:-1]
-                        self.normals = [view_vector]*len(sketch_points) + self.normals[hover_end:hover_start:-1]
+                        self.normals = view_vectors + self.normals[hover_end:hover_start:-1]
 
                 # path not passing through origin point is shorter so cut points on this path
                 else:
                     if hover_start > hover_end:  
                         self.pts = self.pts[:hover_end] + sketch_points[::-1] + self.pts[hover_start:] 
-                        self.normals = self.normals[:hover_end] + [view_vector]*len(sketch_points) + self.normals[hover_start:] 
+                        self.normals = self.normals[:hover_end] + view_vectors + self.normals[hover_start:] 
                     else:
                         
                         self.pts = self.pts[:hover_start] + sketch_points + self.pts[hover_end:] 
-                        self.normals = self.normals[:hover_start] + [view_vector]*len(sketch_points) + self.normals[hover_end:]
+                        self.normals = self.normals[:hover_start] + view_vectors + self.normals[hover_end:]
 
             else:
                 #drawing "upstream" relative to self.pts indexing (towards index 0)
@@ -442,29 +465,29 @@ class PolyLineKnife(object):
                     # connecting the ends (making cyclic)
                     if hover_end == 0 and hover_start == len(self.pts) - 1:
                         self.pts += sketch_points
-                        self.normals += [view_vector]*len(sketch_points)
+                        self.normals += view_vectors
                         self.cyclic = True
                     # add sketch points in
                     else:
                         self.pts = self.pts[:hover_end] + sketch_points[::-1] + self.pts[hover_start:]
-                        self.normals = self.normals[:hover_end] + [view_vector]*len(sketch_points) + self.normals[hover_start:]
+                        self.normals = self.normals[:hover_end] + view_vectors + self.normals[hover_start:]
                 
                 #drawing "downstream" relative to self.pts indexing (away from index 0)
                 else:
                     # making cyclic
                     if hover_end == len(self.pts) - 1 and hover_start == 0:
                         self.pts = sketch_points + self.pts[::-1]
-                        self.normals = [view_vector]*len(sketch_points) + self.normals[::-1]
+                        self.normals = view_vectors + self.normals[::-1]
                         self.cyclic = True 
                     # when no points are out
                     elif hover_end == 0: 
                         self.pts = self.pts[:1] + sketch_points
-                        self.normals = self.normals[:1] + [view_vector]*len(sketch_points)
+                        self.normals = self.normals[:1] + view_vectors
                         self.cyclic = True
                     # adding sketch points in
                     else:   
                         self.pts = self.pts[:hover_start] + sketch_points + self.pts[hover_end:]
-                        self.normals = self.normals[:hover_start]  + [view_vector]*len(sketch_points) + self.normals[hover_end:]
+                        self.normals = self.normals[:hover_start]  + view_vectors + self.normals[hover_end:]
         
 
     ## ****** HOVER *****
@@ -475,6 +498,7 @@ class PolyLineKnife(object):
         hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges
         40 for non_man
         '''
+
         region = context.region
         rv3d = context.region_data
         coord = x, y
@@ -490,7 +514,7 @@ class PolyLineKnife(object):
 
         #loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
         ''' '''
-        
+        ## TODO:Right now the next if and else statements are obsolete
         if bversion() < '002.077.000':
             loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
             if face_ind == -1: 
