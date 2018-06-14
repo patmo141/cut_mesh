@@ -29,8 +29,7 @@ class Polytrim_UI_Tools():
         self.knife.hover(context,x,y)  #rehover to see where sketch ends
         sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)  #at this moment we are going into 3D space, this returns world space locations
         sketch_points = sketch_3d[0::5] # getting every fifth point
-        view_vectors = [view_vector]*len(sketch_points)
-   
+        
         # Make the sketch
         self.knife.make_sketch(hovered_start, sketch_points, view_vector)
         self.knife.snap_poly_line()  #why do this again?

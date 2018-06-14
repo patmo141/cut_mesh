@@ -532,6 +532,7 @@ class PolyLineKnife(object):
             self.hover_non_man(context, x, y)
             return
 
+        ## Both of the next functions are used to find distances
         def dist(v):
             if v == None:
                 print('v off screen')
@@ -547,10 +548,10 @@ class PolyLineKnife(object):
             return delt.length
         
         closest_3d_point = min(self.pts, key = dist3d)
-        screen_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_point))
+        point_screen_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_point))
         
         # If an input point is less than 20(some unit) away, stop and set hovered to the input point
-        if screen_dist  < 20:
+        if point_screen_dist  < 20:
             self.hovered = ['POINT',self.pts.index(closest_3d_point)]
             return
 
@@ -561,7 +562,7 @@ class PolyLineKnife(object):
         
         ## ?? What is happening here 
         line_inters3d = []
-        for i in range(0,len(self.pts)):   
+        for i in range(len(self.pts)):   
             
             nexti = (i + 1) % len(self.pts)
             if next == 0 and not self.cyclic:
@@ -687,9 +688,9 @@ class PolyLineKnife(object):
         
         #clean up face groups if necessary
         #TODO, get smarter about not adding in these
-        if not self.cyclic:
+        if not self.cyclic and not self.split:  # I added in 'and not self.split', but I'm not sure if this is smart...
             if self.start_edge:
-                s_ind = self.start_edge.link_faces[0].index
+                s_ind = self.start_edge.link_faces[0].index ##TODO 
                 if s_ind in self.face_groups:
                     v_group = self.face_groups[s_ind]
                     if len(v_group) == 1:
@@ -1320,7 +1321,7 @@ class PolyLineKnife(object):
         errors = []
         for bmface in self.face_chain:
             
-            
+
             eds_crossed = [ed for ed in bmface.edges if ed in fast_ed_map]
             
             #scenario 1, it was simply crossed by cut plane
@@ -1564,7 +1565,7 @@ class PolyLineKnife(object):
                 
                 del_faces += [bmface]
                 
-        
+
         print('took %f seconds to split the faces' % (time.time() - finish))        
         finish = time.time()
                 
@@ -1577,7 +1578,7 @@ class PolyLineKnife(object):
             print('Error on this face %i' % bmface.index)
             bmface.select_set(True)
             
-        bmesh.ops.delete(self.bme, geom = del_faces, context = 5)
+        bmesh.ops.delete(self.bme, geom = del_faces, context = 5) ## This causes error!!!!
         
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
@@ -1610,7 +1611,7 @@ class PolyLineKnife(object):
                 to_remove += [test_f]
             to_test.difference_update(to_remove)
         #bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
-        
+
         self.bme.verts.ensure_lookup_table()
         self.bme.edges.ensure_lookup_table()
         self.bme.faces.ensure_lookup_table()
