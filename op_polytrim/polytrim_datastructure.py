@@ -943,8 +943,7 @@ class PolyLineKnife(object):
         # iterate through each input point that changes a face
         for m, ind in enumerate(self.face_changes):
 
-            print('m:', m)
-            print('ind:', ind)
+   
             
             ## first time through and non-manifold edge cut 
             if m == 0 and not self.cyclic:
@@ -2051,6 +2050,9 @@ class PolyLineKnife(object):
         
         #draw any bad segments in red
         if len(self.bad_segments):
+            print()
+            print("BAD SEGMENTS:::")
+            print(self.bad_segments)
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
                 m_p1 = (m + 1) % len(self.face_changes)
