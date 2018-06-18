@@ -939,7 +939,6 @@ class PolyLineKnife(object):
         
         #print('there are %i cut points' % len(self.cut_pts))
         #print('there are %i face changes' % len(self.face_changes))
-        print(self.face_changes)
 
         # iterate through each input point that changes a face
         for m, ind in enumerate(self.face_changes):
@@ -997,7 +996,6 @@ class PolyLineKnife(object):
             #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
             cut_pt = .5*self.cut_pts[n_p1] + 0.5*self.cut_pts[ind]
     
-            print(self.face_chain)
             #find the shared edge,, check for adjacent faces for this cut segment
             cross_ed = None
             for ed in f0.edges:
