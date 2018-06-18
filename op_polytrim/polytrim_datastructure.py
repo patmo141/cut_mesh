@@ -2049,13 +2049,13 @@ class PolyLineKnife(object):
         #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
         
         #draw any bad segments in red
+        print()
+        print("face changes:", self.face_changes)
         if len(self.bad_segments):
-            print()
-            print("BAD SEGMENTS:::")
-            print(self.bad_segments)
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
-                m_p1 = (m + 1) % len(self.face_changes)
+                print("bad segment starting at index ",m)
+                m_p1 = (m + 1) % (len(self.face_changes) + 1)
                 ind_p1 = self.face_changes[m_p1]
                 common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
 
