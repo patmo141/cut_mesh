@@ -499,6 +499,7 @@ class PolyLineKnife(object):
         40 for non_man
         '''
 
+        ## Region and view information
         region = context.region
         rv3d = context.region_data
         coord = x, y
@@ -512,8 +513,7 @@ class PolyLineKnife(object):
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
 
-        #loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-        ''' '''
+
         ## TODO:Right now the next if and else statements are obsolete
         if bversion() < '002.077.000':
             loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
@@ -620,22 +620,27 @@ class PolyLineKnife(object):
         imx = mx.inverted()
         
         last_face_ind = None
+
+        ## Create data structures based on the input points and the faces they lay on.
         for i, v in enumerate(self.pts):
+            # get information on the face the current point lies on
             if bversion() < '002.077.000':
-                loc, no, ind, d = self.bvh.find(imx * v)
+                loc, no, ind, d = self.bvh.find(imx * v) #loc == vector, no == vector, ind == face index on mesh, 
             else:
                 loc, no, ind, d = self.bvh.find_nearest(imx * v)
                 
             self.face_map.append(ind)
             locs.append(loc)
             
+            #first point
             if i == 0:
                 last_face_ind = ind
                 group = [i]
                 print('first face group index')
                 print((ind,group))
                 
-            if ind != last_face_ind: #we have found a new face
+            # point is on different face than last
+            if ind != last_face_ind:
                 self.face_changes.append(i-1)
                 
                 if last_face_ind not in self.face_groups: #previous face has not been mapped before
@@ -653,6 +658,7 @@ class PolyLineKnife(object):
                         
                     self.face_groups[last_face_ind] = group + exising_group #we have wrapped, add this group to the old
             
+            # point is on same face
             else:
                 if i != 0:
                     group += [i]
@@ -2050,12 +2056,14 @@ class PolyLineKnife(object):
         
         #draw any bad segments in red
         print()
+        print("pts:", self.pts)
         print("face changes:", self.face_changes)
         if len(self.bad_segments):
             for ind in self.bad_segments:
                 m = self.face_changes.index(ind)
-                print("bad segment starting at index ",m)
-                m_p1 = (m + 1) % (len(self.face_changes) + 1)
+                print("bad segment starting at index",m)
+                print("length of face_changes is", len(self.face_changes) )
+                m_p1 = (m + 1) % len(self.face_changes)
                 ind_p1 = self.face_changes[m_p1]
                 common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
 
