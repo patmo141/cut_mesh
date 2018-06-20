@@ -29,16 +29,12 @@ class PolyLineKnife(object):
         self.cut_ob = cut_object
         self.bme = bmesh.new()
         self.bme.from_mesh(cut_object.data)
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+        self.ensure_lookup()
         
         non_tris = [f for f in self.bme.faces if len(f.verts) > 3]
         #if len(non_tris):
             #geom = bmesh.ops.connect_verts_concave(self.bme, non_tris)
-            #self.bme.verts.ensure_lookup_table()
-            #self.bme.edges.ensure_lookup_table()
-            #self.bme.faces.ensure_lookup_table()
+            #self.ensure_lookup()
         
         self.bvh = BVHTree.FromBMesh(self.bme)
         
@@ -1297,9 +1293,7 @@ class PolyLineKnife(object):
         finish = time.time()
                 
  
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+        self.ensure_lookup()
         
         for bmface, msg in errors:
             print('Error on this face %i' % bmface.index)
@@ -1307,9 +1301,7 @@ class PolyLineKnife(object):
             
         bmesh.ops.delete(self.bme, geom = del_faces, context = 5)
         
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+        self.ensure_lookup()
         
         self.bme.normal_update()
         
@@ -1339,9 +1331,7 @@ class PolyLineKnife(object):
             to_test.difference_update(to_remove)
         #bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
         
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+        self.ensure_lookup()
             
         #ngons = [f for f in new_faces if len(f.verts) > 4]
         #bmesh.ops.triangulate(self.bme, faces = ngons)
@@ -1493,9 +1483,7 @@ class PolyLineKnife(object):
         for ed in newer_edges:
             face_boundary.update(list(ed.link_faces))
         
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+        self.ensure_lookup()
         
         self.perimeter_edges = list(set(new_edges) | set(newer_edges))        
         finish = time.time()
@@ -1533,9 +1521,7 @@ class PolyLineKnife(object):
         start = time.time()
         self.find_select_inner_faces()
         
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+        self.ensure_lookup()
             
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
@@ -1610,9 +1596,7 @@ class PolyLineKnife(object):
             gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
             #this dictionary is bad...just empy stuff
             
-            self.bme.verts.ensure_lookup_table()
-            self.bme.edges.ensure_lookup_table()
-            self.bme.faces.ensure_lookup_table()
+            self.ensure_lookup()
             
             
             #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
@@ -1634,9 +1618,7 @@ class PolyLineKnife(object):
             #gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
             #this dictionary is bad...just empy stuff
             
-            #self.bme.verts.ensure_lookup_table()
-            #self.bme.edges.ensure_lookup_table()
-            #self.bme.faces.ensure_lookup_table()
+            self.ensure_lookup()
             
             #current_edges = set([e for e in self.bme.edges])           
             #new_edges = current_edges - old_eds
@@ -1716,6 +1698,11 @@ class PolyLineKnife(object):
         print('replace')
         return
                 
+    def ensure_lookup(self):
+        self.bme.verts.ensure_lookup_table()
+        self.bme.edges.ensure_lookup_table()
+        self.bme.faces.ensure_lookup_table()
+  
     def draw(self,context):
         
         
