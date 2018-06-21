@@ -8,62 +8,28 @@ from bpy_extras import view3d_utils
 
 class Polytrim_UI_Tools():
     
-    def sketch_confirm(self, context, eventd):
-        print('sketch confirmed')
+    def sketch_confirm(self, context, eventd):            
+        
+        # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.knife.ui_type == 'DENSE_POLY':
             print('sketch too short, cant confirm')
+            
+            if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0:
+                self.knife.cyclic = True  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
             return
-        x,y = eventd['mouse']
+
+        # Get user view ray
+        x,y = eventd['mouse']  #coordinates of where LeftMouse was released
         region = context.region
         rv3d = context.region_data
-        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, (x,y))
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, (x,y))  #get the direction under the mouse given the user 3DView perspective matrix
         
-        last_hovered = self.knife.hovered[1] #guaranteed to be a point by criteria to enter sketch mode
+        ## Preparing sketch information
+        hovered_start = self.knife.hovered # need to know what hovered was at the beginning of the sketch
+        self.knife.hover(context,x,y)  #rehover to see where sketch ends
+        sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)  #at this moment we are going into 3D space, this returns world space locations
+        sketch_points = sketch_3d[0::5] # getting every fifth point
         
-        
-        self.knife.hover(context,x,y)
-        print('last hovered %i' % last_hovered)
-        
-        sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)
-        
-        if self.knife.hovered[0] == None:  #drawing out into space
-            #add the points in
-            if last_hovered == len(self.knife.pts) - 1:
-                if last_hovered == 0: self.knife.cyclic = False
-                
-                self.knife.pts += sketch_3d[0::5]
-                self.knife.normals += [view_vector]*len(sketch_3d[0::5]) #TODO optimize...don't slice twice, you are smart enough to calc this length!
-                print('add on to the tail')
-
-                
-            else:
-                self.knife.pts = self.knife.pts[:last_hovered] + sketch_3d[0::5]
-                self.knife.normals = self.knife.normals[:last_hovered] + [view_vector]*len(sketch_3d[0::5])
-                print('snipped off and added on to the tail')
-        
-        else:
-            print('inserted new segment')
-            print('last hovered is %i, now hovered %i' % (last_hovered, self.knife.hovered[1]))
-            new_pts = sketch_3d[0::5]
-            if last_hovered > self.knife.hovered[1]:
-                
-                if self.knife.hovered[1] == 0:
-                    self.knife.pts = self.knife.pts[:last_hovered] + new_pts
-                    self.knife.normals = self.knife.normals[:last_hovered] + [view_vector]*len(new_pts)
-            
-                else:
-                    new_pts.reverse()
-                    self.knife.pts = self.knife.pts[:self.knife.hovered[1]] + new_pts + self.knife.pts[last_hovered:]
-                    self.knife.normals = self.knife.normals[:self.knife.hovered[1]] + [view_vector]*len(new_pts) + self.knife.normals[last_hovered:]
-            
-            
-            
-            else:
-                if self.knife.hovered[1] == 0: #drew back into tail
-                    self.knife.pts += sketch_3d[0::5]
-                    self.knife.normals += [view_vector]*len(sketch_3d[0::5])
-                    self.knife.cyclic = True
-                else:
-                    self.knife.pts = self.knife.pts[:last_hovered] + new_pts + self.knife.pts[self.knife.hovered[1]:]
-                    self.knife.normals = self.knife.normals[:last_hovered]  + [view_vector]*len(new_pts) + self.knife.normals[self.knife.hovered[1]:]
-        self.knife.snap_poly_line()
+        # Make the sketch
+        self.knife.make_sketch(hovered_start, sketch_points, view_vector)
+        self.knife.snap_poly_line()  #why do this again?

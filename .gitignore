@@ -1,5 +1,6 @@
 .project
 .pydevproject
+*.pyc
 __pycache__/__init__.cpython-34.pyc
 __pycache__/bmesh_fns.cpython-34.pyc
 __pycache__/common_drawing.cpython-34.pyc

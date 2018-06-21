@@ -13,6 +13,8 @@ class CGC_Geopath(ModalOperator, GeoPath_UI, GeoPath_UI_ModalWait, GeoPath_UI_Dr
     ''' CG Cookie Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
+    operator_id    = "cgcookie.geopath"     # operator_id needs to be the same as bl_idname
+                                            # important: bl_idname is mangled by Blender upon registry :(
     bl_idname      = "cgcookie.geopath"
     bl_label       = "Geopath"
     bl_space_type  = 'VIEW_3D'
