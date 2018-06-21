@@ -14,6 +14,8 @@ class CutMesh_PGeopath(ModalOperator, PGeopath_UI, PGeopath_UI_ModalWait, PGeopa
     ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
+    operator_id    = "cut_mesh.polygeopath" # operator_id needs to be the same as bl_idname
+                                            # important: bl_idname is mangled by Blender upon registry :(
     bl_idname      = "cut_mesh.polygeopath"
     bl_label       = "Poly Geopath"
     bl_space_type  = 'VIEW_3D'

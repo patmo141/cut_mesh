@@ -12,6 +12,10 @@ class Polytrim_UI_ModalWait():
         nmode = self.modal_nav(context, eventd)
         if nmode != '':
             return nmode  #stop here and tell parent modal to 'PASS_THROUGH'
+        
+        # test code that will break operator :)
+        #if eventd['press'] == 'F9': bad = 3.14 / 0
+        #if eventd['press'] == 'F10': assert False
 
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':
@@ -28,18 +32,22 @@ class Polytrim_UI_ModalWait():
             return 'main'
         
         if  eventd['press'] == 'LEFTMOUSE':
-            x,y = eventd['mouse']
-            self.knife.click_add_point(context, x,y)  #takes care of selection too
-            if self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT':
+            old_cyclic = self.knife.cyclic
+            x,y = eventd['mouse']  #gather the 2D coordinates of the mouse click
+            self.knife.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
+            if (self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT') or len(self.knife.pts) == 1:
+                if old_cyclic == False and self.knife.hovered[1] == 0: self.knife.cyclic = False
                 self.sketch = [(x,y)]
                 return 'sketch'
             return 'main'
         
         if eventd['press'] == 'RIGHTMOUSE':
+            x,y = eventd['mouse']
             if self.knife.start_edge != None and self.knife.hovered[1] == 0:
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')
+            self.knife.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
             if len(self.knife.new_cos):
                 self.knife.make_cut()
             return 'main'
@@ -152,8 +160,9 @@ class Polytrim_UI_ModalWait():
             x,y = eventd['mouse']
             if not len(self.sketch):
                 return 'main'
+            ## Manipulating sketch data
             (lx, ly) = self.sketch[-1]
-            ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing
+            ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
             self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
             return 'sketch'
         

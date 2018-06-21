@@ -25,6 +25,7 @@ import bgl
 
 from mathutils import Vector, Matrix, Euler
 import math
+import time
 
 from bpy.types import Operator
 from bpy.types import SpaceView3D
@@ -32,13 +33,14 @@ from bpy.types import SpaceView3D
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
+from .common.utils import exception_handler, registered_object_add, registered_check
+
 #from .lib.common_classes import TextBox
 #from . import key_maps
 
+
 class ModalOperator(Operator):
 
-    initialized = False
-    
     def initialize(self, FSM=None):
         # make sure that the appropriate functions are defined!
         # note: not checking signature, though :(
@@ -64,6 +66,8 @@ class ModalOperator(Operator):
         self.FSM['main'] = self.modal_main
         self.FSM['nav']  = self.modal_nav
         self.FSM['wait'] = self.modal_wait
+
+        registered_object_add(self)
 
         self.initialized = True
 
@@ -101,17 +105,43 @@ class ModalOperator(Operator):
             'pressure': event_pressure,
             }
 
+    def handle_exception(self, serious=False):
+        errormsg = exception_handler()
+        # if max number of exceptions occur within threshold of time, abort!
+        curtime = time.time()
+        self.exceptions_caught += [(errormsg, curtime)]
+        # keep exceptions that have occurred within the last 5 seconds
+        self.exceptions_caught = [(m,t) for m,t in self.exceptions_caught if curtime-t < 5]
+        # if we've seen the same message before (within last 5 seconds), assume
+        # that something has gone badly wrong
+        c = sum(1 for m,t in self.exceptions_caught if m == errormsg)
+        if serious or c > 1:
+            print('\n'*5)
+            print('-'*100)
+            print('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
+            print('-'*100)
+            print('\n'*5)
+            #showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
+            self.exception_quit = True
+        
+        self.fsm_mode = 'main'
+        pass
+    
     ####################################################################
     # Draw handler function
 
     def draw_callback_postview(self, context):
+        if not registered_check(): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postview(context)
+        try: self.draw_postview(context)
+        except: self.handle_exception()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
     def draw_callback_postpixel(self, context):
+        if not registered_check(): return
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)    # save OpenGL attributes
-        self.draw_postpixel(context)
+        try: self.draw_postpixel(context)
+        except: self.handle_exception()
         bgl.glPopAttrib()                           # restore OpenGL attributes
 
 
@@ -144,8 +174,7 @@ class ModalOperator(Operator):
 
         # handle general navigationvrot = context.space_data.region_3d.view_rotation
         nmode = self.FSM['nav'](context, eventd)
-        if nmode:
-            return nmode
+        if nmode: return nmode
 
         # accept / cancel
         if eventd['press'] in {'RET', 'NUMPAD_ENTER'}:
@@ -157,9 +186,12 @@ class ModalOperator(Operator):
             return 'cancel'
 
         # handle general waiting
-        nmode = self.FSM['wait'](context, eventd)
-        if nmode:
-            return nmode
+        try:
+            nmode = self.FSM['wait'](context, eventd)
+            if nmode: return nmode
+        except:
+            self.handle_exception()
+            return ''
 
         return ''
 
@@ -180,13 +212,15 @@ class ModalOperator(Operator):
         self.footer = ''
         self.footer_last = ''
         
-        self.start(context)
+        try: self.start(context)
+        except: self.handle_exception()
 
     def modal_end(self, context):
         '''
         finish up stuff, as our tool is leaving modal mode
         '''
-        self.end(context)
+        try: self.end(context)
+        except: self.handle_exception()
         SpaceView3D.draw_handler_remove(self.cb_pv_handle, "WINDOW")
         SpaceView3D.draw_handler_remove(self.cb_pp_handle, "WINDOW")
         context.area.header_text_set()
@@ -196,15 +230,27 @@ class ModalOperator(Operator):
         Called by Blender while our tool is running modal.
         This is the heart of the finite state machine.
         '''
+        
+        # if something bad happened, bail!
+        if not registered_check() or self.exception_quit:
+            print('Something bad happened, so we are bailing!')
+            self.modal_end(context)
+            context.area.tag_redraw()
+            return {'CANCELLED'}
+        
         if not context.area: return {'RUNNING_MODAL'}
 
         context.area.tag_redraw()       # force redraw
 
         eventd = self.get_event_details(context, event)
 
-        self.cur_pos  = eventd['mouse']
-        nmode = self.FSM[self.fsm_mode](context, eventd)
-        self.mode_pos = eventd['mouse']
+        try:
+            self.cur_pos  = eventd['mouse']
+            nmode = self.FSM[self.fsm_mode](context, eventd)
+            self.mode_pos = eventd['mouse']
+        except:
+            self.handle_exception()
+            return {'RUNNING_MODAL'}
 
         if nmode == 'wait': nmode = 'main'
 
@@ -228,8 +274,20 @@ class ModalOperator(Operator):
         '''
         called by Blender when the user invokes (calls/runs) our tool
         '''
-        assert self.initialized, 'Must initialize operator before invoking'
-        if not self.start_poll(context):    # can the tool get started?
+        
+        assert getattr(self, 'initialized', False), 'Must initialize operator before invoking'
+        
+        if not registered_check(): return {'CANCELLED'}
+        
+        #print('clearing exceptions')
+        self.exceptions_caught = []
+        self.exception_quit = False
+        
+        try:
+            if not self.start_poll(context):    # can the tool get started?
+                return {'CANCELLED'}
+        except:
+            self.handle_exception()
             return {'CANCELLED'}
         
         self.modal_start(context)
