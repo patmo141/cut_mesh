@@ -119,7 +119,9 @@ class PolyLineKnife(object):
         self.face_seed = None
 
 
+    ## ****************************************
     ## ****** POLYLINE/POINT MANIPULATION *****
+    ## ****************************************
 
     ## Add's a point to the trim line.
     def click_add_point(self,context,x,y):
@@ -424,9 +426,11 @@ class PolyLineKnife(object):
                         self.points_data = self.points_data[:hover_start] + sketch_data + self.points_data[hover_end:]
 
 
+    ## ********************
     ## ****** HOVER *****
+    ## ********************
 
-    ## Called everytime mouse is moved while in wait mode.
+    ## gets information of where mouse is hovering over
     def hover(self,context,x,y):
         '''
         hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges
@@ -576,7 +580,9 @@ class PolyLineKnife(object):
                             return
 
 
+    ## *************************
     ## ***** CUTTING & PREP *****
+    ## *************************
 
     ## Fills data strucutures based on trim line and groups input points with polygons in the cut object
     def preprocess_points(self):
@@ -913,7 +919,9 @@ class PolyLineKnife(object):
         self.preprocess_points()
 
 
+    ## ********************
     ## ****** OTHER *****
+    ## ********************
 
     def confirm_cut_to_mesh(self):
 
@@ -1752,7 +1760,10 @@ class PolyLineKnife(object):
                         v_group.pop()
                         self.face_groups[e_ind] = v_group
 
+
+    ## ******************************
     ## ****** HELPER FUNCTIONS *****
+    ## ******************************
 
     # get info to use later with ray_cast 
     def get_view_ray_data(self, context, coord):
@@ -1787,8 +1798,9 @@ class PolyLineKnife(object):
         imx = mx.inverted()
         return [mx, imx]
 
-
+    ## *************************
     ## ****** DRAWING/UI *****
+    ## *************************
 
     ## 2D drawing
     def draw(self,context):
