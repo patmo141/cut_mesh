@@ -136,10 +136,10 @@ class PolyLineKnife(object):
         def none_selected(): self.selected = -1 # use in self.ray_cast()
         view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, none_selected)
+        if loc == None: return
 
         # if user started on edge and is currently hovering over non man edge
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
-
             # unselect if it's cyclic and non manifold
             if self.cyclic:
                 self.selected = -1
@@ -248,6 +248,8 @@ class PolyLineKnife(object):
         # ray tracing
         view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, self.grab_cancel)
+        if loc == None: return
+
 
 
         #check if first or end point and it's a non man edge!
@@ -1776,10 +1778,10 @@ class PolyLineKnife(object):
     def ray_cast(self, imx, ray_origin, ray_target, also_do_this):
         if bversion() < '002.077.000':
             loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-            res = None
-            if face_ind != -1:
+            if face_ind == -1:
                 if also_do_this:
                     also_do_this()
+                    return [None, None, None]
                 else:
                     pass
         else:
@@ -1787,6 +1789,7 @@ class PolyLineKnife(object):
             if not res:
                 if also_do_this:
                     also_do_this()
+                    return [None, None, None]
                 else:
                     pass
 
