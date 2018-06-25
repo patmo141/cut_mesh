@@ -121,18 +121,14 @@ class Polytrim_UI_ModalWait():
             #confirm location
             self.knife.grab_confirm()
 
-            if len(self.knife.bad_segments):
+            if self.knife.new_cos:
                 self.knife.make_cut()
-            elif len(self.knife.new_cos) and (self.knife.cyclic or (self.knife.start_edge != None and self.knife.end_edge != None)):
-                self.knife.make_cut()
-
-            if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0:
-                context.area.header_text_set("Poly Trim.  When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
-            elif len(self.knife.new_cos) and len(self.knife.bad_segments) != 0:
-                context.area.header_text_set("Poly Trim.  Fix Bad segments so that no segments are red!")
-
+                if not self.knife.bad_segments:
+                    context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
+                else:
+                    context.area.header_text_set("Fix Bad segments so that no segments are red!")
             else:
-                context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
+                context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
 
             return 'main'
 
@@ -140,18 +136,20 @@ class Polytrim_UI_ModalWait():
             #put it back!
             self.knife.grab_cancel()
 
-            if len(self.knife.new_cos):
-                context.area.header_text_set("Poly Trim.  When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
-            elif len(self.knife.new_cos) and len(self.bad_segments) != 0:
+            if self.knife.bad_segments:
                 context.area.header_text_set("Poly Trim.  Fix Bad segments so that no segments are red!")
+            elif self.knife.new_cos:
+                context.area.header_text_set("Poly Trim.  When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
             else:
                 context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
+
             return 'main'
 
         elif eventd['type'] == 'MOUSEMOVE':
             #update the b_pt location
             x,y = eventd['mouse']
             self.knife.grab_mouse_move(context,x, y)
+
             return 'grab'
 
     def modal_sketch(self,context,eventd):
