@@ -55,12 +55,11 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'C':
             if self.knife.start_edge != None and self.knife.end_edge == None:
                 showErrorMessage('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
-
-            if self.knife.start_edge == None and not self.knife.cyclic:
+            elif self.knife.start_edge == None and not self.knife.cyclic:
                 showErrorMessage('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
-
-            self.knife.make_cut()
-            context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
+            else:
+                self.knife.make_cut()
+                context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
 
             return 'main'
 
