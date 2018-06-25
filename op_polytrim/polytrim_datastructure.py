@@ -44,7 +44,7 @@ class PolyLineKnife(object):
         self.start_edge = None
         self.end_edge = None
 
-        self.points_data = [] # List of dictionaries, each dict contains point data: world loc, local loc, view direction, face index
+        self.points_data = [] # List of dictionaries, each dict contains point data: world loc, local loc, view direction, face index, and normal
 
         self.face_changes = [] #the indices where the next point lies on a different face
         self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
@@ -185,7 +185,7 @@ class PolyLineKnife(object):
             self.points_data += [{
                 "world_location": wrld_loc,
                 "local_location": imx * wrld_loc,
-                "normal": view_vector,
+                "view_direction": view_vector,
                 "face_index": ed.link_faces[0].index
             }]
             self.selected = len(self.points_data) -1
@@ -195,7 +195,7 @@ class PolyLineKnife(object):
             self.points_data += [{
                 "world_location":mx * loc,
                 "local_location": loc,
-                "normal": view_vector,
+                "view_direction": view_vector,
                 "face_index": face_ind
             }]  #Store data for the click
             self.selected = len(self.points_data) -1
@@ -217,7 +217,7 @@ class PolyLineKnife(object):
             self.points_data.insert(self.hovered[1]+1, {
                 "world_location":mx * loc,
                 "local_location": loc,
-                "normal": view_vector,
+                "view_direction": view_vector,
                 "face_index": face_ind
             })
             self.selected = self.hovered[1] + 1
@@ -346,14 +346,14 @@ class PolyLineKnife(object):
             self.points_data[self.selected] = {
                 "world_location": mx * pt,
                 "local_location": pt,
-                "normal": view_vector,
+                "view_direction": view_vector,
                 "face_index": ed.link_faces[0].index
             }
         else:
             self.points_data[self.selected] = {
                 "world_location": mx * loc,
                 "local_location": loc,
-                "normal": view_vector,
+                "view_direction": view_vector,
                 "face_index": face_ind
             }
 
@@ -381,7 +381,7 @@ class PolyLineKnife(object):
         # ending on non manifold edge
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
 
-            self.points_data += sketch_data + [{"world_location": hovered_end[1][1], "normal": view_vector}]
+            self.points_data += sketch_data + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
             self.end_edge = hovered_end[1][0]
 
         # starting on non manifold edge
@@ -849,8 +849,8 @@ class PolyLineKnife(object):
             ## Define the cutting plane for this segment#
             ############################
 
-            no0 = self.points_data[ind]["normal"]  #direction the user was looking when adding current point
-            no1 = self.points_data[n_p1]["normal"]  #direction the user was looking when adding next point
+            no0 = self.points_data[ind]["view_direction"]  #direction the user was looking when adding current point
+            no1 = self.points_data[n_p1]["view_direction"]  #direction the user was looking when adding next point
             surf_no = imx.to_3x3() * no0.lerp(no1, 0.5)  #must be a better way.
 
             e_vec = self.points_data[n_p1]["local_location"] - self.points_data[ind]["local_location"]
