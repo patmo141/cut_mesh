@@ -499,6 +499,7 @@ class PolyLineKnife(object):
         40 for non_man
         '''
 
+        ## Region and view information
         region = context.region
         rv3d = context.region_data
         coord = x, y
@@ -512,8 +513,7 @@ class PolyLineKnife(object):
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
 
-        #loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
-        ''' '''
+
         ## TODO:Right now the next if and else statements are obsolete
         if bversion() < '002.077.000':
             loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
@@ -833,11 +833,9 @@ class PolyLineKnife(object):
         #print('there are %i cut points' % len(self.cut_pts))
         #print('there are %i face changes' % len(self.face_changes))
 
-        # iterate through each input point that changes a face
+        # iteration for each input point that changes a face
         for m, ind in enumerate(self.face_changes):
 
-            print('m:', m)
-            print('ind:', ind)
 
             ## first time through and non-manifold edge cut
             if m == 0 and not self.cyclic:
@@ -854,8 +852,8 @@ class PolyLineKnife(object):
             #n_p1 = (m + 1) % len(self.face_changes)
             #ind_p1 = self.face_changes[n_p1]
 
-            n_p1 = (ind + 1) % len(self.cut_pts)  #The index of the next cut_pt (input point)
-            ind_p1 = self.face_map[n_p1]  #the face in the cut object which the next cut point falls upon
+            n_p1 = (ind + 1) % len(self.cut_pts)  # next point's index
+            ind_p1 = self.face_map[n_p1]  # n_p1's face's index
 
 
             n_m1 = (ind - 1)
@@ -867,17 +865,17 @@ class PolyLineKnife(object):
                 print('not cyclic, we are done here')
                 break
 
-            f0 = self.bme.faces[self.face_map[ind]]  #<<--- Actualy get the BMFace from the cut_object BMEesh
+            f0 = self.bme.faces[self.face_map[ind]]  #<<--- Current BMFace
             self.face_chain.add(f0)
 
-            f1 = self.bme.faces[self.face_map[n_p1]] #<<--- Actualy get the BMFace from the cut_object BMEesh
+            f1 = self.bme.faces[self.face_map[n_p1]] #<<--- Next BMFace
 
             ###########################
             ## Define the cutting plane for this segment#
             ############################
 
-            no0 = self.normals[ind]  #direction the user was looking when defining the cut
-            no1 = self.normals[n_p1]  #direction the user was looking when defining the cut
+            no0 = self.normals[ind]  #direction the user was looking when adding current point
+            no1 = self.normals[n_p1]  #direction the user was looking when adding next point
             surf_no = imx.to_3x3() * no0.lerp(no1, 0.5)  #must be a better way.
 
             e_vec = self.cut_pts[n_p1] - self.cut_pts[ind]
@@ -1943,12 +1941,12 @@ class PolyLineKnife(object):
         #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
 
         #draw any bad segments in red
-        if len(self.bad_segments):
-            for ind in self.bad_segments:
-                m = self.face_changes.index(ind)
-                m_p1 = (m + 1) % len(self.face_changes)
-                ind_p1 = self.face_changes[m_p1]
-                common_drawing.draw_polyline_from_3dpoints(context, [self.pts[ind], self.pts[ind_p1]], (1,.1,.1,1), 4, 'GL_LINE')
+        for bad_ind in self.bad_segments:
+            face_chng_ind = self.face_changes.index(bad_ind)
+            next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes) 
+            bad_ind_2 = self.face_changes[next_face_chng_ind]
+            if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = len(self.pts) - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
+            common_drawing.draw_polyline_from_3dpoints(context, [self.pts[bad_ind], self.pts[bad_ind_2]], (1,.1,.1,1), 4, 'GL_LINE')
 
     ## 3D drawing
     def draw3d(self,context):
