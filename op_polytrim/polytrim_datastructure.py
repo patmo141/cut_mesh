@@ -129,11 +129,11 @@ class PolyLineKnife(object):
         this will add a point into the bezier curve or
         close the curve into a cyclic curve
         '''
-
-        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         mx, imx = self.get_matrices()
-        def none_selected(): self.selected = -1 # use this in the next line for ray_cast function
-        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, (none_selected))
+        # ray tracing
+        def none_selected(): self.selected = -1 # use in self.ray_cast()
+        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
+        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, none_selected)
 
         # if user started on edge and is currently hovering over non man edge
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
@@ -242,8 +242,9 @@ class PolyLineKnife(object):
 
         region = context.region
         rv3d = context.region_data
-        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         mx, imx = self.get_matrices()
+        # ray tracing
+        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, self.grab_cancel)
 
 
@@ -431,15 +432,11 @@ class PolyLineKnife(object):
         hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges
         40 for non_man
         '''
-
-        ## Region and view information
-        coord = x, y
-        view_vector, ray_origin, ray_target = self.get_view_ray_data(context, (x,y))
         mx, imx = self.get_matrices()
-
         self.mouse = Vector((x, y))
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-
+        # ray tracing
+        view_vector, ray_origin, ray_target = self.get_view_ray_data(context, (x,y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
 
         # if no input points...
@@ -448,12 +445,12 @@ class PolyLineKnife(object):
             self.hover_non_man(context, x, y)
             return
 
-        ## Both of the next functions are used to find distances
+       # find length between vertex and mouse
         def dist(v):
             if v == None:
                 print('v off screen')
                 return 100000000
-            diff = v - Vector((x,y))
+            diff = v - self.mouse
             return diff.length
 
 
@@ -531,9 +528,9 @@ class PolyLineKnife(object):
     def hover_non_man(self,context,x,y):
         region = context.region
         rv3d = context.region_data
-        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         mx, imx = self.get_matrices()
-
+        # ray casting
+        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
 
         self.mouse = Vector((x, y))
@@ -684,8 +681,10 @@ class PolyLineKnife(object):
         print(self.face_groups)
 
     def click_seed_select(self, context, x, y):
-        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         mx, imx = self.get_matrices()
+
+        # ray casting
+        view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
 
         if face_ind != -1 and face_ind not in [f.index for f in self.face_chain]:
@@ -1755,12 +1754,14 @@ class PolyLineKnife(object):
 
     ## ****** HELPER FUNCTIONS *****
 
+    # get info to use later with ray_cast 
     def get_view_ray_data(self, context, coord):
         view_vector = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, coord)
         ray_origin = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, coord)
         ray_target = ray_origin + (view_vector * 1000)
         return [view_vector, ray_origin, ray_target]
 
+    # cast rays and get info based on blender version
     def ray_cast(self, imx, ray_origin, ray_target, also_do_this):
         if bversion() < '002.077.000':
             loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
@@ -1780,10 +1781,12 @@ class PolyLineKnife(object):
 
         return [loc, no, face_ind]
 
+    ## get the world matrix and inverse for the object
     def get_matrices(self):
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
         return [mx, imx]
+
 
     ## ****** DRAWING/UI *****
 
