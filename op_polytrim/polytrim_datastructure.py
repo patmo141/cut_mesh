@@ -165,7 +165,7 @@ class PolyLineKnife(object):
             }]
             self.selected = len(self.points_data) -1
 
-        # Add pont information to datastructures if nothing is being hovered over
+        # Add point information to datastructures if nothing is being hovered over
         if self.hovered[0] == None and not self.end_edge:  #adding in a new point at end
             self.points_data += [{
                 "world_location":mx * loc,
@@ -181,10 +181,7 @@ class PolyLineKnife(object):
             # If click is first point
             if self.hovered[1] == 0 and not self.start_edge:
                 #can not  toggle cyclic any more, once it's on it remains on
-                if self.cyclic:
-                    return
-                else:
-                    self.cyclic = True
+                self.toggle_cyclic()
             return
 
         # If an edge is clicked, cut in a new point
@@ -1808,6 +1805,11 @@ class PolyLineKnife(object):
         mx = self.cut_ob.matrix_world
         imx = mx.inverted()
         return [mx, imx]
+
+    def toggle_cyclic(self):
+        if self.cyclic: self.cyclic = False
+        else: self.cyclic = True
+
 
     ## *************************
     ## ****** DRAWING/UI *****
