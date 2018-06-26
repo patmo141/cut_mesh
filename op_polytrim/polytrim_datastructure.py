@@ -1816,39 +1816,30 @@ class PolyLineKnife(object):
     ## 2D drawing
     def draw(self,context):
 
-        #draw a dot over the hovered vertex
+        ## Hovered Non-manifold Edge or Vert
         if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             ed, pt = self.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, color = (.3,1,.3,1))
 
-        ## If there are no input points, nothing else needs be drawn
-        if len(self.points_data) == 0: return
+        if  not self.points_data: return
 
-        #if self.cyclic and len(self.pts):
-        #    common_drawing.draw_polyline_from_3dpoints(context, self.pts + [self.pts[0]], (.1,.2,1,.8), 2, 'GL_LINE_STRIP')
+        # Bad Segments
+        #TODO - This section is very confusing and hard to wrap the mind around. making it more intuitive would be very helpful
+        for bad_ind in self.bad_segments:
+            face_chng_ind = self.face_changes.index(bad_ind)
+            next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes)
+            bad_ind_2 = self.face_changes[next_face_chng_ind]
+            if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = len(self.points_data) - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
+            common_drawing.draw_polyline_from_3dpoints(context, [self.points_data[bad_ind]["world_location"], self.points_data[bad_ind_2]["world_location"]], (1,.1,.1,1), 4, 'GL_LINE')
 
-        #else:
-        #    common_drawing.draw_polyline_from_3dpoints(context, self.pts, (.1,.2,1,.8), 2, 'GL_LINE')
-
-        #if self.ui_type != 'DENSE_POLY':
-        #    common_drawing.draw_3d_points(context,self.pts, 3)
-        #    common_drawing.draw_3d_points(context,[self.pts[0]], 8, color = (1,1,0,1))
-
-        #else:
-        #    common_drawing.draw_3d_points(context,self.pts, 4, color = (1,1,1,1))
-        #    common_drawing.draw_3d_points(context,[self.pts[0]], 4, color = (1,1,0,1))
-
-
-
-        #draw a dot of sepecfic color representing the user selected input point
+        ## Selected Point
         if self.selected != -1 and len(self.points_data) >= self.selected + 1:
             common_drawing.draw_3d_points(context,[self.points_data[self.selected]["world_location"]], 8, color = (0,1,1,1))
 
-        #pre-highlight the point under the mouse
+        ## Hovered Point
         if self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.points_data[self.hovered[1]]["world_location"]], 8, color = (0,1,0,1))
-
-        #draw the silly green insertion line when possible to cut a new input point into an existing cut segment
+        # Insertion Lines (for adding in a point to edge)
         elif self.hovered[0] == 'EDGE':
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
             a = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[self.hovered[1]]["world_location"])
@@ -1856,7 +1847,7 @@ class PolyLineKnife(object):
             b = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[next]["world_location"])
             common_drawing.draw_polyline_from_points(context, [a,self.mouse, b], (0,.2,.2,.5), 2,"GL_LINE_STRIP")
 
-        #draw dot at grab location and draw lines connecting to itz
+        # Grab Location Dot and Lines
         if self.grab_point:
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
             color = (0,0,1,.2)
@@ -1878,35 +1869,16 @@ class PolyLineKnife(object):
             else:
                 common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
 
-        #draw the vertices of the seed face
+        # Face Seed Vertices
         if self.face_seed:
             #TODO direct bmesh face drawing util
             vs = self.face_seed.verts
             common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v.co for v in vs], 4, color = (1,1,.1,1))
 
-            #if len(self.prev_region):
-            #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.prev_region], 2, color = (1,1,.1,.2))
-
-        #if len(self.new_cos):
-        #    if self.split:
-        #        color = (.1, .1, .8, 1)
-        #    else:
-        #        color = (.2,.5,.2,1)
-        #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
-
-        #draw any bad segments in red
-        #TODO - This section is very confusing and hard to wrap the mind around. making it more intuitive would be very helpful
-        for bad_ind in self.bad_segments:
-            face_chng_ind = self.face_changes.index(bad_ind)
-            next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes)
-            bad_ind_2 = self.face_changes[next_face_chng_ind]
-            if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = len(self.points_data) - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
-            common_drawing.draw_polyline_from_3dpoints(context, [self.points_data[bad_ind]["world_location"], self.points_data[bad_ind_2]["world_location"]], (1,.1,.1,1), 4, 'GL_LINE')
-
     ## 3D drawing
     def draw3d(self,context):
         #ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
-        if len(self.points_data) == 0: return
+        if not self.points_data: return
 
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
@@ -1917,7 +1889,7 @@ class PolyLineKnife(object):
         bgl.glDepthRange(0.0, 1.0)
         bgl.glEnable(bgl.GL_DEPTH_TEST)
 
-
+        world_locs = [d['world_location'] for d in self.points_data]
 
         def set_depthrange(near=0.0, far=1.0, points=None):
             if points and len(points) and view_loc:
@@ -1933,10 +1905,8 @@ class PolyLineKnife(object):
             bgl.glDepthRange(near, far)
             #bgl.glDepthRange(0.0, 0.5)
 
-        # function for drawing points
+        # draws points
         def draw3d_points(context, points, color, size):
-            #if type(points) is types.GeneratorType:
-            #    points = list(points)
             if len(points) == 0: return
             bgl.glColor4f(*color)
             bgl.glPointSize(size)
@@ -1946,12 +1916,9 @@ class PolyLineKnife(object):
             bgl.glEnd()
             bgl.glPointSize(1.0)
 
-        # function for drawing polylines.
+        # draws polylines.
         def draw3d_polyline(context, points, color, thickness, LINE_TYPE, zfar=0.997):
-
             if len(points) == 0: return
-            # if type(points) is types.GeneratorType:
-            #     points = list(points)
             if LINE_TYPE == "GL_LINE_STIPPLE":
                 bgl.glLineStipple(4, 0x5555)  #play with this later
                 bgl.glEnable(bgl.GL_LINE_STIPPLE)
@@ -1967,27 +1934,27 @@ class PolyLineKnife(object):
                 bgl.glDisable(bgl.GL_LINE_STIPPLE)
                 bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
 
-        bgl.glLineWidth(1)
+        bgl.glLineWidth(1)  # Why are these two lines down here?
         bgl.glDepthRange(0.0, 1.0)
 
-        world_locs = [d['world_location'] for d in self.points_data]
-
-        # draws the polylines for after 'c' has been pressed/ after make_cut.
+        # Preview Polylines
         if len(self.new_cos):
             if self.split:
                 color = (.1, .1, .8, 1)
             else:
                 color = (.2,.5,.2,1)
             draw3d_polyline(context,[self.cut_ob.matrix_world * v for v in self.new_cos], color, 5, 'GL_LINE_STRIP')
-        # draw the polylines for before 'c' has been pressed/before make_cut
+        # Polylines
         else:
             if self.cyclic and len(self.points_data):
                 draw3d_polyline(context, world_locs + [world_locs[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
             else:
                 draw3d_polyline(context, world_locs,  (.1,.2,1,.8),2, 'GL_LINE' )
 
-        # draw points
+        # Origin Point
         draw3d_points(context, [world_locs[0]], (1,.8,.2,1), 10)
+
+        # Points
         if len(self.points_data) > 1:
             draw3d_points(context, world_locs[1:], (.2, .2, .8, 1), 6)
 
