@@ -121,7 +121,8 @@ class Polytrim_UI_ModalWait():
 
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
-            self.knife.grab_confirm()
+            x,y = eventd['mouse']
+            self.knife.grab_confirm(context, x, y)
             if self.knife.new_cos:
                 self.knife.make_cut()
             self.ui_text_update(context)

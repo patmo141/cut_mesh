@@ -68,11 +68,11 @@ class Polytrim_UI:
     def create_polytrim_from_bezier(self, ob_bezier):
         #TODO, read al the bezier points or interp the bezier?
         return
-        
+
     def create_polytrim_from_vert_loop(self, ob_bezier):
         #TODO, read all the mesh data in and make a polylineknife
         return
-        
+
     def create_polystrips_from_greasepencil(self):
         Mx = self.obj_orig.matrix_world
         gp = self.obj_orig.grease_pencil

@@ -56,6 +56,8 @@ class PolyLineKnife(object):
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
         self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
 
+        self.grab_point = None
+
         self.non_man_points = []
         self.non_man_bmverts = []
         for loop in self.non_man_ed_loops:
@@ -306,14 +308,14 @@ class PolyLineKnife(object):
             else:
                 self.end_edge = ed
 
-            self.points_data[self.selected] = {
+            self.grab_point = {
                 "world_location": mx * pt,
                 "local_location": pt,
                 "view_direction": view_vector,
                 "face_index": ed.link_faces[0].index
             }
         else:
-            self.points_data[self.selected] = {
+            self.grab_point = {
                 "world_location": mx * loc,
                 "local_location": loc,
                 "view_direction": view_vector,
@@ -324,9 +326,12 @@ class PolyLineKnife(object):
         self.points_data[self.selected]["world_location"] = self.grab_undo_loc
         self.start_edge = self.start_edge_undo
         self.end_edge = self.end_edge_undo
+        self.grab_point = None
         return
 
-    def grab_confirm(self):
+    def grab_confirm(self, context, x, y):
+        self.points_data[self.selected] = self.grab_point
+        self.grab_point = None
         self.grab_undo_loc = None
         self.start_edge_undo = None
         self.end_edge_undo = None
@@ -715,7 +720,7 @@ class PolyLineKnife(object):
         #face_set = flood_selection_faces(self.bme, self.face_chain, self.face_seed, max_iters = 5000)
         #self.prev_region = [f.calc_center_median() for f in face_set]
 
-    # Makes the cut depending on the kind desired
+    # makes cutting path
     def make_cut(self):
         if self.split: return #already did this, no going back!
         mx, imx = self.get_matrices()
@@ -1658,11 +1663,6 @@ class PolyLineKnife(object):
         print('replace')
         return
 
-    def ensure_lookup(self):
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
-
     def snap_poly_line(self):
         '''
         only needed if processing an outside mesh
@@ -1767,7 +1767,13 @@ class PolyLineKnife(object):
     ## ****** HELPER FUNCTIONS *****
     ## ******************************
 
-    # get info to use later with ray_cast 
+    # calls bmesh's ensure lookup table functions
+    def ensure_lookup(self):
+        self.bme.verts.ensure_lookup_table()
+        self.bme.edges.ensure_lookup_table()
+        self.bme.faces.ensure_lookup_table()
+
+    # get info to use later with ray_cast
     def get_view_ray_data(self, context, coord):
         view_vector = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, coord)
         ray_origin = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, coord)
@@ -1840,6 +1846,10 @@ class PolyLineKnife(object):
         if self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.points_data[self.hovered[1]]["world_location"]], 8, color = (0,1,0,1))
 
+        #draw a dot under cursor
+        if self.grab_point:
+            common_drawing.draw_3d_points(context,[self.grab_point["world_location"]], 8, color = (0,1,0,1))
+
         #draw the silly green insertion line when possible to cut a new input point into an existing cut segment
         elif self.hovered[0] == 'EDGE':
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
@@ -1865,6 +1875,7 @@ class PolyLineKnife(object):
         #    common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v for v in self.new_cos], 6, color = color)
 
         #draw any bad segments in red
+        #TODO - This section is very confusing and hard to wrap the mind around. making it more intuitive would be very helpful
         for bad_ind in self.bad_segments:
             face_chng_ind = self.face_changes.index(bad_ind)
             next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes)
