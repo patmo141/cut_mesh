@@ -56,8 +56,6 @@ class PolyLineKnife(object):
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
         self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
 
-        self.grab_point = None
-
         self.non_man_points = []
         self.non_man_bmverts = []
         for loop in self.non_man_ed_loops:
@@ -79,7 +77,7 @@ class PolyLineKnife(object):
         else:
             self.ui_type = ui_type
 
-        # undo variables TODO: Get undo to work
+        self.grab_point = None
         self.grab_undo_loc = None
         self.start_edge_undo = None
         self.end_edge_undo = None
@@ -235,6 +233,7 @@ class PolyLineKnife(object):
     ## Initiates a grab if point is selected
     def grab_initiate(self):
         if self.selected != -1:
+            self.grab_point = self.points_data[self.selected]
             self.grab_undo_loc = self.points_data[self.selected]["world_location"]
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
@@ -243,7 +242,6 @@ class PolyLineKnife(object):
             return False
 
     def grab_mouse_move(self,context,x,y):
-
         region = context.region
         rv3d = context.region_data
         mx, imx = self.get_matrices()
@@ -251,8 +249,6 @@ class PolyLineKnife(object):
         view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, self.grab_cancel)
         if loc == None: return
-
-
 
         #check if first or end point and it's a non man edge!
         if self.selected == 0 and self.start_edge or self.selected == (len(self.points_data) -1) and self.end_edge:
@@ -330,8 +326,10 @@ class PolyLineKnife(object):
         return
 
     def grab_confirm(self, context, x, y):
-        self.points_data[self.selected] = self.grab_point
-        self.grab_point = None
+        print("grab_point", self.grab_point)
+        if self.grab_point:
+            self.points_data[self.selected] = self.grab_point
+            self.grab_point = None
         self.grab_undo_loc = None
         self.start_edge_undo = None
         self.end_edge_undo = None
@@ -1840,15 +1838,12 @@ class PolyLineKnife(object):
 
         #draw a dot of sepecfic color representing the user selected input point
         if self.selected != -1 and len(self.points_data) >= self.selected + 1:
+            print("self selected",self.points_data[self.selected])
             common_drawing.draw_3d_points(context,[self.points_data[self.selected]["world_location"]], 8, color = (0,1,1,1))
 
         #pre-highlight the point under the mouse
         if self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.points_data[self.hovered[1]]["world_location"]], 8, color = (0,1,0,1))
-
-        #draw a dot under cursor
-        if self.grab_point:
-            common_drawing.draw_3d_points(context,[self.grab_point["world_location"]], 8, color = (0,1,0,1))
 
         #draw the silly green insertion line when possible to cut a new input point into an existing cut segment
         elif self.hovered[0] == 'EDGE':
@@ -1857,6 +1852,28 @@ class PolyLineKnife(object):
             next = (self.hovered[1] + 1) % len(self.points_data)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[next]["world_location"])
             common_drawing.draw_polyline_from_points(context, [a,self.mouse, b], (0,.2,.2,.5), 2,"GL_LINE_STRIP")
+
+        #draw dot at grab location and draw lines connecting to itz
+        if self.grab_point:
+            loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+            color = (0,0,1,.2)
+            common_drawing.draw_3d_points(context,[self.grab_point["world_location"]], 5, color)
+            # find index of grab point in points data
+            for i in range(len(self.points_data)):
+                if self.points_data[i]["world_location"] == self.grab_undo_loc:
+                    grab_point_ind = i
+                    break
+            low_ind = grab_point_ind - 1
+            high_ind = (grab_point_ind + 1) % len(self.points_data)
+            low_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[low_ind]["world_location"])
+            grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point["world_location"])
+            high_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[high_ind]["world_location"])
+            if self.selected == 0 and not self.cyclic:
+                common_drawing.draw_polyline_from_points(context, [grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
+            elif self.selected == len(self.points_data) - 1 and not self.cyclic:
+                common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc], color, 4,"GL_LINE_STRIP")
+            else:
+                common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
 
         #draw the vertices of the seed face
         if self.face_seed:
