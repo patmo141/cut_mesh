@@ -33,3 +33,18 @@ class Polytrim_UI_Tools():
         # Make the sketch
         self.knife.make_sketch(hovered_start, sketch_data, view_vector)
         self.knife.snap_poly_line()  #why do this again?
+
+    ## updates the text at the bottom of the viewport depending on certain conditions
+    def ui_text_update(self, context):
+        if self.knife.bad_segments:
+            context.area.header_text_set("Fix Bad segments by moving control points.")
+        elif self.knife.new_cos:
+            context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
+        elif self.knife.hovered[0] == 'POINT':
+            context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
+        else:
+            self.set_ui_text_main(context)
+
+    # sets the viewports text during general creation of line
+    def set_ui_text_main(self, context):
+        context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
