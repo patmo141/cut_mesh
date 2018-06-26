@@ -15,7 +15,7 @@ class Polytrim_UI_Tools():
 
             if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0:
                 self.knife.cyclic = True  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
-            return
+            return False
 
         # Get user view ray
         x,y = eventd['mouse']  #coordinates of where LeftMouse was released
@@ -33,6 +33,8 @@ class Polytrim_UI_Tools():
         # Make the sketch
         self.knife.make_sketch(hovered_start, sketch_data, view_vector)
         self.knife.snap_poly_line()  #why do this again?
+
+        return True
 
     ## updates the text at the bottom of the viewport depending on certain conditions
     def ui_text_update(self, context):

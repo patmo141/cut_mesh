@@ -232,16 +232,20 @@ class PolyLineKnife(object):
 
     ## Initiates a grab if point is selected
     def grab_initiate(self):
+        print("initiate 1")
         if self.selected != -1:
             self.grab_point = self.points_data[self.selected]
             self.grab_undo_loc = self.points_data[self.selected]["world_location"]
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
+            print("initiate 2")
             return True
         else:
+            print("initiate 2")
             return False
 
     def grab_mouse_move(self,context,x,y):
+        print("initiate 3")
         region = context.region
         rv3d = context.region_data
         mx, imx = self.get_matrices()
@@ -1838,7 +1842,6 @@ class PolyLineKnife(object):
 
         #draw a dot of sepecfic color representing the user selected input point
         if self.selected != -1 and len(self.points_data) >= self.selected + 1:
-            print("self selected",self.points_data[self.selected])
             common_drawing.draw_3d_points(context,[self.points_data[self.selected]["world_location"]], 8, color = (0,1,1,1))
 
         #pre-highlight the point under the mouse

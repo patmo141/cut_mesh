@@ -152,8 +152,8 @@ class Polytrim_UI_ModalWait():
             return 'sketch'
 
         elif eventd['release'] == 'LEFTMOUSE':
-            self.sketch_confirm(context, eventd)
-            if self.knife.new_cos:
+            is_sketch = self.sketch_confirm(context, eventd)
+            if self.knife.new_cos and is_sketch:
                 self.knife.make_cut()
             self.ui_text_update(context)
             self.sketch = []
