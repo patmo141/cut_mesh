@@ -29,6 +29,7 @@ class Polytrim_UI_ModalWait():
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
             self.knife.hover(context, x, y)
+            self.ui_text_update(context)
             return 'main'
 
         if  eventd['press'] == 'LEFTMOUSE':
@@ -88,15 +89,16 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'S':
             if len(self.knife.bad_segments) != 0:
                 showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
-                context.area.header_text_set("Fix Red segments by moving control points then press 'S'")
                 return 'main'
 
             if self.knife.start_edge == None and not self.knife.cyclic:
                 showErrorMessage('Finish closing cut boundary loop')
                 return 'main'
+
             elif self.knife.start_edge != None and self.knife.end_edge == None:
                 showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
                 return 'main'
+
             elif len(self.knife.new_cos) == 0:
                 showErrorMessage('Press "C" to preview the cut success before setting the seed')
                 return 'main'
@@ -119,33 +121,17 @@ class Polytrim_UI_ModalWait():
 
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
-            self.knife.grab_confirm()
-
-            if len(self.knife.bad_segments):
+            x,y = eventd['mouse']
+            self.knife.grab_confirm(context, x, y)
+            if self.knife.new_cos:
                 self.knife.make_cut()
-            elif len(self.knife.new_cos) and (self.knife.cyclic or (self.knife.start_edge != None and self.knife.end_edge != None)):
-                self.knife.make_cut()
-
-            if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0:
-                context.area.header_text_set("Poly Trim.  When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
-            elif len(self.knife.new_cos) and len(self.knife.bad_segments) != 0:
-                context.area.header_text_set("Poly Trim.  Fix Bad segments so that no segments are red!")
-
-            else:
-                context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
-
+            self.ui_text_update(context)
             return 'main'
 
         elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
             #put it back!
             self.knife.grab_cancel()
-
-            if len(self.knife.new_cos):
-                context.area.header_text_set("Poly Trim.  When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
-            elif len(self.knife.new_cos) and len(self.bad_segments) != 0:
-                context.area.header_text_set("Poly Trim.  Fix Bad segments so that no segments are red!")
-            else:
-                context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
+            self.ui_text_update(context)
             return 'main'
 
         elif eventd['type'] == 'MOUSEMOVE':
@@ -167,6 +153,9 @@ class Polytrim_UI_ModalWait():
 
         elif eventd['release'] == 'LEFTMOUSE':
             self.sketch_confirm(context, eventd)
+            if self.knife.new_cos:
+                self.knife.make_cut()
+            self.ui_text_update(context)
             self.sketch = []
             return 'main'
 
