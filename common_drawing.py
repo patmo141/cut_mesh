@@ -89,7 +89,7 @@ def draw3d_quads(context, lpoints, color): #, color_mirror):
     #        for coord in points:
     #            bgl.glVertex3f(-coord.x,coord.y,coord.z)
     bgl.glEnd()
-    
+
 def draw3d_points(context, points, color, size):
     bgl.glColor4f(*color)
     bgl.glPointSize(size)

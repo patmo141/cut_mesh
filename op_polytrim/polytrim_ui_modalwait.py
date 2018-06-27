@@ -68,20 +68,23 @@ class Polytrim_UI_ModalWait():
                 return 'finish'
 
         if eventd['press'] == 'P':
-            #self.knife.preview_mesh(eventd['context'])
-            self.knife.split_geometry(eventd['context'], mode = 'SEPARATE')
+            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+                self.knife.split_geometry(eventd['context'], mode = 'SEPARATE')
             return 'finish'
 
         if eventd['press'] == 'X':
-            self.knife.split_geometry(eventd['context'], mode = 'DELETE')
+            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+                self.knife.split_geometry(eventd['context'], mode = 'DELETE')
             return 'finish'
 
         if eventd['press'] == 'Y':
-            self.knife.split_geometry(eventd['context'], mode = 'SPLIT')
+            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+                self.knife.split_geometry(eventd['context'], mode = 'SPLIT')
             return 'finish'
 
         if eventd['press'] == 'SHIFT+D':
-            self.knife.split_geometry(eventd['context'], mode = 'DUPLICATE')
+            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+                self.knife.split_geometry(eventd['context'], mode = 'DUPLICATE')
             return 'finish'
 
         if eventd['press'] == 'S':
