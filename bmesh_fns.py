@@ -4,6 +4,7 @@ Created on Oct 8, 2015
 @author: Patrick
 '''
 from mathutils import Vector, Matrix
+import bmesh
 
 def face_neighbors_by_edge(bmface):
     neighbors = []
@@ -45,11 +46,247 @@ def face_neighbors_strict(bmface):
     return neighbors
 
 
-def vert_neighbors(bmvert):
+def vert_neighbors_manifold(bmvert):
     
     neighbors = [ed.other_vert(bmvert) for ed in bmvert.link_edges]
     return [v for v in neighbors if v.is_manifold]
-     
+
+
+def vert_neighbors(bmvert):
+    
+    neighbors = [ed.other_vert(bmvert) for ed in bmvert.link_edges]
+    return neighbors
+
+
+
+
+#https://blender.stackexchange.com/questions/92406/circular-order-of-edges-around-vertex
+# Return edges around param vertex in counter-clockwise order
+def connectedEdgesFromVertex_CCW(vertex):
+
+    vertex.link_edges.index_update()
+    first_edge = vertex.link_edges[0]
+
+    edges_CCW_order = []
+
+    edge = first_edge
+    while edge not in edges_CCW_order:
+        edges_CCW_order.append(edge)
+        edge = rightEdgeForEdgeRegardToVertex(edge, vertex)
+
+    return edges_CCW_order
+
+# Return the right edge of param edge regard to param vertex
+#https://blender.stackexchange.com/questions/92406/circular-order-of-edges-around-vertex
+def rightEdgeForEdgeRegardToVertex(edge, vertex):
+    right_loop = None
+
+    for loop in edge.link_loops:
+        if loop.vert == vertex:
+            right_loop = loop
+            break
+    return loop.link_loop_prev.edge
+
+
+
+def bmesh_loose_parts_faces(bme, selected_faces = None, max_iters = 100): 
+    '''
+    bme - BMesh
+    selected_faces = list, set or None
+    max_iters = maximum amount
+    
+    return - list of lists of BMFaces
+    '''
+    if selected_faces == None:
+        total_faces = set(bme.faces[:])
+    else:
+        if isinstance(selected_faces, list):
+            total_faces = set(selected_faces)
+        elif isinstance(selected_faces, set):
+            total_faces = selected_faces.copy()
+            
+        else:
+            #raise exception
+            return []
+        
+    islands = []
+    iters = 0
+    while len(total_faces) and iters < max_iters:
+        iters += 1
+        seed = total_faces.pop()
+        island = flood_selection_faces(bme, {}, seed, max_iters = 10000)
+        islands += [island]
+        total_faces.difference_update(island)
+    
+    return islands
+
+def bmesh_loose_parts_verts(bme, selected_verts, max_iters = 100): 
+    '''
+    bme - BMesh
+    selected_verts = list, set or None of BMVert
+    max_iters = maximum amount of loose parts to be found
+    
+    return - list of lists of BMVerts
+    '''
+    if selected_verts == None or len(selected_verts) == 0:
+        total_verts = set(bme.verts[:])
+       
+    else:
+        if isinstance(selected_verts, list):
+            total_verts = set(selected_verts)
+        elif isinstance(selected_verts, set):
+            total_verts = selected_verts.copy()  #don't want to modify initial set
+
+        else:
+            #raise exception
+            return []
+    islands = []
+    iters = 0
+    while len(total_verts) and iters < max_iters:
+        iters += 1
+        seed = total_verts.pop()
+        island = flood_island_within_selected_verts(bme, total_verts, seed, max_iters = 10000)
+        islands += [island]
+        total_verts.difference_update(island)
+    
+    return islands
+
+def new_bmesh_from_bmelements(geom):
+    
+    out_bme = bmesh.new()
+    out_bme.verts.ensure_lookup_table()
+    out_bme.faces.ensure_lookup_table()
+    
+    faces = [ele for ele in geom if isinstance(ele, bmesh.types.BMFace)]
+    verts = [ele for ele in geom if isinstance(ele, bmesh.types.BMVert)]
+    
+    vs = set(verts)
+    for f in faces:
+        vs.update(f.verts[:])
+        
+    src_trg_map = dict()
+    new_bmverts = []
+    for v in vs:
+    
+        new_ind = len(out_bme.verts)
+        new_bv = out_bme.verts.new(v.co)
+        new_bmverts.append(new_bv)
+        src_trg_map[v.index] = new_ind
+    
+    out_bme.verts.ensure_lookup_table()
+    out_bme.faces.ensure_lookup_table()
+        
+    new_bmfaces = []
+    for f in faces:
+        v_inds = []
+        for v in f.verts:
+            new_ind = src_trg_map[v.index]
+            v_inds.append(new_ind)
+            
+        new_bmfaces += [out_bme.faces.new(tuple(out_bme.verts[i] for i in v_inds))]
+        
+    out_bme.faces.ensure_lookup_table()
+    out_bme.verts.ensure_lookup_table()
+    out_bme.verts.index_update()
+    
+   
+    out_bme.verts.index_update()        
+    out_bme.verts.ensure_lookup_table()
+    out_bme.faces.ensure_lookup_table()
+    
+    return out_bme     
+
+def flood_island_within_selected_verts(bme, selected_verts, seed_element, max_iters = 10000):
+    '''
+    final all connected verts to seed element that are witin selected_verts
+    
+    bme - bmesh
+
+    selected_verts - list or set of BMVert
+    
+    if an empty set, selection will grow to non manifold boundaries
+    seed_element - a vertex or face within/out perimeter verts loop
+    max_iters - maximum recursions to select_neightbors
+    
+    return - set of verticies
+    '''
+    
+    if isinstance(selected_verts, list):
+        selected_verts = set(selected_verts)
+    elif isinstance(selected_verts, set):
+        selected_verts = selected_verts.copy()
+    
+    flood_selection = set()
+    flood_selection.add(seed_element)
+    new_verts = set([v for v in vert_neighbors(seed_element) if v in selected_verts])
+    
+    print('print there are %i new_verts at first iteration' % len(new_verts))   
+    iters = 0
+    while iters < max_iters and new_verts:
+        iters += 1
+        new_candidates = set()
+        for v in new_verts:
+            new_candidates.update(vert_neighbors(v))
+            
+        new_verts = new_candidates & selected_verts
+        print('at iteration %i there are %i new_verts' % (iters, len(new_verts)))
+        if new_verts:
+            flood_selection |= new_verts 
+            selected_verts -= new_verts   
+    if iters == max_iters:
+        print('max iterations reached') 
+           
+    return flood_selection
+    
+    
+    
+def flood_selection_vertex_perimeter(bme, perimeter_verts, seed_element, max_iters = 10000):
+    '''
+    bme - bmesh
+    
+
+    perimeter_verts - should create a closed edge loop to contain "flooded" selection.
+    
+    
+    if an empty set, selection will grow to non manifold boundaries
+    seed_element - a vertex or face within/out perimeter verts loop
+    max_iters - maximum recursions to select_neightbors
+    
+    return - set of verticies
+    '''
+    
+    flood_selection = set()
+    if isinstance(seed_element, bmesh.types.BMVert):
+        
+        flood_selection.add(seed_element)
+        new_verts = set(vert_neighbors(seed_element)) - perimeter_verts
+        
+    elif isinstance(seed_element, bmesh.types.BMFace):
+        flood_selection.update(seed_element.verts[:])
+        
+        for v in seed_element.verts:
+            new_verts = set()
+            new_verts.update(set(vert_neighbors(v)) - perimeter_verts)
+    
+    
+    flood_selection |= perimeter_verts
+    
+    iters = 0
+    while iters < max_iters and new_verts:
+        iters += 1
+        new_candidates = set()
+        for v in new_verts:
+            new_candidates.update(vert_neighbors(v))
+            
+        new_verts = new_candidates - flood_selection
+        
+        if new_verts:
+            flood_selection |= new_verts    
+    if iters == max_iters:
+        print('max iterations reached') 
+           
+    return flood_selection
+      
 def flood_selection_by_verts(bme, selected_faces, seed_face, max_iters = 1000):
     '''
     bme - bmesh
@@ -108,6 +345,25 @@ def flood_selection_faces(bme, selected_faces, seed_face, max_iters = 1000):
         print('max iterations reached')    
     return total_selection
 
+def partition_faces_between_edge_boundaries(bme, input_faces, boundary_edges, max_iters = 1000):
+    
+    if len(input_faces) == 0:
+        input_faces = set(bme.faces[:])
+        
+    
+    iters = 0    
+    islands = []
+    while len(input_faces) and iters < max_iters:
+        iters += 1
+        
+        seed_face = input_faces.pop()
+        island = flood_selection_edge_loop(bme, boundary_edges, seed_face, max_iters = 10000)
+        
+        input_faces.difference_update(island)
+    
+        islands += [island]
+        
+    return islands
 
 def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
     '''
@@ -194,7 +450,70 @@ def grow_selection_to_find_face(bme, start_face, stop_face, max_iters = 1000):
             
     return total_selection
 
-
+def decrease_vert_selection(bme, selected_verts, iterations = 1):
+    '''
+    remove outer layer of selection
+    
+    TODO, treat this as a region growing subtraction of the border
+    rather than iterate the whole selection each time.  
+    '''
+    
+    #make a copy instead of modify in place, in case
+    #oritinal selection is important
+    if isinstance(selected_verts, list):
+        sel_verts = set(selected_verts)
+    
+    elif isinstance(selected_verts, set):
+        sel_verts = selected_verts.copy()
+    
+    def is_boundary(v):
+        return not all([ed.other_vert(v) in sel_verts for ed in v.link_edges])
+        
+    for i in range(iterations):
+        
+        border = [v for v in sel_verts if is_boundary(v)] #TODO...smarter way to find new border...connected to old border
+        sel_verts.difference_update(border)
+    
+    return sel_verts
+    
+def increase_vert_selection(bme, selected_verts, iterations = 1):
+    '''
+    remove outer layer of selection
+    
+    TODO, treat this as a region growing subtraction of the border
+    rather than iterate the whole selection each time.  
+    '''
+    
+    #make a copy instead of modify in place, in case
+    #oritinal selection is important
+    if isinstance(selected_verts, list):
+        sel_verts = set(selected_verts)
+    
+    elif isinstance(selected_verts, set):
+        sel_verts = selected_verts.copy()
+    
+    #def is_boundary(v):
+    #    return not all([ed.other_vert(v) in sel_verts for ed in v.link_edges])
+    
+    
+    new_verts = set()
+    for v in sel_verts:
+        new_verts.update(vert_neighbors(v))    
+        
+    iters = 0
+    while iters < iterations and new_verts:
+        iters += 1
+        new_candidates = set()
+        for v in new_verts:
+            new_candidates.update(vert_neighbors(v))
+            
+        new_verts = new_candidates - sel_verts
+        
+        if new_verts:
+            sel_verts |= new_verts  
+    
+    return sel_verts
+   
 def grow_to_find_mesh_end(bme, start_face, max_iters = 20):
     '''
     will grow selection until a non manifold face is raeched.
