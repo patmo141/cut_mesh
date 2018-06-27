@@ -201,8 +201,8 @@ class PolyLineKnife(object):
 
             self.points_data.pop(self.hovered[1])
 
-            # selected point should only change if selected is deleted
-            if self.selected > self.hovered[1]: self.selected -= 1
+            if self.selected >= self.hovered[1]: self.selected -= 1
+            if self.selected >= self.num_points(): self.selected = -1
 
             if not self.num_points():
                 self.selected = -1
@@ -226,20 +226,16 @@ class PolyLineKnife(object):
 
     ## Initiates a grab if point is selected
     def grab_initiate(self):
-        print("initiate 1")
         if self.selected != -1:
             self.grab_point = self.points_data[self.selected]
             self.grab_undo_loc = self.points_data[self.selected]["world_location"]
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
-            print("initiate 2")
             return True
         else:
-            print("initiate 2")
             return False
 
     def grab_mouse_move(self,context,x,y):
-        print("initiate 3")
         region = context.region
         rv3d = context.region_data
         mx, imx = self.get_matrices()
@@ -324,7 +320,6 @@ class PolyLineKnife(object):
         return
 
     def grab_confirm(self, context, x, y):
-        print("grab_point", self.grab_point)
         if self.grab_point:
             self.points_data[self.selected] = self.grab_point
             self.grab_point = None
@@ -1866,18 +1861,20 @@ class PolyLineKnife(object):
             color = (0,0,1,.2)
             common_drawing.draw_3d_points(context,[self.grab_point["world_location"]], 5, color)
             # find index of grab point in points data
-            for i in range(len(self.points_data)):
+            for i in range(self.num_points()):
                 if self.points_data[i]["world_location"] == self.grab_undo_loc:
                     grab_point_ind = i
                     break
             low_ind = grab_point_ind - 1
-            high_ind = (grab_point_ind + 1) % len(self.points_data)
+            high_ind = (grab_point_ind + 1) % self.num_points()
             low_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[low_ind]["world_location"])
             grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point["world_location"])
             high_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[high_ind]["world_location"])
-            if self.selected == 0 and not self.cyclic:
+            if self.num_points() == 1:
+                pass
+            elif self.selected == 0 and not self.cyclic:
                 common_drawing.draw_polyline_from_points(context, [grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
-            elif self.selected == len(self.points_data) - 1 and not self.cyclic:
+            elif self.selected == self.num_points() - 1 and not self.cyclic:
                 common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc], color, 4,"GL_LINE_STRIP")
             else:
                 common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
