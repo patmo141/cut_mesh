@@ -1631,6 +1631,7 @@ class PolyLineKnife(object):
         cut_bme.to_mesh(cut_me)
         context.scene.objects.link(cut_ob)
         cut_ob.show_x_ray = True
+        cut_ob.location = self.cut_ob.location
 
     def find_select_inner_faces(self):
         if not self.face_seed: return
