@@ -13,9 +13,9 @@ from .polytrim_datastructure import PolyLineKnife
 from .cache import polytrim_undo_cache
 
 class Polytrim_UI:
-    
+
     def start_ui(self, context):
-        
+
         self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)
@@ -24,15 +24,15 @@ class Polytrim_UI:
         self.is_navigating   = False
         self.sketch_curpos   = (0, 0)
         self.sketch          = []
-        
+
         self.knife = PolyLineKnife(context,context.object)
         context.window.cursor_modal_set('CROSSHAIR')
-        context.area.header_text_set("Poly Trim.  Left click to place cut points on the mesh, then press 'C' to preview the cut")
-        
-    def end_ui(self, context):            
+        self.set_ui_text_main(context)
+
+    def end_ui(self, context):
         context.area.header_text_set()
         context.window.cursor_modal_restore()
-        
+
     def cleanup(self, context, cleantype=''):
         '''
         remove temporary object
@@ -68,11 +68,11 @@ class Polytrim_UI:
     def create_polytrim_from_bezier(self, ob_bezier):
         #TODO, read al the bezier points or interp the bezier?
         return
-        
+
     def create_polytrim_from_vert_loop(self, ob_bezier):
         #TODO, read all the mesh data in and make a polylineknife
         return
-        
+
     def create_polystrips_from_greasepencil(self):
         Mx = self.obj_orig.matrix_world
         gp = self.obj_orig.grease_pencil
