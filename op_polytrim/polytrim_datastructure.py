@@ -361,7 +361,6 @@ class PolyLineKnife(object):
                     self.points_data = [self.points_data[0]] + sketch_data
                 else:
                     self.points_data = sketch_data[::-1] + self.points_data[:]
-                    self.points_data = self.points_data[::-1]
 
             # starting at last point
             elif hover_start == len(self.points_data) - 1:
@@ -371,7 +370,7 @@ class PolyLineKnife(object):
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
                 self.points_data = self.points_data[:hover_start] + sketch_data
 
-        # user is replacing a segment with a sketch because they initiaiated and terminated the sketch on the line.
+        # User initiaiated and terminated the sketch on the line.
         else:
             # if start and stop sketch point is same, don't do anything, unless their is only 1 point.
             if hover_end == hover_start:
@@ -416,11 +415,11 @@ class PolyLineKnife(object):
                 #drawing "downstream" relative to self.points_data indexing (away from index 0)
                 else:
                     # making cyclic
-                    if hover_end == len(self.points_data) - 1 and hover_start == 0:
+                    if hover_end == self.num_points() - 1 and hover_start == 0:
                         if self.start_edge:
                             self.points_data = [self.points_data[0]] + sketch_data + [self.points_data[hover_end]]
                         else:
-                            self.points_data = sketch_data + self.points_data[::-1]
+                            self.points_data += sketch_data[::-1]
                             self.cyclic = True
 
                     # when no points are out
@@ -1839,6 +1838,10 @@ class PolyLineKnife(object):
             bad_ind_2 = self.face_changes[next_face_chng_ind]
             if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = len(self.points_data) - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
             common_drawing.draw_polyline_from_3dpoints(context, [self.points_data[bad_ind]["world_location"], self.points_data[bad_ind_2]["world_location"]], (1,.1,.1,1), 4, 'GL_LINE')
+
+        ## Origin Point
+        if self.points_data[0]:
+            common_drawing.draw_3d_points(context,[self.points_data[0]["world_location"]], 10, (1,.8,.2,1))
 
         ## Selected Point
         if self.selected != -1 and len(self.points_data) >= self.selected + 1:
