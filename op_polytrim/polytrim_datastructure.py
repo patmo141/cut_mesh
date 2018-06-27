@@ -346,15 +346,14 @@ class PolyLineKnife(object):
         hover_end = hovered_end[1]
         view_vectors = [view_vector]*len(sketch_data)
 
-        ## Non-manifold sketches first
-
-        # ending on non manifold edge
+        ## Non-manifold sketches to or from a non-man edge/vert first
+        print("start",hovered_start)
+        # ending on non manifold edge/vert
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
-
             self.points_data += sketch_data + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
             self.end_edge = hovered_end[1][0]
 
-        # starting on non manifold edge
+        # starting on non manifold edge/vert
         elif hovered_start[0] and "NON_MAN" in hovered_start[0]:
             self.points_data += sketch_data
             self.start_edge = hovered_start[1][0]
@@ -363,22 +362,23 @@ class PolyLineKnife(object):
 
         #User is not connecting back to polyline
         elif hovered_end[0] == None:
+            # Do nothing if...
+            if self.cyclic or self.end_edge: pass
 
-            # Do nothing if it's cyclic
-            if self.cyclic:
-                pass
-
-            # add the points in at beginning of line
+            # starting at origin point
             elif hover_start == 0:
-                self.points_data = sketch_data[::-1] + self.points_data[:]
-                self.points_data = self.points_data[::-1]
+                # origin point is start edge
+                if self.start_edge:
+                    self.points_data = [self.points_data[0]] + sketch_data
+                else:
+                    self.points_data = sketch_data[::-1] + self.points_data[:]
+                    self.points_data = self.points_data[::-1]
 
-            # add points at end of line
+            # starting at last point
             elif hover_start == len(self.points_data) - 1:
-                self.cyclic = False  # Correction for having set cyclic equal to True previously
                 self.points_data += sketch_data
 
-            # add points midway into the line and trim the rest
+            # starting in the middle
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
                 self.points_data = self.points_data[:hover_start] + sketch_data
 
@@ -412,27 +412,33 @@ class PolyLineKnife(object):
             else:
                 #drawing "upstream" relative to self.points_data indexing (towards index 0)
                 if hover_start > hover_end:
-                    # connecting the ends (making cyclic)
+                    # connecting the ends
                     if hover_end == 0 and hover_start == len(self.points_data) - 1:
-                        self.points_data += sketch_data
-                        self.cyclic = True
+                        if self.start_edge:
+                            self.points_data = [self.points_data[0]] + sketch_data[::-1] + [self.points_data[hover_start]]
+                        else:
+                            self.points_data += sketch_data
+                            self.cyclic = True
                     # add sketch points in
                     else:
-                        self.points_data = self.points_data[:hover_end] + sketch_data[::-1] + self.points_data[hover_start:]
+                        self.points_data = self.points_data[:hover_end + 1] + sketch_data[::-1] + self.points_data[hover_start:]
 
                 #drawing "downstream" relative to self.points_data indexing (away from index 0)
                 else:
                     # making cyclic
                     if hover_end == len(self.points_data) - 1 and hover_start == 0:
-                        self.points_data = sketch_data + self.points_data[::-1]
-                        self.cyclic = True
+                        if self.start_edge:
+                            self.points_data = [self.points_data[0]] + sketch_data + [self.points_data[hover_end]]
+                        else:
+                            self.points_data = sketch_data + self.points_data[::-1]
+                            self.cyclic = True
                     # when no points are out
                     elif hover_end == 0:
                         self.points_data = self.points_data[:1] + sketch_data
                         self.cyclic = True
                     # adding sketch points in
                     else:
-                        self.points_data = self.points_data[:hover_start] + sketch_data + self.points_data[hover_end:]
+                        self.points_data = self.points_data[:hover_start + 1] + sketch_data + self.points_data[hover_end:]
 
 
     ## ********************
