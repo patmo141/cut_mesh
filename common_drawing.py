@@ -98,31 +98,31 @@ def draw3d_points(context, points, color, size):
     for coord in points: bgl.glVertex3f(*coord)
     bgl.glEnd()
     bgl.glPointSize(1.0)
-    
-    
+
+
 ##############  2d Drawing Utilities #################
 ##### To be added to post_pixel handler ################
-def draw_3d_points(context, points, size, color = (1,0,0,1)):  
-    region = context.region  
-    rv3d = context.space_data.region_3d  
-      
-      
-    bgl.glEnable(bgl.GL_POINT_SMOOTH)  
-    bgl.glPointSize(size)  
-    # bgl.glEnable(bgl.GL_BLEND)  
-    bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)  
-      
-    bgl.glBegin(bgl.GL_POINTS)  
-    # draw red  
-    bgl.glColor4f(*color)      
-    for coord in points:  
-        vector3d = (coord.x, coord.y, coord.z)  
-        vector2d = location_3d_to_region_2d(region, rv3d, vector3d)  
-        bgl.glVertex2f(*vector2d)  
-    bgl.glEnd()  
-      
-    bgl.glDisable(bgl.GL_POINT_SMOOTH)  
-    bgl.glDisable(bgl.GL_POINTS)  
+def draw_3d_points(context, points, size, color = (1,0,0,1)):
+    region = context.region
+    rv3d = context.space_data.region_3d
+
+    bgl.glEnable(bgl.GL_POINT_SMOOTH)
+    bgl.glPointSize(size)
+    # bgl.glEnable(bgl.GL_BLEND)
+    bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
+
+    bgl.glBegin(bgl.GL_POINTS)
+    # draw red
+    bgl.glColor4f(*color)
+    for coord in points:
+        vector3d = (coord.x, coord.y, coord.z)
+        vector2d = location_3d_to_region_2d(region, rv3d, vector3d)
+        if vector2d and vector3d:
+            bgl.glVertex2f(*vector2d)
+    bgl.glEnd()
+
+    bgl.glDisable(bgl.GL_POINT_SMOOTH)
+    bgl.glDisable(bgl.GL_POINTS)
     return
 
 def draw_polyline_from_3dpoints(context, points_3d, color, thickness, LINE_TYPE):
@@ -130,33 +130,33 @@ def draw_polyline_from_3dpoints(context, points_3d, color, thickness, LINE_TYPE)
     a simple way to draw a line
     slow...becuase it must convert to screen every time
     but allows you to pan and zoom around
-    
+
     args:
         points_3d: a list of tuples representing x,y SCREEN coordinate eg [(10,30),(11,31),...]
         color: tuple (r,g,b,a)
         thickness: integer? maybe a float
-        LINE_TYPE:  eg...bgl.GL_LINE_STIPPLE or 
+        LINE_TYPE:  eg...bgl.GL_LINE_STIPPLE or
     '''
-    
+
     points = [location_3d_to_region_2d(context.region, context.space_data.region_3d, loc) for loc in points_3d]
-    
-    if LINE_TYPE == "GL_LINE_STIPPLE":  
+
+    if LINE_TYPE == "GL_LINE_STIPPLE":
         bgl.glLineStipple(4, 0x5555)  #play with this later
-        bgl.glEnable(bgl.GL_LINE_STIPPLE)  
+        bgl.glEnable(bgl.GL_LINE_STIPPLE)
     bgl.glEnable(bgl.GL_BLEND)
-    
+
     bgl.glColor4f(*color)
     bgl.glLineWidth(thickness)
     bgl.glBegin(bgl.GL_LINE_STRIP)
     for coord in points:
         if coord:
             bgl.glVertex2f(*coord)
-    
-    bgl.glEnd()  
-      
-    if LINE_TYPE == "GL_LINE_STIPPLE":  
-        bgl.glDisable(bgl.GL_LINE_STIPPLE)  
-        bgl.glEnable(bgl.GL_BLEND)  # back to uninterupted lines  
+
+    bgl.glEnd()
+
+    if LINE_TYPE == "GL_LINE_STIPPLE":
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+        bgl.glEnable(bgl.GL_BLEND)  # back to uninterupted lines
         bgl.glLineWidth(1)
     return
 
@@ -167,26 +167,26 @@ def draw_polyline_from_points(context, points, color, thickness, LINE_TYPE):
         points: a list of tuples representing x,y SCREEN coordinate eg [(10,30),(11,31),...]
         color: tuple (r,g,b,a)
         thickness: integer? maybe a float
-        LINE_TYPE:  eg...bgl.GL_LINE_STIPPLE or 
+        LINE_TYPE:  eg...bgl.GL_LINE_STIPPLE or
     '''
-    
-    if LINE_TYPE == "GL_LINE_STIPPLE":  
+
+    if LINE_TYPE == "GL_LINE_STIPPLE":
         bgl.glLineStipple(4, 0x5555)  #play with this later
-        bgl.glEnable(bgl.GL_LINE_STIPPLE)  
+        bgl.glEnable(bgl.GL_LINE_STIPPLE)
     bgl.glEnable(bgl.GL_BLEND)
-    
+
     current_width = bgl.GL_LINE_WIDTH
     bgl.glColor4f(*color)
     bgl.glLineWidth(thickness)
     bgl.glBegin(bgl.GL_LINE_STRIP)
-    
-    for coord in points:  
-        bgl.glVertex2f(*coord)  
-    
-    bgl.glEnd()  
-    bgl.glLineWidth(1)  
-    if LINE_TYPE == "GL_LINE_STIPPLE":  
-        bgl.glDisable(bgl.GL_LINE_STIPPLE)  
-        bgl.glEnable(bgl.GL_BLEND)  # back to uninterupted lines  
-      
+
+    for coord in points:
+        bgl.glVertex2f(*coord)
+
+    bgl.glEnd()
+    bgl.glLineWidth(1)
+    if LINE_TYPE == "GL_LINE_STIPPLE":
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+        bgl.glEnable(bgl.GL_BLEND)  # back to uninterupted lines
+
     return
