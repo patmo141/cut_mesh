@@ -138,7 +138,7 @@ class PolyLineKnife(object):
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
-        # if user started on edge and is currently hovering over non man edge
+        # if user is currently hovering over non man edge
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
             # unselect if it's cyclic and non manifold
             if self.cyclic:
@@ -177,11 +177,14 @@ class PolyLineKnife(object):
 
         # If you click point, set it's index to 'selected'
         if self.hovered[0] == 'POINT':
+            # different point was previously selected
+            if self.selected != 0 and self.hovered[1] == 0:
+                print("TOGGLING")
+                print("add:",self.cyclic)
+                #self.toggle_cyclic()
+                print("add:",self.cyclic)
             self.selected = self.hovered[1]
-            # If click is first point
-            if self.hovered[1] == 0 and not self.start_edge:
-                #can not  toggle cyclic any more, once it's on it remains on
-                self.toggle_cyclic()
+
             return
 
         # If an edge is clicked, cut in a new point
@@ -1806,6 +1809,7 @@ class PolyLineKnife(object):
         imx = mx.inverted()
         return [mx, imx]
 
+    ## toggles self.cyclic
     def toggle_cyclic(self):
         if self.cyclic: self.cyclic = False
         else: self.cyclic = True

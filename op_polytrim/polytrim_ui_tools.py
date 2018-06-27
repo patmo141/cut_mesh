@@ -12,9 +12,11 @@ class Polytrim_UI_Tools():
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.knife.ui_type == 'DENSE_POLY':
             print('sketch too short, cant confirm')
-
             if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0:
-                self.knife.cyclic = True  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
+                print("TOGGLING AGAIN")
+                print("sketch:",self.knife.cyclic)
+                self.knife.toggle_cyclic()  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
+                print("sketch:",self.knife.cyclic)
             return False
 
         # Get user view ray
@@ -43,7 +45,10 @@ class Polytrim_UI_Tools():
         elif self.knife.new_cos:
             context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
         elif self.knife.hovered[0] == 'POINT':
-            context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
+            if self.knife.hovered[1] == 0:
+                context.area.header_text_set("For origin point, left click to toggle cyclic")
+            else:
+                context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
         else:
             self.set_ui_text_main(context)
 
