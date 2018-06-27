@@ -11,12 +11,9 @@ class Polytrim_UI_Tools():
     def sketch_confirm(self, context, eventd):
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.knife.ui_type == 'DENSE_POLY':
-            print('sketch too short, cant confirm')
-            if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0:
-                print("TOGGLING AGAIN")
-                print("sketch:",self.knife.cyclic)
+            print('A sketch was not detected..')
+            if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0 and not self.knife.start_edge:
                 self.knife.toggle_cyclic()  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
-                print("sketch:",self.knife.cyclic)
             return False
 
         # Get user view ray
