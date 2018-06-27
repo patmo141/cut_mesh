@@ -336,7 +336,8 @@ class PolyLineKnife(object):
         view_vectors = [view_vector]*len(sketch_data)
 
         ## Non-manifold sketches to or from a non-man edge/vert first
-        print("start",hovered_start)
+        print("start:",hovered_start)
+        print("end:",hovered_end)
         # ending on non manifold edge/vert
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
             self.points_data += sketch_data + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
@@ -350,7 +351,7 @@ class PolyLineKnife(object):
         ## then manifold sketches
 
         #User is not connecting back to polyline
-        elif hovered_end[0] == None:
+        elif hovered_end[0] != 'Point':
             # Do nothing if...
             if self.cyclic or self.end_edge: pass
 
