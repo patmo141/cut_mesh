@@ -201,21 +201,22 @@ class PolyLineKnife(object):
 
             self.points_data.pop(self.hovered[1])
 
-            # some kinds of deletes make cyclic false again
-            if len(self.points_data) <= 2 or self.hovered[1] == 0: self.cyclic = False
-
             # selected point should only change if selected is deleted
             if self.selected > self.hovered[1]: self.selected -= 1
 
-            if self.end_edge != None and self.hovered[1] == len(self.points_data): #notice not -1 because we popped
+            if not self.num_points():
+                self.selected = -1
+                self.start_edge = None
+
+            # some kinds of deletes make cyclic false again
+            if self.num_points() <= 2 or self.hovered[1] == 0: self.cyclic = False
+
+            if self.end_edge and self.hovered[1] == self.num_points(): #notice not -1 because we popped
                 print('deteted last non man edge')
                 self.end_edge = None
                 self.new_cos = []
                 self.selected = -1
-
                 return
-
-
         else:
             if self.selected == -1: return
             self.points_data.pop(self.selected)
@@ -1815,6 +1816,10 @@ class PolyLineKnife(object):
     def toggle_cyclic(self):
         if self.cyclic: self.cyclic = False
         else: self.cyclic = True
+
+    # returns length of points_data
+    def num_points(self):
+        return len(self.points_data)
 
 
     ## *************************
