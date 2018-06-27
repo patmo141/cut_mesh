@@ -45,11 +45,13 @@ from .op_geopath.geopath_modal import CGC_Geopath
 from .op_slice.slice_modal import CGC_Slice
 from .op_triangle_fill import TriangleFill
 from .convenience import CUTMESH_OT_delete_strokes, CUTMESH_OT_hide_strokes, CUTMESH_OT_join_strokes
+from . import ambient_occlusion
 
 def register(): 
     #bpy.utils.register_class(CutMeshPreferences) #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
+    ambient_occlusion.register()
     bpy.utils.register_class(CutMesh_Polytrim)
     bpy.utils.register_class(CGC_Geopath)
     bpy.utils.register_class(CGC_Slice)
@@ -63,6 +65,7 @@ def unregister():
     #bpy.utils.register_class(CutMeshPreferences)  #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
+    ambient_occlusion.unregister()
     bpy.utils.unregister_class(CutMesh_Polytrim)
     bpy.utils.unregister_class(CGC_Geopath)
     bpy.utils.unregister_class(CGC_Slice)
