@@ -335,9 +335,6 @@ class PolyLineKnife(object):
         hover_end = hovered_end[1]
         view_vectors = [view_vector]*len(sketch_data)
 
-        ## Non-manifold sketches to or from a non-man edge/vert first
-        print("start:",hovered_start)
-        print("end:",hovered_end)
         # ending on non manifold edge/vert
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
             self.points_data += sketch_data + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
@@ -348,12 +345,14 @@ class PolyLineKnife(object):
             self.points_data += sketch_data
             self.start_edge = hovered_start[1][0]
 
-        ## then manifold sketches
-
         #User is not connecting back to polyline
         elif hovered_end[0] != 'POINT':
             # Do nothing if...
             if self.cyclic or self.end_edge: pass
+
+             # starting at last point
+            elif hover_start == len(self.points_data) - 1:
+                self.points_data += sketch_data
 
             # starting at origin point
             elif hover_start == 0:
@@ -362,10 +361,6 @@ class PolyLineKnife(object):
                     self.points_data = [self.points_data[0]] + sketch_data
                 else:
                     self.points_data = sketch_data[::-1] + self.points_data[:]
-
-            # starting at last point
-            elif hover_start == len(self.points_data) - 1:
-                self.points_data += sketch_data
 
             # starting in the middle
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
@@ -1842,7 +1837,7 @@ class PolyLineKnife(object):
 
         ## Origin Point
         if self.points_data[0]:
-            common_drawing.draw_3d_points(context,[self.points_data[0]["world_location"]], 10, (1,.8,.2,1))
+            common_drawing.draw_3d_points(context,[self.points_data[0]["world_location"]], 8, (1,.8,.2,1))
 
         ## Selected Point
         if self.selected != -1 and len(self.points_data) >= self.selected + 1:
