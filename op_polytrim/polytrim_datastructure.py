@@ -351,7 +351,7 @@ class PolyLineKnife(object):
         ## then manifold sketches
 
         #User is not connecting back to polyline
-        elif hovered_end[0] != 'Point':
+        elif hovered_end[0] != 'POINT':
             # Do nothing if...
             if self.cyclic or self.end_edge: pass
 
