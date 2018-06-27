@@ -198,12 +198,11 @@ class PolyLineKnife(object):
     def click_delete_point(self, mode = 'mouse'):
         if mode == 'mouse':
             if self.hovered[0] != 'POINT': return
+            
+            if self.selected >= self.hovered[1]: self.selected -= 1
 
             self.points_data.pop(self.hovered[1])
-
-            if self.selected >= self.hovered[1]: self.selected -= 1
-            if self.selected >= self.num_points(): self.selected = -1
-
+            
             if not self.num_points():
                 self.selected = -1
                 self.start_edge = None
