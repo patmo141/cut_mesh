@@ -177,14 +177,7 @@ class PolyLineKnife(object):
 
         # If you click point, set it's index to 'selected'
         if self.hovered[0] == 'POINT':
-            # different point was previously selected
-            if self.selected != 0 and self.hovered[1] == 0:
-                print("TOGGLING")
-                print("add:",self.cyclic)
-                #self.toggle_cyclic()
-                print("add:",self.cyclic)
             self.selected = self.hovered[1]
-
             return
 
         # If an edge is clicked, cut in a new point
@@ -419,6 +412,7 @@ class PolyLineKnife(object):
                         else:
                             self.points_data += sketch_data
                             self.cyclic = True
+
                     # add sketch points in
                     else:
                         self.points_data = self.points_data[:hover_end + 1] + sketch_data[::-1] + self.points_data[hover_start:]
@@ -432,11 +426,13 @@ class PolyLineKnife(object):
                         else:
                             self.points_data = sketch_data + self.points_data[::-1]
                             self.cyclic = True
+
                     # when no points are out
                     elif hover_end == 0:
                         self.points_data = self.points_data[:1] + sketch_data
                         self.cyclic = True
                     # adding sketch points in
+
                     else:
                         self.points_data = self.points_data[:hover_start + 1] + sketch_data + self.points_data[hover_end:]
 

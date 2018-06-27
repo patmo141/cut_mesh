@@ -12,7 +12,7 @@ class Polytrim_UI_Tools():
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.knife.ui_type == 'DENSE_POLY':
             print('A sketch was not detected..')
-            if self.knife.hovered[0] == 'POINT' and self.knife.hovered[1] == 0 and not self.knife.start_edge:
+            if self.knife.hovered== ['POINT', 0] and not self.knife.start_edge and len(self.knife.points_data) > 2:
                 self.knife.toggle_cyclic()  #self.knife.cyclic = self.knife.cyclic == False  #toggle behavior?
             return False
 
