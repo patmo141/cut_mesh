@@ -163,20 +163,21 @@ class Polytrim_UI_ModalWait():
     def modal_inner(self,context,eventd):
 
         if eventd['press'] == 'LEFTMOUSE':
-
             x,y = eventd['mouse']
+
             result = self.knife.click_seed_select(context, x,y)
+            # found a good face
             if result == 1:
                 context.window.cursor_modal_set('CROSSHAIR')
-
-                if len(self.knife.new_cos) and len(self.knife.bad_segments) == 0 and not self.knife.split:
+                if self.knife.new_cos and not self.knife.bad_segments and not self.knife.split:
                     self.knife.confirm_cut_to_mesh_no_ops()
                     context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
                 return 'main'
-
+            # found a bad face
             elif result == -1:
                 showErrorMessage('Seed is too close to cut boundary, try again more interior to the cut')
                 return 'inner'
+            # face not found
             else:
                 showErrorMessage('Seed not found, try again')
                 return 'inner'

@@ -198,11 +198,11 @@ class PolyLineKnife(object):
     def click_delete_point(self, mode = 'mouse'):
         if mode == 'mouse':
             if self.hovered[0] != 'POINT': return
-            
+
             if self.selected >= self.hovered[1]: self.selected -= 1
 
             self.points_data.pop(self.hovered[1])
-            
+
             if not self.num_points():
                 self.selected = -1
                 self.start_edge = None
@@ -582,7 +582,7 @@ class PolyLineKnife(object):
 
 
     ## *************************
-    ## ***** CUTTING & PREP *****
+    ## ***** Cut Preview *****
     ## *************************
 
     ## Fills data strucutures based on trim line and groups input points with polygons in the cut object
@@ -687,6 +687,7 @@ class PolyLineKnife(object):
         print('FACE GROUPS')
         print(self.face_groups)
 
+    # Finds the selected face and returns a status
     def click_seed_select(self, context, x, y):
         mx, imx = self.get_matrices()
 
@@ -694,14 +695,14 @@ class PolyLineKnife(object):
         view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
 
-        if face_ind != -1 and face_ind not in [f.index for f in self.face_chain]:
-            self.face_seed = self.bme.faces[face_ind]
-            print('face selected!!')
-            return 1
-
-        elif face_ind != -1 and face_ind  in [f.index for f in self.face_chain]:
-            print('face too close to boundary')
-            return -1
+        if face_ind != -1:
+            if face_ind not in [f.index for f in self.face_chain]:
+                self.face_seed = self.bme.faces[face_ind]
+                print('face selected!!')
+                return 1
+            else:
+                print('face too close to boundary')
+                return -1
         else:
             self.face_seed = None
             print('face not selected')
@@ -1090,7 +1091,7 @@ class PolyLineKnife(object):
 
         self.perimeter_edges = []
 
-        #Create new vetices
+        #Create new vertices and put them in data structure
         new_vert_ed_map = {}
         new_bmverts = [self.bme.verts.new(co) for co in self.new_cos]
         for bmed, bmvert in zip(self.ed_map, new_bmverts):
@@ -1112,12 +1113,9 @@ class PolyLineKnife(object):
         print('len of face chain %i' % len(self.face_chain))
         errors = []
         for bmface in self.face_chain:
-
-
             eds_crossed = [ed for ed in bmface.edges if ed in fast_ed_map]
 
-            #scenario 1, it was simply crossed by cut plane
-            #no user clicked points
+            #scenario 1: it was simply crossed by cut plane. contains no input points
             if bmface.index not in self.face_groups and len(eds_crossed) == 2:
                 if any([len(new_vert_ed_map[ed]) > 1 for ed in eds_crossed]):
                     print('2 edges with some double crossed! skipping this face')
@@ -1158,6 +1156,7 @@ class PolyLineKnife(object):
 
                 del_faces += [bmface]
 
+            #scenario 2: face crossed by cut plane and contains at least 1 input point
             elif bmface.index in self.face_groups and len(eds_crossed) == 2:
 
                 sorted_eds_crossed = sorted(eds_crossed, key = self.ed_map.index)
@@ -1205,6 +1204,7 @@ class PolyLineKnife(object):
 
                 del_faces += [bmface]
 
+            #scenario 3: face crossed on only one edge and contains input points
             elif bmface.index in self.face_groups and len(eds_crossed) == 1:
 
                 print('ONE EDGE CROSSED TWICE?')
