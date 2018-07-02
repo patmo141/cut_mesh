@@ -469,7 +469,7 @@ class PolyLineKnife(object):
         closest_3d_point = min(world_locs, key = dist3d)
         point_screen_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_point))
 
-        # If an input point is less than 20(some unit) away, stop and set hovered to the input point
+        # If an input point is less than 20 pixels away, stop and set hovered to the input point
         if point_screen_dist  < 20:
             def find(lst, key, value):
                 for i, dic in enumerate(lst):
@@ -582,7 +582,7 @@ class PolyLineKnife(object):
 
 
     ## *************************
-    ## ***** Cut Preview *****
+    ## ***** Cutting *****
     ## *************************
 
     ## Fills data strucutures based on trim line and groups input points with polygons in the cut object
@@ -1261,6 +1261,7 @@ class PolyLineKnife(object):
 
                 del_faces += [bmface]
 
+            #scenario 4: all other scenarios
             else:
                 print('\n')
                 print('THIS SCENARIO MAY NOT  ACCOUNTED FOR YET')
