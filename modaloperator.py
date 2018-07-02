@@ -123,10 +123,10 @@ class ModalOperator(Operator):
             print('\n'*5)
             #showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
-        
+
         self.fsm_mode = 'main'
         pass
-    
+
     ####################################################################
     # Draw handler function
 
@@ -153,10 +153,10 @@ class ModalOperator(Operator):
         Determine/handle navigation events.
         FSM passes control through to underlying panel if we're in 'nav' state
         '''
- 
+
         handle_nav = False
         handle_nav |= eventd['ftype'] in self.events_nav
-        
+
         if handle_nav:
             self.post_update   = True
             self.is_navigating = True
@@ -211,7 +211,7 @@ class ModalOperator(Operator):
 
         self.footer = ''
         self.footer_last = ''
-        
+
         try: self.start(context)
         except: self.handle_exception()
 
@@ -230,14 +230,14 @@ class ModalOperator(Operator):
         Called by Blender while our tool is running modal.
         This is the heart of the finite state machine.
         '''
-        
+
         # if something bad happened, bail!
         if not registered_check() or self.exception_quit:
             print('Something bad happened, so we are bailing!')
             self.modal_end(context)
             context.area.tag_redraw()
             return {'CANCELLED'}
-        
+
         if not context.area: return {'RUNNING_MODAL'}
 
         context.area.tag_redraw()       # force redraw
@@ -274,22 +274,22 @@ class ModalOperator(Operator):
         '''
         called by Blender when the user invokes (calls/runs) our tool
         '''
-        
+
         assert getattr(self, 'initialized', False), 'Must initialize operator before invoking'
-        
+
         if not registered_check(): return {'CANCELLED'}
-        
+
         #print('clearing exceptions')
         self.exceptions_caught = []
         self.exception_quit = False
-        
+
         try:
             if not self.start_poll(context):    # can the tool get started?
                 return {'CANCELLED'}
         except:
             self.handle_exception()
             return {'CANCELLED'}
-        
+
         self.modal_start(context)
-        
+
         return {'RUNNING_MODAL'}    # tell Blender to continue running our tool in modal

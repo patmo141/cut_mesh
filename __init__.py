@@ -47,7 +47,7 @@ from .op_triangle_fill import TriangleFill
 from .convenience import CUTMESH_OT_delete_strokes, CUTMESH_OT_hide_strokes, CUTMESH_OT_join_strokes
 from . import ambient_occlusion
 
-def register(): 
+def register():
     #bpy.utils.register_class(CutMeshPreferences) #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO
     #bpy.utils.register_class(CutMesh_menu)  #TODO
@@ -60,7 +60,7 @@ def register():
     bpy.utils.register_class(CUTMESH_OT_delete_strokes)
     bpy.utils.register_class(CUTMESH_OT_hide_strokes)
     bpy.utils.register_class(CUTMESH_OT_join_strokes)
-    
+
 def unregister():
     #bpy.utils.register_class(CutMeshPreferences)  #TODO
     #bpy.utils.register_class(CutMesh_panel)  #TODO

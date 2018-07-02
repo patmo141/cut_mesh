@@ -27,15 +27,13 @@ class PolyLineKnife(object):
     '''
 
     ## Initializing
-    def __init__(self,context, cut_object, ui_type = 'DENSE_POLY'):
-        # object variable setup
-        self.cut_ob = cut_object
+    def __init__(self,context, source_object, ui_type = 'DENSE_POLY'):
+        self.source_ob = source_object
         self.bme = bmesh.new()
-        self.bme.from_mesh(cut_object.data)
+        self.bme.from_mesh(source_object.data)
         self.ensure_lookup()
         self.bvh = BVHTree.FromBMesh(self.bme)
 
-        # polyline properties
         self.cyclic = False
         self.selected = -1
         self.hovered = [None, -1]
@@ -59,7 +57,7 @@ class PolyLineKnife(object):
         self.non_man_points = []
         self.non_man_bmverts = []
         for loop in self.non_man_ed_loops:
-            self.non_man_points += [self.cut_ob.matrix_world * self.bme.verts[ind].co for ind in loop]
+            self.non_man_points += [self.source_ob.matrix_world * self.bme.verts[ind].co for ind in loop]
             self.non_man_bmverts += [self.bme.verts[ind].index for ind in loop]
         if len(self.non_man_points):
             kd = kdtree.KDTree(len(self.non_man_points))
@@ -462,7 +460,7 @@ class PolyLineKnife(object):
         def dist3d(v3):
             if v3 == None:
                 return 100000000
-            delt = v3 - self.cut_ob.matrix_world * loc
+            delt = v3 - self.source_ob.matrix_world * loc
             return delt.length
 
         world_locs = [d['world_location'] for d in self.points_data]
@@ -494,7 +492,7 @@ class PolyLineKnife(object):
                 return
 
 
-            intersect3d = intersect_point_line(self.cut_ob.matrix_world * loc, self.points_data[i]["world_location"], self.points_data[nexti]["world_location"])
+            intersect3d = intersect_point_line(self.source_ob.matrix_world * loc, self.points_data[i]["world_location"], self.points_data[nexti]["world_location"])
 
             if intersect3d != None:
                 dist3d = (intersect3d[0] - loc).length
@@ -1436,13 +1434,13 @@ class PolyLineKnife(object):
 
         self.find_select_inner_faces()
         context.tool_settings.mesh_select_mode = (False, True, False)
-        self.bme.to_mesh(self.cut_ob.data)
+        self.bme.to_mesh(self.source_ob.data)
 
         #store the cut!
         cut_bme = bmesh.new()
         cut_me = bpy.data.meshes.new('polyknife_stroke')
-        cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
-        cut_ob.hide = True
+        cut_stroke = bpy.data.objects.new('polyknife_stroke', cut_me)
+        cut_stroke.hide = True
         bmvs = [cut_bme.verts.new(dct["local_location"]) for dct in self.points_data]
         for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
             cut_bme.edges.new((v0,v1))
@@ -1450,8 +1448,8 @@ class PolyLineKnife(object):
         if self.cyclic:
             cut_bme.edges.new((bmvs[-1], bmvs[0]))
         cut_bme.to_mesh(cut_me)
-        context.scene.objects.link(cut_ob)
-        cut_ob.show_x_ray = True
+        context.scene.objects.link(cut_stroke)
+        cut_stroke.show_x_ray = True
 
     def split_geometry(self, context, mode = 'DUPLICATE'):
         '''
@@ -1473,7 +1471,7 @@ class PolyLineKnife(object):
             does not separate them
             '''
 
-            self.bme.to_mesh(self.cut_ob.data)
+            self.bme.to_mesh(self.source_ob.data)
 
         if mode == 'SEPARATE':
             '''
@@ -1500,9 +1498,9 @@ class PolyLineKnife(object):
                 f_vert_tuple = [new_bmverts[i] for i in f_ind_tuple]
                 output_bme.faces.new(tuple(f_vert_tuple))
 
-            new_data = bpy.data.meshes.new(self.cut_ob.name + ' trimmed') 
-            new_ob =   bpy.data.objects.new(self.cut_ob.name + ' trimmed', new_data)
-            new_ob.matrix_world = self.cut_ob.matrix_world
+            new_data = bpy.data.meshes.new(self.source_ob.name + ' trimmed')
+            new_ob =   bpy.data.objects.new(self.source_ob.name + ' trimmed', new_data)
+            new_ob.matrix_world = self.source_ob.matrix_world
             output_bme.to_mesh(new_data)
             context.scene.objects.link(new_ob)
 
@@ -1522,7 +1520,7 @@ class PolyLineKnife(object):
                 new_ob.data.materials.append(mat)
 
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
-            self.bme.to_mesh(self.cut_ob.data)
+            self.bme.to_mesh(self.source_ob.data)
 
 
 
@@ -1542,7 +1540,7 @@ class PolyLineKnife(object):
             #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
 
-            self.bme.to_mesh(self.cut_ob.data)
+            self.bme.to_mesh(self.source_ob.data)
             self.bme.free()
 
 
@@ -1566,7 +1564,7 @@ class PolyLineKnife(object):
             #    ed.select_set(True)
             #print('There are %i new edges' % len(new_edges))
 
-            self.bme.to_mesh(self.cut_ob.data)
+            self.bme.to_mesh(self.source_ob.data)
 
 
         elif mode == 'DUPLICATE':
@@ -1593,9 +1591,9 @@ class PolyLineKnife(object):
                 f_vert_tuple = [new_bmverts[i] for i in f_ind_tuple]
                 output_bme.faces.new(tuple(f_vert_tuple))
 
-            new_data = bpy.data.meshes.new(self.cut_ob.name + ' trimmed')
-            new_ob =   bpy.data.objects.new(self.cut_ob.name + ' trimmed', new_data)
-            new_ob.matrix_world = self.cut_ob.matrix_world
+            new_data = bpy.data.meshes.new(self.source_ob.name + ' trimmed')
+            new_ob =   bpy.data.objects.new(self.source_ob.name + ' trimmed', new_data)
+            new_ob.matrix_world = self.source_ob.matrix_world
             output_bme.to_mesh(new_data)
             context.scene.objects.link(new_ob)
 
@@ -1614,14 +1612,14 @@ class PolyLineKnife(object):
                 new_ob.data.materials.append(mat)
 
             #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
-            #self.bme.to_mesh(self.cut_ob.data)
+            #self.bme.to_mesh(self.source_ob.data)
             self.bme.free()
 
 
         #store the cut as an object
         cut_bme = bmesh.new()
         cut_me = bpy.data.meshes.new('polyknife_stroke')
-        cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
+        cut_stroke = bpy.data.objects.new('polyknife_stroke', cut_me)
 
         bmvs = [cut_bme.verts.new(dct["local_location"]) for dct in self.points_data]
         for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
@@ -1630,9 +1628,9 @@ class PolyLineKnife(object):
         if self.cyclic:
             cut_bme.edges.new((bmvs[-1], bmvs[0]))
         cut_bme.to_mesh(cut_me)
-        context.scene.objects.link(cut_ob)
-        cut_ob.show_x_ray = True
-        cut_ob.location = self.cut_ob.location
+        context.scene.objects.link(cut_stroke)
+        cut_stroke.show_x_ray = True
+        cut_stroke.location = self.source_ob.location
 
     def find_select_inner_faces(self):
         if not self.face_seed: return
@@ -1779,7 +1777,7 @@ class PolyLineKnife(object):
     # cast rays and get info based on blender version
     def ray_cast(self, imx, ray_origin, ray_target, also_do_this):
         if bversion() < '002.077.000':
-            loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target)
+            loc, no, face_ind = self.source_ob.ray_cast(imx * ray_origin, imx * ray_target)
             if face_ind == -1:
                 if also_do_this:
                     also_do_this()
@@ -1787,7 +1785,7 @@ class PolyLineKnife(object):
                 else:
                     pass
         else:
-            res, loc, no, face_ind = self.cut_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+            res, loc, no, face_ind = self.source_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
             if not res:
                 if also_do_this:
                     also_do_this()
@@ -1799,7 +1797,7 @@ class PolyLineKnife(object):
 
     ## get the world matrix and inverse for the object
     def get_matrices(self):
-        mx = self.cut_ob.matrix_world
+        mx = self.source_ob.matrix_world
         imx = mx.inverted()
         return [mx, imx]
 
@@ -1883,7 +1881,7 @@ class PolyLineKnife(object):
         if self.face_seed:
             #TODO direct bmesh face drawing util
             vs = self.face_seed.verts
-            common_drawing.draw_3d_points(context,[self.cut_ob.matrix_world * v.co for v in vs], 4, color = (1,1,.1,1))
+            common_drawing.draw_3d_points(context,[self.source_ob.matrix_world * v.co for v in vs], 4, color = (1,1,.1,1))
 
     ## 3D drawing
     def draw3d(self,context):
@@ -1953,7 +1951,7 @@ class PolyLineKnife(object):
                 color = (.1, .1, .8, 1)
             else:
                 color = (.2,.5,.2,1)
-            draw3d_polyline(context,[self.cut_ob.matrix_world * v for v in self.new_cos], color, 5, 'GL_LINE_STRIP')
+            draw3d_polyline(context,[self.source_ob.matrix_world * v for v in self.new_cos], color, 5, 'GL_LINE_STRIP')
         # Polylines
         else:
             if self.cyclic and len(self.points_data):

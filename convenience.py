@@ -22,16 +22,19 @@ class CUTMESH_OT_join_strokes(bpy.types.Operator):
     def execute(self, context):
 
         obs = [ob for ob in context.scene.objects if 'polyknife' in ob.name and 'join' not in ob.name]
-        bpy.ops.object.select_all(action = 'DESELECT')
+        if obs:
+            bpy.ops.object.select_all(action = 'DESELECT')
 
-        for ob in obs:
-            ob.hide = False
-            ob.select = True
+            for ob in obs:
+                ob.hide = False
+                ob.select = True
 
-        context.scene.objects.active = ob
+            context.scene.objects.active = ob
 
-        bpy.ops.object.join()
-        context.object.name = 'polyknife_joined'
+            bpy.ops.object.join()
+            context.object.name = 'polyknife_joined'
+        else:
+            print("Nothing to join..")
         return {'FINISHED'}
 
 class CUTMESH_OT_hide_strokes(bpy.types.Operator):
@@ -71,15 +74,16 @@ class CUTMESH_OT_delete_strokes(bpy.types.Operator):
             return False
 
     def execute(self, context):
-
         obs = [ob for ob in context.scene.objects if 'polyknife' in ob.name and 'join' not in ob.name]
-        bpy.ops.object.select_all(action = 'DESELECT')
+        if obs:
+            bpy.ops.object.select_all(action = 'DESELECT')
 
-        for ob in obs:
-            ob.hide = False
-            ob.select = True
+            for ob in obs:
+                ob.hide = False
+                ob.select = True
 
-        context.scene.objects.active = ob
+            context.scene.objects.active = ob
 
-        bpy.ops.object.delete(use_global = True)
+            bpy.ops.object.delete(use_global = True)
+        else: print("Nothing to delete..")
         return {'FINISHED'}

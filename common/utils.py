@@ -28,7 +28,7 @@ import traceback
 # http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
 def get_exception_info():
     exc_type, exc_obj, tb = sys.exc_info()
-    
+
     errormsg = 'EXCEPTION (%s): %s\n' % (exc_type, exc_obj)
     etb = traceback.extract_tb(tb)
     pfilename = None
