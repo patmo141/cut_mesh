@@ -29,7 +29,6 @@ class PolyLineKnife(object):
 
     ## Initializing
     def __init__(self,context, cut_object, ui_type = 'DENSE_POLY'):
-        # object variable setup
         self.cut_ob = cut_object
         self.bme = bmesh.new()
         self.bme.from_mesh(cut_object.data)
@@ -913,13 +912,14 @@ class PolyLineKnife(object):
             print('doubles in the edges crossed!!')
             print('ideally, this will turn  the face into an ngon for simplicity sake')
             seen = set()
-            self.ed_cross_map.reset()
+            new_eds = []
+            new_cos = []
             removals = []
 
-            for i, ed in enumerate(self.ed_cross_map.get_edges(True)):
+            for i, ed in enumerate(self.ed_cross_map.get_edges()):
                 if ed not in seen and not seen.add(ed):
                     new_eds += [ed]
-                    new_cos += [self.new_cos[i]]
+                    new_cos += [self.ed_cross_map.get_loc(i)]
                 else:
                     removals.append(ed.index)
 
@@ -937,11 +937,11 @@ class PolyLineKnife(object):
 
         start = time.time()
         print('bisecting edges')
-        geom =  bmesh.ops.bisect_edges(self.bme, edges = self.ed_cross_map.get_edges(True),cuts = 1,edge_percents = {})
+        geom =  bmesh.ops.bisect_edges(self.bme, edges = self.ed_cross_map.get_edges(),cuts = 1,edge_percents = {})
         new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
 
         #assigned new verts their locations
-        for v, co in zip(new_bmverts, self.new_cos):
+        for v, co in zip(new_bmverts, self.ed_cross_map.get_locs()):
             v.co = co
             #v.select_set(True)
 
@@ -1065,7 +1065,7 @@ class PolyLineKnife(object):
         #Create new vertices and put them in data structure
         new_vert_ed_map = {}
         ed_list = self.ed_cross_map.get_edges()
-        new_bmverts = [self.bme.verts.new(co) for co in self.new_cos]
+        new_bmverts = [self.bme.verts.new(co) for co in self.ed_cross_map.get_locs()]
         for bmed, bmvert in zip(ed_list, new_bmverts):
             if bmed not in new_vert_ed_map:
                 new_vert_ed_map[bmed] = [bmvert]
@@ -1954,35 +1954,26 @@ class EdgeIntersectionMap(object):
         self.reset()
 
     def reset(self):
-        self.edge_map = {}
+        self.edge_list = []
+        self.loc_list = []
         self.count = 0
         self.is_used = False
         self.has_multiple_crossed_edges = False
 
-    def get_edges(self, include_dupes = True):
-        edge_list = []
-        for edge in self.edge_map:
-            if include_dupes:
-                for loc in self.edge_map[edge]
-                    edge_list.append(edge)
-            else:
-                edge_list.append(edge)
-        return edge_list
-
-    def get_locs(self):
-        locs_list = []
-        for edge in self.edge_map:
-            locs_list += self.edge_map[edge]
+    def get_edge(self, index): return self.edge_list[index]
+    def get_edges(self): return self.edge_list
+    def get_loc(self, index): return self.loc_list[index]
+    def get_locs(self): return self.loc_list
 
     def add(self, edge, loc):
-        if edge not in self.edge_map: self.edge_map[edge] = []
-        else: self.has_multiple_crossed_edges = True
-        self.edge_map[edge].append(loc)
+        if edge in self.edge_list: self.has_multiple_crossed_edges = True
+        self.edge_list.append(edge)
+        self.loc_list.append(loc)
         self.count += 1
         self.is_used = True
 
     def add_list(self, edges, locs):
-        for i,ed in enumerate(edges):
+        for i, ed in enumerate(edges):
             self.add(ed, locs[i])
 
 class PolyCutPoint(object):
