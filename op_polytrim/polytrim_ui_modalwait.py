@@ -47,8 +47,6 @@ class Polytrim_UI_ModalWait():
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')
             self.knife.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
-            if len(self.knife.new_cos):
-                self.knife.make_cut()
             return 'main'
 
         if eventd['press'] == 'C':
@@ -63,27 +61,27 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
         if eventd['press'] == 'K':
-            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
                 self.knife.split_geometry(eventd['context'], mode = 'KNIFE')
                 return 'finish'
 
         if eventd['press'] == 'P':
-            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
                 self.knife.split_geometry(eventd['context'], mode = 'SEPARATE')
             return 'finish'
 
         if eventd['press'] == 'X':
-            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
                 self.knife.split_geometry(eventd['context'], mode = 'DELETE')
             return 'finish'
 
         if eventd['press'] == 'Y':
-            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
                 self.knife.split_geometry(eventd['context'], mode = 'SPLIT')
             return 'finish'
 
         if eventd['press'] == 'SHIFT+D':
-            if self.knife.split and self.knife.face_seed and len(self.knife.ed_map):
+            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
                 self.knife.split_geometry(eventd['context'], mode = 'DUPLICATE')
             return 'finish'
 
@@ -100,7 +98,7 @@ class Polytrim_UI_ModalWait():
                 showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
                 return 'main'
 
-            elif len(self.knife.new_cos) == 0:
+            elif not self.knife.ed_cross_map.is_used:
                 showErrorMessage('Press "C" to preview the cut success before setting the seed')
                 return 'main'
 
@@ -124,7 +122,7 @@ class Polytrim_UI_ModalWait():
             #confirm location
             x,y = eventd['mouse']
             self.knife.grab_confirm(context, x, y)
-            if self.knife.new_cos:
+            if self.knife.ed_cross_map.is_used:
                 self.knife.make_cut()
             self.ui_text_update(context)
             return 'main'
@@ -154,7 +152,7 @@ class Polytrim_UI_ModalWait():
 
         elif eventd['release'] == 'LEFTMOUSE':
             is_sketch = self.sketch_confirm(context, eventd)
-            if self.knife.new_cos and is_sketch:
+            if self.knife.ed_cross_map.is_used and is_sketch:
                 self.knife.make_cut()
             self.ui_text_update(context)
             self.sketch = []
@@ -169,7 +167,7 @@ class Polytrim_UI_ModalWait():
             # found a good face
             if result == 1:
                 context.window.cursor_modal_set('CROSSHAIR')
-                if self.knife.new_cos and not self.knife.bad_segments and not self.knife.split:
+                if self.knife.ed_cross_map.is_used and not self.knife.bad_segments and not self.knife.split:
                     self.knife.confirm_cut_to_mesh_no_ops()
                     context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
                 return 'main'
