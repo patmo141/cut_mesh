@@ -10,6 +10,7 @@ import bpy
 import bmesh
 import bgl
 
+from collections import defaultdict
 from mathutils import Vector, Matrix, Color, kdtree
 from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
@@ -48,9 +49,7 @@ class PolyLineKnife(object):
         self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
 
-        #TODO: Put new_cos and ed_map in same data structure
-        self.ed_map = []  #existing edges in bmesh crossed by cut line.  list of type BMEdge
-        self.new_cos = []  #location of crosses.  list of tyep Vector().  Does not include user clicked noew positions
+        self.ed_cross_data = defaultdict(list)
         self.face_chain = set()  #all faces crossed by the cut curve. set of type BMFace
 
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
@@ -103,8 +102,7 @@ class PolyLineKnife(object):
         self.points_data = []
 
         self.face_changes = []
-        self.new_cos = [] #TODO: Put new_cos and ed_map in same data structure
-        self.ed_map = []
+        self.ed_cross_data = defaultdict(list)
 
         self.face_chain = set()  #all faces crossed by the cut curve
 
@@ -719,36 +717,18 @@ class PolyLineKnife(object):
     def make_cut(self):
         if self.split: return #already did this, no going back!
         mx, imx = self.get_matrices()
-        print('\n')
-        print('BEGIN CUT ON POLYLINE')
+        print('\n','BEGIN CUT ON POLYLINE')
 
-        self.new_cos = []  #New coordinates created by intersections of mesh edges with cut segments
-        self.ed_map = []  #smarter thing to do might be edge_map = {}  edge_map[ed] = co. Can't cross an edge twice because dictionary reqires
-
-
+        self.ed_cross_data = defaultdict(list)
         self.face_chain = set()
-        self.preprocess_points()  #put things into different data strucutures and grouping input points with polygons in the cut object
+        self.preprocess_points()
         self.bad_segments = []
-
         self.new_ed_face_map = dict()
-
-        #print('there are %i cut points' % len(self.cut_pts))
-        #print('there are %i face changes' % len(self.face_changes))
 
         # iteration for each input point that changes a face
         for m, ind in enumerate(self.face_changes):
-
-
-            ## first time through and non-manifold edge cut
             if m == 0 and not self.cyclic:
-                self.ed_map += [self.start_edge]
-                #self.new_cos += [imx * self.cut_pts[0]]
-                self.new_cos += [self.points_data[0]["local_location"]]
-
-                #self.new_ed_face_map[0] = self.start_edge.link_faces[0].index
-
-                #print('not cyclic...come back to me')
-                #continue
+                self.ed_cross_data[self.start_edge].append(self.points_data[0]["local_location"])
 
             #n_p1 = (m + 1) % len(self.face_changes)
             #ind_p1 = self.face_changes[n_p1]
@@ -865,8 +845,7 @@ class PolyLineKnife(object):
                     elif len(self.new_cos) == 1 and m ==1 and not self.cyclic:
                         self.new_ed_face_map[len(self.new_cos)-1] = self.points_data[ind]["face_index"]
                     for v,ed in zip(vs,eds_crossed):
-                        self.new_cos.append(v)
-                        self.ed_map.append(ed)
+                        self.ed_cross_data[ed].append(v)
 
                     print('crossed %i faces' % len(faces_crossed))
                     self.face_chain.update(faces_crossed)
@@ -885,8 +864,7 @@ class PolyLineKnife(object):
                     ):
 
                     print('end to the non manifold edge while walking multiple faces')
-                    self.ed_map += [self.end_edge]
-                    self.new_cos += [self.points_data[-1]["local_location"]]
+                    self.ed_cross_data[self.end_edge].append(self.points_data[-1]["local_location"])
                     self.new_ed_face_map[len(self.new_cos)-2] = f1.index
 
                 continue
@@ -1972,6 +1950,14 @@ class PolyLineKnife(object):
 
 
 
+class EdgeIntersectionMap(object):
+
+    def __init__(self):
+        self.edge_map = {}
+
+    def add_loc(self, edge, loc):
+        if edge not in self.edge_map: self.edge_map[edge] = []
+        self.edge_map[edge] += [loc]
 
 class PolyCutPoint(object):
 
