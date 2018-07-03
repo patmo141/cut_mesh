@@ -25,7 +25,7 @@ class Polytrim_UI_Tools():
         ## Preparing sketch information
         hovered_start = self.knife.hovered # need to know what hovered was at the beginning of the sketch
         self.knife.hover(context,x,y)  #rehover to see where sketch ends
-        sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)  #at this moment we are going into 3D space, this returns world space locations
+        sketch_3d = common_utilities.ray_cast_path(context, self.knife.source_ob, self.sketch)  #at this moment we are going into 3D space, this returns world space locations
         sketch_points = sketch_3d[0::5] # getting every fifth point
         sketch_data = [{"world_location": p, "view_direction": view_vector} for p in sketch_points] #putting sketch points in structure of points_data datastructure
 
