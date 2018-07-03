@@ -1062,7 +1062,7 @@ def join_bmesh(source, target, src_trg_map, src_mx = None, trg_mx = None):
     del src_trg_map
 
 
-def ensure_lookup():
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
+def ensure_lookup(bme):
+    bme.verts.ensure_lookup_table()
+    bme.edges.ensure_lookup_table()
+    bme.faces.ensure_lookup_table()

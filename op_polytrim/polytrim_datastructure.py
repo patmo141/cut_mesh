@@ -32,28 +32,23 @@ class PolyLineKnife(object):
         self.source_ob = cut_object
         self.bme = bmesh.new()
         self.bme.from_mesh(cut_object.data)
-        ensure_lookup()
+        ensure_lookup(self.bme)
         self.bvh = BVHTree.FromBMesh(self.bme)
 
-        # polyline properties
+        self.points_data = [] # List of dictionaries, each dict contains point data: world loc, local loc, view direction, face index, and normal
         self.cyclic = False
         self.selected = -1
         self.hovered = [None, -1]
-
-        # polyline variables
-        self.points_data = [] # List of dictionaries, each dict contains point data: world loc, local loc, view direction, face index, and normal
         self.start_edge = None
         self.end_edge = None
         self.face_changes = [] #the indices where the next point lies on a different face
         self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
-        self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
-
-        self.ed_cross_map = EdgeIntersectionMap()
         self.face_chain = set()  #all faces crossed by the cut curve. set of type BMFace
 
+        self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
+        self.ed_cross_map = EdgeIntersectionMap()
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
         self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
-
         self.non_man_points = []
         self.non_man_bmverts = []
         for loop in self.non_man_ed_loops:
@@ -63,12 +58,10 @@ class PolyLineKnife(object):
             kd = kdtree.KDTree(len(self.non_man_points))
             for i, v in enumerate(self.non_man_points):
                 kd.insert(v, i)
-
             kd.balance()
             self.kd = kd
         else:
             self.kd = None
-
 
         if ui_type not in {'SPARSE_POLY','DENSE_POLY', 'BEZIER'}:
             self.ui_type = 'SPARSE_POLY'
@@ -1333,7 +1326,7 @@ class PolyLineKnife(object):
         print('took %f seconds to split the faces' % (time.time() - finish))
         finish = time.time()
 
-        ensure_lookup()
+        ensure_lookup(self.bme)
 
         for bmface, msg in errors:
             print('Error on this face %i' % bmface.index)
@@ -1341,7 +1334,7 @@ class PolyLineKnife(object):
 
         bmesh.ops.delete(self.bme, geom = del_faces, context = 5)
 
-        ensure_lookup()
+        ensure_lookup(self.bme)
 
         self.bme.normal_update()
 
@@ -1371,7 +1364,7 @@ class PolyLineKnife(object):
             to_test.difference_update(to_remove)
         #bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
 
-        ensure_lookup()
+        ensure_lookup(self.bme)
 
         #ngons = [f for f in new_faces if len(f.verts) > 4]
         #bmesh.ops.triangulate(self.bme, faces = ngons)
@@ -1435,7 +1428,7 @@ class PolyLineKnife(object):
         start = time.time()
         self.find_select_inner_faces()
 
-        ensure_lookup()
+        ensure_lookup(self.bme)
 
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
@@ -1510,7 +1503,7 @@ class PolyLineKnife(object):
             gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
             #this dictionary is bad...just empy stuff
 
-            ensure_lookup()
+            ensure_lookup(self.bme)
 
             #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
@@ -1531,7 +1524,7 @@ class PolyLineKnife(object):
             #gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False)
             #this dictionary is bad...just empy stuff
 
-            #ensure_lookup()
+            #ensure_lookup(self.bme)
 
             #current_edges = set([e for e in self.bme.edges])
             #new_edges = current_edges - old_eds
