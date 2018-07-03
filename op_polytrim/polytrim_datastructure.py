@@ -16,7 +16,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
 from ..common_utilities import bversion
@@ -32,7 +32,7 @@ class PolyLineKnife(object):
         self.source_ob = cut_object
         self.bme = bmesh.new()
         self.bme.from_mesh(cut_object.data)
-        self.ensure_lookup()
+        ensure_lookup()
         self.bvh = BVHTree.FromBMesh(self.bme)
 
         # polyline properties
@@ -1333,7 +1333,7 @@ class PolyLineKnife(object):
         print('took %f seconds to split the faces' % (time.time() - finish))
         finish = time.time()
 
-        self.ensure_lookup()
+        ensure_lookup()
 
         for bmface, msg in errors:
             print('Error on this face %i' % bmface.index)
@@ -1341,7 +1341,7 @@ class PolyLineKnife(object):
 
         bmesh.ops.delete(self.bme, geom = del_faces, context = 5)
 
-        self.ensure_lookup()
+        ensure_lookup()
 
         self.bme.normal_update()
 
@@ -1371,7 +1371,7 @@ class PolyLineKnife(object):
             to_test.difference_update(to_remove)
         #bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
 
-        self.ensure_lookup()
+        ensure_lookup()
 
         #ngons = [f for f in new_faces if len(f.verts) > 4]
         #bmesh.ops.triangulate(self.bme, faces = ngons)
@@ -1435,7 +1435,7 @@ class PolyLineKnife(object):
         start = time.time()
         self.find_select_inner_faces()
 
-        self.ensure_lookup()
+        ensure_lookup()
 
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
@@ -1510,7 +1510,7 @@ class PolyLineKnife(object):
             gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
             #this dictionary is bad...just empy stuff
 
-            self.ensure_lookup()
+            ensure_lookup()
 
             #bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
@@ -1531,7 +1531,7 @@ class PolyLineKnife(object):
             #gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False)
             #this dictionary is bad...just empy stuff
 
-            #self.ensure_lookup()
+            #ensure_lookup()
 
             #current_edges = set([e for e in self.bme.edges])
             #new_edges = current_edges - old_eds
@@ -1736,11 +1736,6 @@ class PolyLineKnife(object):
     ## ****** HELPER FUNCTIONS *****
     ## ******************************
 
-    # calls bmesh's ensure lookup table functions
-    def ensure_lookup(self):
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
 
     # get info to use later with ray_cast
     def get_view_ray_data(self, context, coord):
