@@ -49,7 +49,7 @@ class PolyLineKnife(object):
         self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
 
-        self.ed_cross_data = defaultdict(list)
+        self.ed_cross_map = EdgeIntersectionMap()
         self.face_chain = set()  #all faces crossed by the cut curve. set of type BMFace
 
         self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
@@ -102,7 +102,7 @@ class PolyLineKnife(object):
         self.points_data = []
 
         self.face_changes = []
-        self.ed_cross_data = defaultdict(list)
+        self.ed_cross_map.reset()
 
         self.face_chain = set()  #all faces crossed by the cut curve
 
@@ -188,7 +188,7 @@ class PolyLineKnife(object):
             })
             self.selected = self.hovered[1] + 1
 
-            if len(self.new_cos):
+            if self.ed_cross_map.is_used:
                 self.make_cut()
             return
 
@@ -211,14 +211,13 @@ class PolyLineKnife(object):
             if self.end_edge and self.hovered[1] == self.num_points(): #notice not -1 because we popped
                 print('deteted last non man edge')
                 self.end_edge = None
-                self.new_cos = []
                 self.selected = -1
                 return
         else:
             if self.selected == -1: return
             self.points_data.pop(self.selected)
 
-        if len(self.new_cos):
+        if self.ed_cross_map.is_used:
             self.make_cut()
 
     ## Initiates a grab if point is selected
@@ -719,7 +718,7 @@ class PolyLineKnife(object):
         mx, imx = self.get_matrices()
         print('\n','BEGIN CUT ON POLYLINE')
 
-        self.ed_cross_data = defaultdict(list)
+        self.ed_cross_map.reset()
         self.face_chain = set()
         self.preprocess_points()
         self.bad_segments = []
@@ -728,7 +727,7 @@ class PolyLineKnife(object):
         # iteration for each input point that changes a face
         for m, ind in enumerate(self.face_changes):
             if m == 0 and not self.cyclic:
-                self.ed_cross_data[self.start_edge].append(self.points_data[0]["local_location"])
+                self.ed_cross_map.add(self.start_edge, self.points_data[0]["local_location"])
 
             #n_p1 = (m + 1) % len(self.face_changes)
             #ind_p1 = self.face_changes[n_p1]
@@ -840,12 +839,12 @@ class PolyLineKnife(object):
 
                 if len(vs):
                     #do this before we add in any points
-                    if len(self.new_cos) > 1:
-                        self.new_ed_face_map[len(self.new_cos)-1] = self.points_data[ind]["face_index"]
-                    elif len(self.new_cos) == 1 and m ==1 and not self.cyclic:
-                        self.new_ed_face_map[len(self.new_cos)-1] = self.points_data[ind]["face_index"]
+                    if self.ed_cross_map.count > 1:
+                        self.new_ed_face_map[self.ed_cross_map.count-1] = self.points_data[ind]["face_index"]
+                    elif self.ed_cross_map.count == 1 and m ==1 and not self.cyclic:
+                        self.new_ed_face_map[self.ed_cross_map.count-1] = self.points_data[ind]["face_index"]
                     for v,ed in zip(vs,eds_crossed):
-                        self.ed_cross_data[ed].append(v)
+                        self.ed_cross_map.add(ed, v)
 
                     print('crossed %i faces' % len(faces_crossed))
                     self.face_chain.update(faces_crossed)
@@ -864,8 +863,8 @@ class PolyLineKnife(object):
                     ):
 
                     print('end to the non manifold edge while walking multiple faces')
-                    self.ed_cross_data[self.end_edge].append(self.points_data[-1]["local_location"])
-                    self.new_ed_face_map[len(self.new_cos)-2] = f1.index
+                    self.ed_cross_map.add(self.end_edge, self.points_data[-1]["local_location"])
+                    self.new_ed_face_map[self.ed_cross_map.count-2] = f1.index
 
                 continue
 
@@ -873,10 +872,9 @@ class PolyLineKnife(object):
             p1 = cross_ed.verts[1].co
             v = intersect_line_plane(p0,p1,cut_pt,cut_no)
             if v:
-                self.new_cos.append(v)
-                self.ed_map.append(cross_ed)
-                if len(self.new_cos) > 1:
-                    self.new_ed_face_map[len(self.new_cos)-2] = self.points_data[ind]["face_index"]
+                self.ed_cross_map.add(cross_ed,v)
+                if self.ed_cross_map.count > 1:
+                    self.new_ed_face_map[self.ed_cross_map.count-2] = self.points_data[ind]["face_index"]
 
             if ((not self.cyclic) and
                 m == (len(self.face_changes) - 1) and
@@ -884,12 +882,11 @@ class PolyLineKnife(object):
                 ):
 
                 print('end to the non manifold edge jumping single face')
-                self.ed_map += [self.end_edge]
-                self.new_cos += [self.points_data[-1]["local_location"]]
-                self.new_ed_face_map[len(self.new_cos)-2] = f1.index
+
+                self.new_ed_face_map[self.ed_cross_map.count-2] = f1.index
 
     def smart_make_cut(self):
-        if len(self.new_cos) == 0:
+        if self.ed_cross_map.count == 0:
             print('havent made initial cut yet')
             self.make_cut()
 
@@ -911,16 +908,15 @@ class PolyLineKnife(object):
 
         self.calc_ed_pcts()
 
-        if len(self.ed_map) != len(set(self.ed_map)):  #doubles in ed dictionary
+        if self.ed_cross_map.has_multiple_crossed_edges:  #doubles in ed dictionary
 
             print('doubles in the edges crossed!!')
             print('ideally, this will turn  the face into an ngon for simplicity sake')
             seen = set()
-            new_eds = []
-            new_cos = []
+            self.ed_cross_map.reset()
             removals = []
 
-            for i, ed in enumerate(self.ed_map):
+            for i, ed in enumerate(self.ed_cross_map.get_edges(True)):
                 if ed not in seen and not seen.add(ed):
                     new_eds += [ed]
                     new_cos += [self.new_cos[i]]
@@ -930,8 +926,7 @@ class PolyLineKnife(object):
             print('these are the edge indices which were removed to be only cut once ')
             print(removals)
 
-            self.ed_map = new_eds
-            self.new_cos = new_cos
+            self.ed_cross_map.add_list(new_eds, new_cos)
 
         for v in self.bme.verts:
             v.select_set(False)
@@ -942,7 +937,7 @@ class PolyLineKnife(object):
 
         start = time.time()
         print('bisecting edges')
-        geom =  bmesh.ops.bisect_edges(self.bme, edges = self.ed_map,cuts = 1,edge_percents = {})
+        geom =  bmesh.ops.bisect_edges(self.bme, edges = self.ed_cross_map.get_edges(True),cuts = 1,edge_percents = {})
         new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
 
         #assigned new verts their locations
@@ -1053,9 +1048,8 @@ class PolyLineKnife(object):
 
     def confirm_cut_to_mesh_no_ops(self):
 
-        if len(self.bad_segments): return  #can't do this with bad segments!!
-
-        if self.split: return #already split! no going back
+        if len(self.bad_segments): return 
+        if self.split: return 
 
         for v in self.bme.verts:
             v.select_set(False)
@@ -1066,13 +1060,13 @@ class PolyLineKnife(object):
 
         start = time.time()
 
-
         self.perimeter_edges = []
 
         #Create new vertices and put them in data structure
         new_vert_ed_map = {}
+        ed_list = self.ed_cross_map.get_edges()
         new_bmverts = [self.bme.verts.new(co) for co in self.new_cos]
-        for bmed, bmvert in zip(self.ed_map, new_bmverts):
+        for bmed, bmvert in zip(ed_list, new_bmverts):
             if bmed not in new_vert_ed_map:
                 new_vert_ed_map[bmed] = [bmvert]
             else:
@@ -1084,7 +1078,7 @@ class PolyLineKnife(object):
         finish = time.time()
 
         #SPLIT ALL THE CROSSED FACES
-        fast_ed_map = set(self.ed_map)
+        fast_ed_map = set(ed_list)
         del_faces = []
         new_faces = []
 
@@ -1100,7 +1094,7 @@ class PolyLineKnife(object):
                     errors += [(bmface, 'DOUBLE CROSS')]
                     continue
 
-                ed0 = min(eds_crossed, key = self.ed_map.index)
+                ed0 = min(eds_crossed, key = ed_list.index)
 
                 if ed0 == eds_crossed[0]:
                     ed1 = eds_crossed[1]
@@ -1137,7 +1131,7 @@ class PolyLineKnife(object):
             #scenario 2: face crossed by cut plane and contains at least 1 input point
             elif bmface.index in self.face_groups and len(eds_crossed) == 2:
 
-                sorted_eds_crossed = sorted(eds_crossed, key = self.ed_map.index)
+                sorted_eds_crossed = sorted(eds_crossed, key = ed_list.index)
                 ed0 = sorted_eds_crossed[0]
                 ed1 = sorted_eds_crossed[1]
 
@@ -1146,7 +1140,7 @@ class PolyLineKnife(object):
                 inner_vert_cos = [self.points_data[i]["local_location"] for i in self.face_groups[bmface.index]]
                 inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
 
-                if self.ed_map.index(ed0) != 0:
+                if ed_list.index(ed0) != 0:
                     inner_verts.reverse()
 
                 for v in ed0.verts:
@@ -1253,7 +1247,7 @@ class PolyLineKnife(object):
                     errors += [(bmface, 'CLICK AND DOUBLE CROSS')]
                     continue
 
-                sorted_eds_crossed = sorted(eds_crossed, key = self.ed_map.index)
+                sorted_eds_crossed = sorted(eds_crossed, key = ed_list.index)
                 ed0 = sorted_eds_crossed[0]
                 ed1 = sorted_eds_crossed[1]
                 ed2 = sorted_eds_crossed[2]
@@ -1394,9 +1388,11 @@ class PolyLineKnife(object):
         '''
         not used until bmesh.ops uses the percentage index
         '''
-        if not len(self.ed_map) and len(self.new_cos): return
+        if not self.ed_cross_map.count: return
 
-        for v, ed in zip(self.new_cos, self.ed_map):
+        ed_list = self.ed_cross_map.get_edges()
+        loc_list = self.ed_cross_map.get_locs()
+        for v, ed in zip(loc_list, ed_list):
 
             v0 = ed.verts[0].co
             v1 = ed.verts[1].co
@@ -1925,12 +1921,12 @@ class PolyLineKnife(object):
         bgl.glDepthRange(0.0, 1.0)
 
         # Preview Polylines
-        if len(self.new_cos):
+        if self.ed_cross_map.count:
             if self.split:
                 color = (.1, .1, .8, 1)
             else:
                 color = (.2,.5,.2,1)
-            draw3d_polyline(context,[self.cut_ob.matrix_world * v for v in self.new_cos], color, 5, 'GL_LINE_STRIP')
+            draw3d_polyline(context,[self.cut_ob.matrix_world * v for v in self.ed_cross_map.get_locs()], color, 5, 'GL_LINE_STRIP')
         # Polylines
         else:
             if self.cyclic and len(self.points_data):
@@ -1951,13 +1947,43 @@ class PolyLineKnife(object):
 
 
 class EdgeIntersectionMap(object):
-
+    '''
+    Map of edge crossings by trim line and necessary methods
+    '''
     def __init__(self):
-        self.edge_map = {}
+        self.reset()
 
-    def add_loc(self, edge, loc):
+    def reset(self):
+        self.edge_map = {}
+        self.count = 0
+        self.is_used = False
+        self.has_multiple_crossed_edges = False
+
+    def get_edges(self, include_dupes = True):
+        edge_list = []
+        for edge in self.edge_map:
+            if include_dupes:
+                for loc in self.edge_map[edge]
+                    edge_list.append(edge)
+            else:
+                edge_list.append(edge)
+        return edge_list
+
+    def get_locs(self):
+        locs_list = []
+        for edge in self.edge_map:
+            locs_list += self.edge_map[edge]
+
+    def add(self, edge, loc):
         if edge not in self.edge_map: self.edge_map[edge] = []
-        self.edge_map[edge] += [loc]
+        else: self.has_multiple_crossed_edges = True
+        self.edge_map[edge].append(loc)
+        self.count += 1
+        self.is_used = True
+
+    def add_list(self, edges, locs):
+        for i,ed in enumerate(edges):
+            self.add(ed, locs[i])
 
 class PolyCutPoint(object):
 
