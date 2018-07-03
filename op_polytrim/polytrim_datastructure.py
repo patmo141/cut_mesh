@@ -99,7 +99,6 @@ class PolyLineKnife(object):
         self.end_edge = None  #for cuts ending on non man edges
 
         self.points_data = []
-
         self.face_changes = []
         self.new_cos = [] #TODO: Put new_cos and ed_map in same data structure
         self.ed_map = []
