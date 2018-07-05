@@ -52,3 +52,18 @@ class Polytrim_UI_Tools():
     # sets the viewports text during general creation of line
     def set_ui_text_main(self, context):
         context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
+
+    def get_visual_grid(self, context):
+        if self.view != context.space_data.region_3d.view_matrix:
+            self.view = context.space_data.region_3d.view_matrix.copy()
+            self.vis_grid = Accel2d(self.view)
+            self.vis_grid.print_grid()
+        return 1
+
+class Accel2d():
+
+    def __init__(self, view):
+        self.grid = [view]
+        self.view = view
+
+    def print_grid(self): print(self.grid)

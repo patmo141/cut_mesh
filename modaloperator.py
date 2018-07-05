@@ -156,7 +156,7 @@ class ModalOperator(Operator):
  
         handle_nav = False
         handle_nav |= eventd['ftype'] in self.events_nav
-        
+
         if handle_nav:
             self.post_update   = True
             self.is_navigating = True

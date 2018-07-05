@@ -29,6 +29,7 @@ class Polytrim_UI_ModalWait():
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
             self.knife.hover(context, x, y)
+            self.get_visual_grid(context)
             self.ui_text_update(context)
             return 'main'
 
