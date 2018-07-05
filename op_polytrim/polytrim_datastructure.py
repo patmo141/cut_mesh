@@ -298,12 +298,13 @@ class PolyLineKnife(object):
 
         # ending on non manifold edge/vert
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
-            self.points_data += sketch_points + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
+            self.input_points.combine_maps(self.input_points, sketch_points)
+            self.input_points.add_point(hovered_end[1][1], None, view_vector, None)
             self.end_edge = hovered_end[1][0]
 
         # starting on non manifold edge/vert
         elif hovered_start[0] and "NON_MAN" in hovered_start[0]:
-            self.points_data += sketch_points
+            self.input_points.combine_maps(self.input_points, sketch_points)
             self.start_edge = hovered_start[1][0]
 
         #User is not connecting back to polyline
@@ -312,31 +313,34 @@ class PolyLineKnife(object):
             if self.cyclic or self.end_edge: pass
 
              # starting at last point
-            elif hover_start == len(self.points_data) - 1:
-                self.points_data += sketch_points
+            elif hover_start == self.input_points.num_points - 1:
+                self.input_points.combine_maps(self.input_points, sketch_points)
 
             # starting at origin point
             elif hover_start == 0:
                 # origin point is start edge
                 if self.start_edge:
-                    self.points_data = [self.points_data[0]] + sketch_points
+                    self.input_points.keep(0)
+                    self.input_points.combine_maps(self.input_points, sketch_points)
                 else:
-                    self.points_data = sketch_points[::-1] + self.points_data[:]
+                    sketch_points.reverse()
+                    self.input_points.combine_maps(sketch_points, self.input_points)
 
             # starting in the middle
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
-                self.points_data = self.points_data[:hover_start] + sketch_points
+                self.input_points.keep(0,hover_start)
+                self.input_points.combine_maps(self.input_points, sketch_points)
 
         # User initiaiated and terminated the sketch on the line.
         else:
             # if start and stop sketch point is same, don't do anything, unless their is only 1 point.
             if hover_end == hover_start:
-                if len(self.points_data) == 1:
-                    self.points_data += sketch_points
+                if self.input_points.num_points == 1:
+                    self.input_points.combine_maps(self.input_points, sketch_points)
                     self.cyclic = True
             elif self.cyclic:
-                # figure out ammount of points between hover_end and hover_start on both sides
-                last_point_index = len(self.points_data) - 1
+                # figure out ammount of points between hover_end and hover_start on both sides XXX: Works, but maybe complicated?
+                last_point_index = self.input_points.num_points - 1
                 num_between = abs(hover_end - hover_start) - 1
                 if hover_start < hover_end:  num_between_thru_origin = (last_point_index - hover_end) + hover_start
                 else: num_between_thru_origin = (last_point_index - hover_start) + hover_end
@@ -344,9 +348,12 @@ class PolyLineKnife(object):
                 # path through origin point is shorter so cut them out points on those segments/points
                 if num_between_thru_origin <= num_between:
                     if hover_start > hover_end:
-                        self.points_data = self.points_data[hover_end:hover_start] + sketch_points
+                        self.input_points.keep(hover_end, hover_start)
+                        self.input_points.combine_maps(self.input_points, sketch_points)
                     else:
-                        self.points_data = sketch_points + self.points_data[hover_end:hover_start:-1]
+                        self.input_points.keep(hover_start, hover_end)
+                        self.input_points.reverse()
+                        self.input_points.combine_map(sketch_points, self.input_points)
 
                 # path not passing through origin point is shorter so cut points on this path
                 else:
@@ -1919,13 +1926,15 @@ class InputPointMap(object):
     def __init__(self):
         self.points = []
         self.world_locs = []
-        self.num_points = 0
 
-    def is_empty(self): return len(self.world_locs) == 0
+    def is_empty(self): return len(self.points) == 0
+    def num_points(self): return len(self.points)
     is_empty = property(is_empty)
+    num_points = property(num_points)
 
     def get_point(self, ind=-1): return self.points[ind]
 
+    ### single point manipulation
     def change_point(self, ind, point):
         self.points[ind] = point
         self.world_locs[ind] = point.world_loc
@@ -1934,8 +1943,17 @@ class InputPointMap(object):
         point = InputPoint(world, local, view, face_ind)
         self.points.append(point)
         self.world_locs.append(point.world_loc)
-        self.num_points += 1
 
+    def insert_point(self, insert_ind, world, local, view, face_ind):
+        point = InputPoint(world, local, view, face_ind)
+        self.points.insert(insert_ind, point)
+        self.world_locs.insert(insert_ind, point.world.loc)
+
+    def pop(self, ind=-1):
+        self.points.pop(ind)
+        self.world_locs.pop(ind)
+
+    ### multiple point/entire map manipulation
     def add_points(self, world, local, view, face_ind):
         # XXX:is there a smarter way to do this
         args = []
@@ -1949,18 +1967,19 @@ class InputPointMap(object):
         for i in range(num):
             self.add_point(self, args[0][i], args[1][i], args[2][i], args[3][i])
 
-    def insert_point(self, insert_ind, world, local, view, face_ind):
-        point = InputPoint(world, local, view, face_ind)
-        self.points.insert(insert_ind, point)
-        self.world_locs.insert(insert_ind, point.world.loc)
-        self.num_points += 1
-    
-    def pop(self, ind=-1):
-        self.points.pop(ind)
-        self.world_locs.pop(ind)
-        self.num_points -= 1
+    def combine_maps(self, map1, map2):
+        self.points = map1.points + map2.points
+        self.world_locs = map1.world_locs + map2.world_locs
 
-    
+    def keep(self, start, stop=start):
+        self.points = self.points[start:stop + 1]
+        self.world_locs = self.world_locs[start:stop + 1]
+
+    def reverse(self):
+        self.points.reverse()
+        self.world_locs.reverse()
+
+
 
 
 
