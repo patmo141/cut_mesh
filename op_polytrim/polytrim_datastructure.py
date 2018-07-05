@@ -35,7 +35,7 @@ class PolyLineKnife(object):
         ensure_lookup(self.bme)
         self.bvh = BVHTree.FromBMesh(self.bme)
 
-        self.points_data = [] # List of dictionaries, each dict contains point data: world loc, local loc, view direction, face index, and normal
+        self.input_points = InputPointMap()
         self.cyclic = False
         self.selected = -1
         self.hovered = [None, -1]
@@ -91,10 +91,10 @@ class PolyLineKnife(object):
         self.start_edge = None #for cuts ending on non man edges
         self.end_edge = None  #for cuts ending on non man edges
 
-        self.points_data = []
+        self.input_points = InputPointMap()
 
         self.face_changes = []
-        self.ed_cross_map.reset()
+        self.ed_cross_map = EdgeIntersectionMap()
 
         self.face_chain = set()  #all faces crossed by the cut curve
 
@@ -137,33 +137,21 @@ class PolyLineKnife(object):
 
             ed, wrld_loc = self.hovered[1] # hovered[1] is tuple
 
-            if len(self.points_data) == 0:
+            if self.input_points.is_empty:
                 self.start_edge = ed
-
-            elif len(self.points_data) and not self.start_edge:
+            elif not self.start_edge:
                 self.selected = -1
                 return
-
-            elif len(self.points_data) and self.start_edge:
+            else:
                 self.end_edge = ed
 
-            self.points_data += [{
-                "world_location": wrld_loc,
-                "local_location": imx * wrld_loc,
-                "view_direction": view_vector,
-                "face_index": ed.link_faces[0].index
-            }]
-            self.selected = len(self.points_data) -1
+            self.input_points.add_points(wrld_loc, imx * wrld_loc, view_vector, ed.link_faces[0].index)
+            self.selected = self.input_points.num_points -1
 
         # Add point information to datastructures if nothing is being hovered over
         if self.hovered[0] == None and not self.end_edge:  #adding in a new point at end
-            self.points_data += [{
-                "world_location":mx * loc,
-                "local_location": loc,
-                "view_direction": view_vector,
-                "face_index": face_ind
-            }]  #Store data for the click
-            self.selected = len(self.points_data) -1
+            self.input_points.add_point(mx * loc, loc, view_vector, face_ind)
+            self.selected = self.input_points.num_points -1
 
         # If you click point, set it's index to 'selected'
         if self.hovered[0] == 'POINT':
@@ -172,12 +160,7 @@ class PolyLineKnife(object):
 
         # If an edge is clicked, cut in a new point
         elif self.hovered[0] == 'EDGE':
-            self.points_data.insert(self.hovered[1]+1, {
-                "world_location":mx * loc,
-                "local_location": loc,
-                "view_direction": view_vector,
-                "face_index": face_ind
-            })
+            self.input_points.insert_point(self.hovered[1]+1, mx * loc, loc, view_vector, face_ind)
             self.selected = self.hovered[1] + 1
 
             if self.ed_cross_map.is_used:
@@ -191,23 +174,23 @@ class PolyLineKnife(object):
 
             if self.selected >= self.hovered[1]: self.selected -= 1
 
-            self.points_data.pop(self.hovered[1])
+            self.input_points.pop(self.hovered[1])
 
-            if not self.num_points():
+            if self.input_points.is_empty:
                 self.selected = -1
                 self.start_edge = None
 
             # some kinds of deletes make cyclic false again
-            if self.num_points() <= 2 or self.hovered[1] == 0: self.cyclic = False
+            if self.input_points.num_points <= 2 or self.hovered[1] == 0: self.cyclic = False
 
-            if self.end_edge and self.hovered[1] == self.num_points(): #notice not -1 because we popped
+            if self.end_edge and self.hovered[1] == self.input_points.num_points: #notice not -1 because we popped
                 print('deteted last non man edge')
                 self.end_edge = None
                 self.selected = -1
                 return
         else:
             if self.selected == -1: return
-            self.points_data.pop(self.selected)
+            self.input_points.pop(self.selected)
 
         if self.ed_cross_map.is_used:
             self.make_cut()
@@ -215,8 +198,8 @@ class PolyLineKnife(object):
     ## Initiates a grab if point is selected
     def grab_initiate(self):
         if self.selected != -1:
-            self.grab_point = self.points_data[self.selected]
-            self.grab_undo_loc = self.points_data[self.selected]["world_location"]
+            self.grab_point = self.input_points.get_point(self.selected)
+            self.grab_undo_loc = self.grab_point.world_loc
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
             return True
@@ -233,7 +216,7 @@ class PolyLineKnife(object):
         if loc == None: return
 
         #check if first or end point and it's a non man edge!
-        if self.selected == 0 and self.start_edge or self.selected == (len(self.points_data) -1) and self.end_edge:
+        if self.selected == 0 and self.start_edge or self.selected == (self.input_points.num_points -1) and self.end_edge:
 
             co3d, index, dist = self.kd.find(mx * loc)
 
@@ -286,22 +269,12 @@ class PolyLineKnife(object):
             else:
                 self.end_edge = ed
 
-            self.grab_point = {
-                "world_location": mx * pt,
-                "local_location": pt,
-                "view_direction": view_vector,
-                "face_index": ed.link_faces[0].index
-            }
+            self.grab_point.set_values(mx * pt, pt, view_vector, ed.link_faces[0].index)
         else:
-            self.grab_point = {
-                "world_location": mx * loc,
-                "local_location": loc,
-                "view_direction": view_vector,
-                "face_index": face_ind
-            }
+            self.grab_point.set_values(mx * loc, loc, view_vector, face_ind)
 
     def grab_cancel(self):
-        self.points_data[self.selected]["world_location"] = self.grab_undo_loc
+        self.input_points.get_point(self.selected).world_loc = self.grab_undo_loc
         self.start_edge = self.start_edge_undo
         self.end_edge = self.end_edge_undo
         self.grab_point = None
@@ -309,7 +282,7 @@ class PolyLineKnife(object):
 
     def grab_confirm(self, context, x, y):
         if self.grab_point:
-            self.points_data[self.selected] = self.grab_point
+            self.input_points.change_point(self.selected, self.grab_point)
             self.grab_point = None
         self.grab_undo_loc = None
         self.start_edge_undo = None
@@ -317,20 +290,20 @@ class PolyLineKnife(object):
         return
 
     ## Makes the sketch and rebuilds the list of input points depending on the sketch
-    def make_sketch(self, hovered_start, sketch_data, view_vector):
+    def make_sketch(self, hovered_start, sketch_points, view_vector):
         hover_start = hovered_start[1]
         hovered_end = self.hovered
         hover_end = hovered_end[1]
-        view_vectors = [view_vector]*len(sketch_data)
+        view_vectors = [view_vector]*len(sketch_points)
 
         # ending on non manifold edge/vert
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
-            self.points_data += sketch_data + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
+            self.points_data += sketch_points + [{"world_location": hovered_end[1][1], "view_direction": view_vector}]
             self.end_edge = hovered_end[1][0]
 
         # starting on non manifold edge/vert
         elif hovered_start[0] and "NON_MAN" in hovered_start[0]:
-            self.points_data += sketch_data
+            self.points_data += sketch_points
             self.start_edge = hovered_start[1][0]
 
         #User is not connecting back to polyline
@@ -340,26 +313,26 @@ class PolyLineKnife(object):
 
              # starting at last point
             elif hover_start == len(self.points_data) - 1:
-                self.points_data += sketch_data
+                self.points_data += sketch_points
 
             # starting at origin point
             elif hover_start == 0:
                 # origin point is start edge
                 if self.start_edge:
-                    self.points_data = [self.points_data[0]] + sketch_data
+                    self.points_data = [self.points_data[0]] + sketch_points
                 else:
-                    self.points_data = sketch_data[::-1] + self.points_data[:]
+                    self.points_data = sketch_points[::-1] + self.points_data[:]
 
             # starting in the middle
             else:  #if the last hovered was not the endpoint of the polyline, need to trim and append
-                self.points_data = self.points_data[:hover_start] + sketch_data
+                self.points_data = self.points_data[:hover_start] + sketch_points
 
         # User initiaiated and terminated the sketch on the line.
         else:
             # if start and stop sketch point is same, don't do anything, unless their is only 1 point.
             if hover_end == hover_start:
                 if len(self.points_data) == 1:
-                    self.points_data += sketch_data
+                    self.points_data += sketch_points
                     self.cyclic = True
             elif self.cyclic:
                 # figure out ammount of points between hover_end and hover_start on both sides
@@ -371,49 +344,49 @@ class PolyLineKnife(object):
                 # path through origin point is shorter so cut them out points on those segments/points
                 if num_between_thru_origin <= num_between:
                     if hover_start > hover_end:
-                        self.points_data = self.points_data[hover_end:hover_start] + sketch_data
+                        self.points_data = self.points_data[hover_end:hover_start] + sketch_points
                     else:
-                        self.points_data = sketch_data + self.points_data[hover_end:hover_start:-1]
+                        self.points_data = sketch_points + self.points_data[hover_end:hover_start:-1]
 
                 # path not passing through origin point is shorter so cut points on this path
                 else:
                     if hover_start > hover_end:
-                        self.points_data = self.points_data[:hover_end] + sketch_data[::-1] + self.points_data[hover_start:]
+                        self.points_data = self.points_data[:hover_end] + sketch_points[::-1] + self.points_data[hover_start:]
                     else:
-                        self.points_data = self.points_data[:hover_start] + sketch_data + self.points_data[hover_end:]
+                        self.points_data = self.points_data[:hover_start] + sketch_points + self.points_data[hover_end:]
             else:
                 #drawing "upstream" relative to self.points_data indexing (towards index 0)
                 if hover_start > hover_end:
                     # connecting the ends
                     if hover_end == 0 and hover_start == len(self.points_data) - 1:
                         if self.start_edge:
-                            self.points_data = [self.points_data[0]] + sketch_data[::-1] + [self.points_data[hover_start]]
+                            self.points_data = [self.points_data[0]] + sketch_points[::-1] + [self.points_data[hover_start]]
                         else:
-                            self.points_data += sketch_data
+                            self.points_data += sketch_points
                             self.cyclic = True
 
                     # add sketch points in
                     else:
-                        self.points_data = self.points_data[:hover_end + 1] + sketch_data[::-1] + self.points_data[hover_start:]
+                        self.points_data = self.points_data[:hover_end + 1] + sketch_points[::-1] + self.points_data[hover_start:]
 
                 #drawing "downstream" relative to self.points_data indexing (away from index 0)
                 else:
                     # making cyclic
-                    if hover_end == self.num_points() - 1 and hover_start == 0:
+                    if hover_end == self.input_points.num_points - 1 and hover_start == 0:
                         if self.start_edge:
-                            self.points_data = [self.points_data[0]] + sketch_data + [self.points_data[hover_end]]
+                            self.points_data = [self.points_data[0]] + sketch_points + [self.points_data[hover_end]]
                         else:
-                            self.points_data += sketch_data[::-1]
+                            self.points_data += sketch_points[::-1]
                             self.cyclic = True
 
                     # when no points are out
                     elif hover_end == 0:
-                        self.points_data = self.points_data[:1] + sketch_data
+                        self.points_data = self.points_data[:1] + sketch_points
                         self.cyclic = True
                     # adding sketch points in
 
                     else:
-                        self.points_data = self.points_data[:hover_start + 1] + sketch_data + self.points_data[hover_end:]
+                        self.points_data = self.points_data[:hover_start + 1] + sketch_points + self.points_data[hover_end:]
 
 
     ## ********************
@@ -433,8 +406,7 @@ class PolyLineKnife(object):
         view_vector, ray_origin, ray_target = self.get_view_ray_data(context, (x,y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
 
-        # if no input points...
-        if len(self.points_data) == 0:
+        if self.input_points.is_empty:
             self.hovered = [None, -1]
             self.hover_non_man(context, x, y)
             return
@@ -454,36 +426,27 @@ class PolyLineKnife(object):
             delt = v3 - self.source_ob.matrix_world * loc
             return delt.length
 
-        world_locs = [d['world_location'] for d in self.points_data]
-        closest_3d_point = min(world_locs, key = dist3d)
-        point_screen_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_point))
-
-        # If an input point is less than 20(some unit) away, stop and set hovered to the input point
-        if point_screen_dist  < 20:
-            def find(lst, key, value):
-                for i, dic in enumerate(lst):
-                    if dic[key] == value:
-                        return i
-                return -1
-
-            self.hovered = ['POINT', find(self.points_data, "world_location", closest_3d_point)]
+        
+        closest_3d_loc = min(self.input_points.world_locs, key = dist3d)
+        pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_loc))
+        if pixel_dist  < 20:
+            self.hovered = ['POINT', self.input_points.world_locs.index(closest_3d_loc)]
             return
 
-        # If there is 1 input point, stop and set hovered to None
-        if len(self.points_data) < 2:
+        if self.input_points.num_points == 1:
             self.hovered = [None, -1]
             return
 
         ## ?? What is happening here
         line_inters3d = []
-        for i in range(len(self.points_data)):
-            nexti = (i + 1) % len(self.points_data)
+        for i in range(self.input_points.num_points):
+            nexti = (i + 1) % self.input_points.num_points
             if next == 0 and not self.cyclic:
                 self.hovered = [None, -1]
                 return
 
 
-            intersect3d = intersect_point_line(self.source_ob.matrix_world * loc, self.points_data[i]["world_location"], self.points_data[nexti]["world_location"])
+            intersect3d = intersect_point_line(self.source_ob.matrix_world * loc, self.input_points.get_point(i).world_loc, self.input_points.get_point(nexti).world_loc)
 
             if intersect3d != None:
                 dist3d = (intersect3d[0] - loc).length
@@ -498,11 +461,11 @@ class PolyLineKnife(object):
 
         ## ?? And here
         i = line_inters3d.index(min(line_inters3d))
-        nexti = (i + 1) % len(self.points_data)
+        nexti = (i + 1) % self.input_points.num_points
 
         ## ?? And here
-        a  = loc3d_reg2D(context.region, context.space_data.region_3d,self.points_data[i]["world_location"])
-        b = loc3d_reg2D(context.region, context.space_data.region_3d,self.points_data[nexti]["world_location"])
+        a  = loc3d_reg2D(context.region, context.space_data.region_3d,self.input_points.get_point(i).world_loc)
+        b = loc3d_reg2D(context.region, context.space_data.region_3d,self.input_points.get_point(nexti).world_loc)
 
         ## ?? and here, obviously, its stopping and setting hovered to EDGE, but how?
         if a and b:
@@ -710,7 +673,7 @@ class PolyLineKnife(object):
         mx, imx = self.get_matrices()
         print('\n','BEGIN CUT ON POLYLINE')
 
-        self.ed_cross_map.reset()
+        self.ed_cross_map = EdgeIntersectionMap()
         self.face_chain = set()
         self.preprocess_points()
         self.bad_segments = []
@@ -1769,9 +1732,6 @@ class PolyLineKnife(object):
         if self.cyclic: self.cyclic = False
         else: self.cyclic = True
 
-    # returns length of points_data
-    def num_points(self):
-        return len(self.points_data)
 
 
     ## *************************
@@ -1786,56 +1746,52 @@ class PolyLineKnife(object):
             ed, pt = self.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, color = (.3,1,.3,1))
 
-        if  not self.points_data: return
-
+        if  self.input_points.is_empty: return
         # Bad Segments
         #TODO - This section is very confusing and hard to wrap the mind around. making it more intuitive would be very helpful
         for bad_ind in self.bad_segments:
             face_chng_ind = self.face_changes.index(bad_ind)
             next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes)
             bad_ind_2 = self.face_changes[next_face_chng_ind]
-            if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = len(self.points_data) - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
-            common_drawing.draw_polyline_from_3dpoints(context, [self.points_data[bad_ind]["world_location"], self.points_data[bad_ind_2]["world_location"]], (1,.1,.1,1), 4, 'GL_LINE')
+            if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = self.input_points.num_points - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
+            common_drawing.draw_polyline_from_3dpoints(context, [self.input_points.get_point(bad_ind).world_loc, self.input_points(bad_ind_2).world_loc], (1,.1,.1,1), 4, 'GL_LINE')
 
         ## Origin Point
-        if self.points_data[0]:
-            common_drawing.draw_3d_points(context,[self.points_data[0]["world_location"]], 8, (1,.8,.2,1))
+        common_drawing.draw_3d_points(context,[self.input_points.get_point(0).world_loc], 8, (1,.8,.2,1))
 
         ## Selected Point
-        if self.selected != -1 and len(self.points_data) >= self.selected + 1:
-            common_drawing.draw_3d_points(context,[self.points_data[self.selected]["world_location"]], 8, color = (0,1,1,1))
+        if self.selected != -1 and self.input_points.num_points >= self.selected + 1:
+            common_drawing.draw_3d_points(context,[self.input_points.get_point(self.selected).world_loc], 8, color = (0,1,1,1))
 
         ## Hovered Point
         if self.hovered[0] == 'POINT':
-            common_drawing.draw_3d_points(context,[self.points_data[self.hovered[1]]["world_location"]], 8, color = (0,1,0,1))
+            common_drawing.draw_3d_points(context,[self.input_points.get_point(self.hovered[1]).world_loc], 8, color = (0,1,0,1))
         # Insertion Lines (for adding in a point to edge)
         elif self.hovered[0] == 'EDGE':
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[self.hovered[1]]["world_location"])
-            next = (self.hovered[1] + 1) % len(self.points_data)
-            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[next]["world_location"])
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get_point(self.hovered[1]).world_loc)
+            next = (self.hovered[1] + 1) % self.input_points.num_points
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get_point(next).world_loc)
             common_drawing.draw_polyline_from_points(context, [a,self.mouse, b], (0,.2,.2,.5), 2,"GL_LINE_STRIP")
 
-        # Grab Location Dot and Lines
+        # Grab Location Dot and Lines XXX:This part is gross..
         if self.grab_point:
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
             color = (0,0,1,.2)
-            common_drawing.draw_3d_points(context,[self.grab_point["world_location"]], 5, color)
-            # find index of grab point in points data
-            for i in range(self.num_points()):
-                if self.points_data[i]["world_location"] == self.grab_undo_loc:
-                    grab_point_ind = i
-                    break
+            # Dot
+            common_drawing.draw_3d_points(context,[self.grab_point.world_loc], 5, color)
+            # Lines
+            grab_point_ind = self.input_points.world_locs.index(self.grab_undo_loc)
             low_ind = grab_point_ind - 1
-            high_ind = (grab_point_ind + 1) % self.num_points()
-            low_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[low_ind]["world_location"])
-            grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point["world_location"])
-            high_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.points_data[high_ind]["world_location"])
-            if self.num_points() == 1:
+            high_ind = (grab_point_ind + 1) % self.input_points.num_points
+            low_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get_point(low_ind).world_loc)
+            grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
+            high_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get_point(high_ind).world_loc)
+            if self.input_points.num_points == 1:
                 pass
             elif self.selected == 0 and not self.cyclic:
                 common_drawing.draw_polyline_from_points(context, [grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
-            elif self.selected == self.num_points() - 1 and not self.cyclic:
+            elif self.selected == self.input_points.num_points - 1 and not self.cyclic:
                 common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc], color, 4,"GL_LINE_STRIP")
             else:
                 common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc, high_loc], color, 4,"GL_LINE_STRIP")
@@ -1849,7 +1805,7 @@ class PolyLineKnife(object):
     ## 3D drawing
     def draw3d(self,context):
         #ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
-        if not self.points_data: return
+        if self.input_points.is_empty: return
 
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
@@ -1859,8 +1815,6 @@ class PolyLineKnife(object):
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
         bgl.glDepthRange(0.0, 1.0)
         bgl.glEnable(bgl.GL_DEPTH_TEST)
-
-        world_locs = [d['world_location'] for d in self.points_data]
 
         def set_depthrange(near=0.0, far=1.0, points=None):
             if points and len(points) and view_loc:
@@ -1917,20 +1871,96 @@ class PolyLineKnife(object):
             draw3d_polyline(context,[self.source_ob.matrix_world * v for v in self.ed_cross_map.get_locs()], color, 5, 'GL_LINE_STRIP')
         # Polylines
         else:
-            if self.cyclic and len(self.points_data):
-                draw3d_polyline(context, world_locs + [world_locs[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
+            if self.cyclic:
+                draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
             else:
-                draw3d_polyline(context, world_locs,  (.1,.2,1,.8),2, 'GL_LINE' )
+                draw3d_polyline(context, self.input_points.world_locs ,  (.1,.2,1,.8),2, 'GL_LINE' )
 
-        # Origin Point
-        draw3d_points(context, [world_locs[0]], (1,.8,.2,1), 10)
+        draw3d_points(context, [self.input_points.world_locs[0]], (1,.8,.2,1), 10)
 
         # Points
-        if len(self.points_data) > 1:
-            draw3d_points(context, world_locs[1:], (.2, .2, .8, 1), 6)
+        if self.input_points.num_points > 1:
+            draw3d_points(context, self.input_points.world_locs[1:], (.2, .2, .8, 1), 6)
 
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
+
+
+
+class InputPoint(object):
+    '''
+    Representation of an input point
+    '''
+    def __init__(self, world, local, view, face_ind):
+        self.world_loc = world
+        self.local_loc = local
+        self.view = view
+        self.face_index = face_ind
+
+    def get_point_dict(self):
+        return {
+            "world_location": self.world_loc,
+            "local_location": self.local_loc,
+            "view_direction": self.view,
+            "face_index": self.face_index
+        }
+
+    def set_values(self, world, local, view, face_ind):
+        self.world_loc = world
+        self.local_loc = local
+        self.view = view
+        self.face_index = face_ind
+
+
+class InputPointMap(object):
+    '''
+    Collection of all InputPoints
+    '''
+    def __init__(self):
+        self.points = []
+        self.world_locs = []
+        self.num_points = 0
+
+    def is_empty(self): return len(self.world_locs) == 0
+    is_empty = property(is_empty)
+
+    def get_point(self, ind=-1): return self.points[ind]
+
+    def change_point(self, ind, point):
+        self.points[ind] = point
+        self.world_locs[ind] = point.world_loc
+
+    def add_point(self, world, local, view, face_ind):
+        point = InputPoint(world, local, view, face_ind)
+        self.points.append(point)
+        self.world_locs.append(point.world_loc)
+        self.num_points += 1
+
+    def add_points(self, world, local, view, face_ind):
+        # XXX:is there a smarter way to do this
+        args = []
+        num = 0
+        for arg in [world, local, view, face_ind]:
+            if arg == None:
+                args.append([None]*num)
+            else:
+                args.append(arg)
+                num = len(arg)
+        for i in range(num):
+            self.add_point(self, args[0][i], args[1][i], args[2][i], args[3][i])
+
+    def insert_point(self, insert_ind, world, local, view, face_ind):
+        point = InputPoint(world, local, view, face_ind)
+        self.points.insert(insert_ind, point)
+        self.world_locs.insert(insert_ind, point.world.loc)
+        self.num_points += 1
+    
+    def pop(self, ind=-1):
+        self.points.pop(ind)
+        self.world_locs.pop(ind)
+        self.num_points -= 1
+
+    
 
 
 
@@ -1939,9 +1969,6 @@ class EdgeIntersectionMap(object):
     Map of edge crossings by trim line and necessary methods
     '''
     def __init__(self):
-        self.reset()
-
-    def reset(self):
         self.edge_list = []
         self.loc_list = []
         self.count = 0
