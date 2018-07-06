@@ -39,7 +39,7 @@ class Polytrim_UI_Tools():
     def ui_text_update(self, context):
         if self.knife.bad_segments:
             context.area.header_text_set("Fix Bad segments by moving control points.")
-        elif self.knife.new_cos:
+        elif self.knife.ed_cross_map.is_used:
             context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
         elif self.knife.hovered[0] == 'POINT':
             if self.knife.hovered[1] == 0:
