@@ -30,9 +30,8 @@ class Polytrim_UI_Tools():
         sketch_locs = sketch_3d[0::5] # getting every fifth point's location
         sketch_views = [view_vector]*len(sketch_locs)
         sketch_points = InputPointMap()
-        sketch_points.make_points(sketch_locs, sketch_views, [None]*len(sketch_locs), [None]*len(sketch_locs)
-        print("locs", sketch_locs)
-        print("views", sketch_views)
+        sketch_points.add_points(sketch_locs, sketch_views, [None]*len(sketch_locs), [None]*len(sketch_locs))
+ 
         # Make the sketch
         self.knife.make_sketch(hovered_start, sketch_points, view_vector)
         self.knife.snap_poly_line()  #why do this again?
