@@ -43,7 +43,7 @@ class Polytrim_UI_ModalWait():
 
         if eventd['press'] == 'RIGHTMOUSE':
             x,y = eventd['mouse']
-            if self.knife.start_edge and self.knife.hovered[1] == 0 and self.knife.num_points() > 1:
+            if self.knife.start_edge and self.knife.hovered[1] == 0 and self.knife.input_points.num_points > 1:
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')
