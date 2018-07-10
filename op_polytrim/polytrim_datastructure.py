@@ -193,10 +193,12 @@ class PolyLineKnife(object):
     ## Initiates a grab if point is selected
     def grab_initiate(self):
         if self.selected != -1:
-            self.grab_point = self.input_points.get_point(self.selected)
+            self.grab_point = self.input_points.get_point(self.selected).copy
             self.grab_undo_loc = self.grab_point.world_loc
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
+            print("world loc:", self.grab_point.world_loc)
+            print("undo loc:", self.grab_undo_loc)
             return True
         else:
             return False
@@ -267,6 +269,8 @@ class PolyLineKnife(object):
             self.grab_point.set_values(mx * pt, pt, view_vector, ed.link_faces[0].index)
         else:
             self.grab_point.set_values(mx * loc, loc, view_vector, face_ind)
+        print("world loc:", self.grab_point.world_loc)
+        print("undo loc:", self.grab_undo_loc)
 
     def grab_cancel(self):
         self.input_points.get_point(self.selected).world_loc = self.grab_undo_loc
@@ -289,6 +293,7 @@ class PolyLineKnife(object):
         hover_start = hovered_start[1]
         hovered_end = self.hovered
         hover_end = hovered_end[1]
+
 
         # ending on non manifold edge/vert
         if hovered_end[0] and "NON_MAN" in hovered_end[0]:
@@ -426,10 +431,10 @@ class PolyLineKnife(object):
             return delt.length
 
         
-        closest_3d_loc = min(self.input_points.get_world_locs(), key = dist3d)
+        closest_3d_loc = min(self.input_points.world_locs, key = dist3d)
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_loc))
         if pixel_dist  < 20:
-            self.hovered = ['POINT', self.input_points.get_world_locs().index(closest_3d_loc)]
+            self.hovered = ['POINT', self.input_points.world_locs.index(closest_3d_loc)]
             return
 
         if self.input_points.num_points == 1:
@@ -549,23 +554,23 @@ class PolyLineKnife(object):
         last_face_ind = None
 
         # Loop through each input point
-        for i, dct in enumerate(self.points_data):
-            v = dct["world_location"]
+        for i, pnt in enumerate(self.input_points.points):
+            v = pnt.world_loc
             # if loop is on first input point
             if i == 0:
-                last_face_ind = self.points_data[i]["face_index"]
+                last_face_ind = pnt.face_index
                 group = [i]
                 print('first face group index')
-                print((self.points_data[i]["face_index"],group))
+                print((pnt.face_index, group))
 
             # if we have found a new face
-            if self.points_data[i]["face_index"] != last_face_ind:
+            if pnt.face_index != last_face_ind:
                 self.face_changes.append(i-1) #this index in cut points, represents an input point that is on a face which has not been evaluted previously
                 #Face changes might better be described as edge crossings
 
                 if last_face_ind not in self.face_groups: #previous face has not been mapped before
                     self.face_groups[last_face_ind] = group
-                    last_face_ind = self.points_data[i]["face_index"]
+                    last_face_ind = pnt.face_index
                     group = [i]
                 else:
                     print('group already in dictionary')
@@ -583,31 +588,31 @@ class PolyLineKnife(object):
                 if i != 0:
                     group += [i]
             #double check for the last point
-            if i == len(self.points_data) - 1:  #
-                if self.points_data[i]["face_index"] != self.points_data[0]["face_index"]:  #we didn't click on the same face we started on
+            if i == self.input_points.num_points - 1:  #
+                if pnt.face_index != self.input_points.points[0].face_index:  #we didn't click on the same face we started on
                     if self.cyclic:
                         self.face_changes.append(i)
 
-                    if self.points_data[i]["face_index"] not in self.face_groups:
-                        self.face_groups[self.points_data[i]["face_index"]] = group
+                    if pnt.face_index not in self.face_groups:
+                        self.face_groups[pnt.face_index] = group
 
                     else:
                         #print('group already in dictionary')
-                        exising_group = self.face_groups[self.points_data[i]["face_index"]]
+                        exising_group = self.face_groups[pnt.face_index]
                         if 0 not in exising_group:
                             print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
                             print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
                         else:
-                            self.face_groups[self.points_data[i]["face_index"]] = group + exising_group
+                            self.face_groups[pnt.face_index] = group + exising_group
 
                 else:
                     #print('group already in dictionary')
-                    exising_group = self.face_groups[self.points_data[i]["face_index"]]
+                    exising_group = self.face_groups[pnt.face_index]
                     if 0 not in exising_group:
                         print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
                         print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
                     else:
-                        self.face_groups[self.points_data[i]["face_index"]] = group + exising_group
+                        self.face_groups[pnt.face_index] = group + exising_group
 
         #clean up face groups if necessary
         #TODO, get smarter about not adding in these
@@ -680,44 +685,33 @@ class PolyLineKnife(object):
 
         # iteration for each input point that changes a face
         for m, ind in enumerate(self.face_changes):
+            pnt = self.input_points.points[ind]
+            nxt_ind = (ind + 1) % self.input_points.num_points
+            nxt_pnt = self.input_points.points[nxt_ind]
+            ind_p1 = nxt_pnt.face_index #the face in the cut object which the next cut point falls upon
+
             if m == 0 and not self.cyclic:
-                self.ed_cross_map.add(self.start_edge, self.points_data[0]["local_location"])
+                self.ed_cross_map.add(self.start_edge, self.input_points.points[0].local_loc)
 
-            #n_p1 = (m + 1) % len(self.face_changes)
-            #ind_p1 = self.face_changes[n_p1]
-
-            n_p1 = (ind + 1) % len(self.points_data)  #The index of the next cut_pt (input point)
-            ind_p1 = self.points_data[n_p1]["face_index"]  #the face in the cut object which the next cut point falls upon
-
-            n_m1 = (ind - 1)
-            ind_m1 = self.points_data[n_m1]["face_index"]
-            #print('walk on edge pair %i, %i' % (m, n_p1))
-            #print('original faces in mesh %i, %i' % (self.face_map[ind], self.face_map[ind_p1]))
-
-            if n_p1 == 0 and not self.cyclic:
+            if nxt_ind == 0 and not self.cyclic:
                 print('not cyclic, we are done here')
                 break
 
-            f0 = self.bme.faces[self.points_data[ind]["face_index"]]  #<<--- Current BMFace
+            f0 = self.bme.faces[pnt.face_index]  #<<--- Current BMFace
             self.face_chain.add(f0)
 
-            f1 = self.bme.faces[self.points_data[n_p1]["face_index"]] #<<--- Next BMFace
+            f1 = self.bme.faces[nxt_pnt.face_index] #<<--- Next BMFace
 
             ###########################
             ## Define the cutting plane for this segment#
             ############################
 
-            no0 = self.points_data[ind]["view_direction"]  #direction the user was looking when adding current point
-            no1 = self.points_data[n_p1]["view_direction"]  #direction the user was looking when adding next point
-            surf_no = imx.to_3x3() * no0.lerp(no1, 0.5)  #must be a better way.
-
-            e_vec = self.points_data[n_p1]["local_location"] - self.points_data[ind]["local_location"]
-
+            surf_no = imx.to_3x3() * pnt.view.lerp(nxt_pnt.view, 0.5)  #must be a better way.
+            e_vec = nxt_pnt.local_loc - pnt.local_loc
             #define
             cut_no = e_vec.cross(surf_no)
-
             #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
-            cut_pt = .5*self.points_data[n_p1]["local_location"] + 0.5*self.points_data[ind]["local_location"]
+            cut_pt = .5 * nxt_pnt.local_loc + 0.5 * pnt.local_loc
 
             #find the shared edge,, check for adjacent faces for this cut segment
             cross_ed = None
@@ -730,7 +724,7 @@ class PolyLineKnife(object):
             #if no shared edge, need to cut across to the next face
             if not cross_ed:
                 if self.face_changes.index(ind) != 0:
-                    p_face = self.bme.faces[self.points_data[ind-1]["face_index"]]  #previous face to try and be smart about the direction we are going to walk
+                    p_face = self.bme.faces[self.input_points.points[ind-1].face_index]  #previous face to try and be smart about the direction we are going to walk
                 else:
                     p_face = None
 
@@ -743,8 +737,7 @@ class PolyLineKnife(object):
                     vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(
                         self.bme,
                         self.bvh,
-                        #self.cut_pts[ind], self.cut_pts[ind_p1],
-                        self.points_data[ind]["local_location"], self.points_data[n_p1]["local_location"],
+                        pnt.local_loc, nxt_pnt.local_loc,
                         max_tests = 10000, debug = True,
                         prev_face = p_face,
                         use_limit = use_limit)
@@ -775,9 +768,9 @@ class PolyLineKnife(object):
                         vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(
                             self.bme,
                             cut_pt, cut_no,
-                            f0.index,self.points_data[ind]["local_location"],
+                            f0.index,pnt.local_loc,
                             #f1.index, self.cut_pts[ind_p1],
-                            f1.index, self.points_data[n_p1]["local_location"],
+                            f1.index, nxt_pnt.local_loc,
                             max_tests = 10000, debug = True, prev_face = p_face,
                             epsilon = epp)
                         if len(vs) and error == 'LIMIT_SET':
@@ -794,9 +787,9 @@ class PolyLineKnife(object):
                 if len(vs):
                     #do this before we add in any points
                     if self.ed_cross_map.count > 1:
-                        self.new_ed_face_map[self.ed_cross_map.count-1] = self.points_data[ind]["face_index"]
+                        self.new_ed_face_map[self.ed_cross_map.count-1] = pnt.face_index
                     elif self.ed_cross_map.count == 1 and m ==1 and not self.cyclic:
-                        self.new_ed_face_map[self.ed_cross_map.count-1] = self.points_data[ind]["face_index"]
+                        self.new_ed_face_map[self.ed_cross_map.count-1] = pnt.face_index
                     for v,ed in zip(vs,eds_crossed):
                         self.ed_cross_map.add(ed, v)
 
@@ -817,7 +810,7 @@ class PolyLineKnife(object):
                     ):
 
                     print('end to the non manifold edge while walking multiple faces')
-                    self.ed_cross_map.add(self.end_edge, self.points_data[-1]["local_location"])
+                    self.ed_cross_map.add(self.end_edge, self.input_points.points[-1].local_loc)
                     self.new_ed_face_map[self.ed_cross_map.count-2] = f1.index
 
                 continue
@@ -828,7 +821,7 @@ class PolyLineKnife(object):
             if v:
                 self.ed_cross_map.add(cross_ed,v)
                 if self.ed_cross_map.count > 1:
-                    self.new_ed_face_map[self.ed_cross_map.count-2] = self.points_data[ind]["face_index"]
+                    self.new_ed_face_map[self.ed_cross_map.count-2] = pnt.face_index
 
             if ((not self.cyclic) and
                 m == (len(self.face_changes) - 1) and
@@ -944,7 +937,7 @@ class PolyLineKnife(object):
                         print('there are %i user drawn poly points on the face' % len(vert_inds))
 
                     bisect_eds += [edge]
-                    bisect_pts += [self.points_data[vert_inds[0]]["local_location"]]  #TODO, this only allows for a single point per face
+                    bisect_pts += [self.input_points.points[vert_inds[0]].local_loc]  #TODO, this only allows for a single point per face
 
                     #geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
                     #new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
@@ -1092,7 +1085,7 @@ class PolyLineKnife(object):
 
 
                 #make the new verts corresponding to the user click on bmface
-                inner_vert_cos = [self.points_data[i]["local_location"] for i in self.face_groups[bmface.index]]
+                inner_vert_cos = [self.input_points.points[i].local_loc for i in self.face_groups[bmface.index]]
                 inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
 
                 if ed_list.index(ed0) != 0:
@@ -1139,7 +1132,7 @@ class PolyLineKnife(object):
                 ed0 = eds_crossed[0]
 
                 #make the new verts corresponding to the user click on bmface
-                inner_vert_cos = [self.points_data[i]["local_location"] for i in self.face_groups[bmface.index]]
+                inner_vert_cos = [self.input_points.points[i].local_loc for i in self.face_groups[bmface.index]]
                 inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
 
                 #A new face made entirely out of new verts
@@ -1371,7 +1364,7 @@ class PolyLineKnife(object):
         cut_me = bpy.data.meshes.new('polyknife_stroke')
         cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
         cut_ob.hide = True
-        bmvs = [cut_bme.verts.new(dct["local_location"]) for dct in self.points_data]
+        bmvs = [cut_bme.verts.new(pnt.local_loc) for pnt in self.input_points.points]
         for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
             cut_bme.edges.new((v0,v1))
 
@@ -1551,7 +1544,7 @@ class PolyLineKnife(object):
         cut_me = bpy.data.meshes.new('polyknife_stroke')
         cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
 
-        bmvs = [cut_bme.verts.new(dct["local_location"]) for dct in self.points_data]
+        bmvs = [cut_bme.verts.new(pnt.local_loc) for pnt in self.input_points.points]
         for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
             cut_bme.edges.new((v0,v1))
 
@@ -1780,7 +1773,7 @@ class PolyLineKnife(object):
             # Dot
             common_drawing.draw_3d_points(context,[self.grab_point.world_loc], 5, color)
             # Lines
-            grab_point_ind = self.input_points.get_world_locs().index(self.grab_undo_loc)
+            grab_point_ind = self.input_points.world_locs.index(self.grab_undo_loc)
             low_ind = grab_point_ind - 1
             high_ind = (grab_point_ind + 1) % self.input_points.num_points
             low_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get_point(low_ind).world_loc)
@@ -1871,15 +1864,15 @@ class PolyLineKnife(object):
         # Polylines
         else:
             if self.cyclic:
-                draw3d_polyline(context, self.input_points.get_world_locs() + [self.input_points.get_world_locs()[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]],  (.1,.2,1,.8), 2, 'GL_LINE_STRIP' )
             else:
-                draw3d_polyline(context, self.input_points.get_world_locs() ,  (.1,.2,1,.8),2, 'GL_LINE' )
+                draw3d_polyline(context, self.input_points.world_locs ,  (.1,.2,1,.8),2, 'GL_LINE' )
 
-        draw3d_points(context, [self.input_points.get_world_locs()[0]], (1,.8,.2,1), 10)
+        draw3d_points(context, [self.input_points.world_locs[0]], (1,.8,.2,1), 10)
 
         # Points
         if self.input_points.num_points > 1:
-            draw3d_points(context, self.input_points.get_world_locs()[1:], (.2, .2, .8, 1), 6)
+            draw3d_points(context, self.input_points.world_locs[1:], (.2, .2, .8, 1), 6)
 
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
@@ -1896,6 +1889,9 @@ class InputPoint(object):
         self.view = view
         self.face_index = face_ind
 
+    def copy(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
+    copy = property(copy)
+
     def set_world_loc(self, loc): self.world_loc = loc
     def set_local_loc(self, loc): self.local_loc = loc
     def set_view(self, view): self.view = view
@@ -1906,6 +1902,14 @@ class InputPoint(object):
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
+
+    def print_data(self):
+        print('\n', "POINT DATA", '\n')
+        print("world location:", self.world_loc, '\n')
+        print("local location:", self.local_loc, '\n')
+        print("view direction:", self.view, '\n')
+        print("face index:", self.face_index, '\n')
+
 
 
 class InputPointMap(object):
@@ -1920,11 +1924,18 @@ class InputPointMap(object):
     is_empty = property(is_empty)
     num_points = property(num_points)
 
+    def world_locs(self): return [p.world_loc for p in self.points]
+    def local_locs(self): return [p.local_loc for p in self.points]
+    def views(self): return [p.view for p in self.points]
+    def face_indices(self): return [p.face_index for p in self.points]
+    world_locs = property(world_locs)
+    local_locs = property(local_locs)
+    view = property(views)
+    face_indices = property(face_indices)
+
     def get_point(self, ind=-1): return self.points[ind]
-    def get_world_locs(self, start=None, end=None):
-        world_locs = [p.world_loc for p in self.points]
-        if start: return world_locs[start, end + 1]
-        else: return world_locs
+    
+        
 
     ### single point manipulation
     def change_point(self, ind, point): self.points[ind] = point
@@ -1985,30 +1996,3 @@ class EdgeIntersectionMap(object):
     def add_list(self, edges, locs):
         for i, ed in enumerate(edges):
             self.add(ed, locs[i])
-
-class PolyCutPoint(object):
-
-    def __init__(self,co):
-        self.co = co
-
-        self.no = None
-        self.face = None
-        self.face_region = set()
-
-    def find_closest_non_manifold(self):
-        return None
-
-class NonManifoldEndpoint(object):
-
-    def __init__(self,co, ed):
-        if len(ed.link_faces) != 1:
-            return None
-
-        self.co = co
-        self.ed = ed
-        self.face = ed.link_faces[0]
-
-
-
-
-
