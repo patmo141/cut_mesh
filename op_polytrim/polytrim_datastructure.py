@@ -82,9 +82,6 @@ class PolyLineKnife(object):
         self.inner_faces = []
         self.face_seed = None
 
-        #these are important for when there are multiple instances of the mesh
-        self.is_selected = True 
-
     ## Resets datastructures
     def reset_vars(self):
         '''
@@ -1739,16 +1736,13 @@ class PolyLineKnife(object):
     ## 2D drawing
     def draw(self,context):
 
-        if self.is_selected:
-            green  = (.3,1,.3,1)
-            red = (1,.1,.1,1)
-            orange = (1,.8,.2,1)
-            yellow = (1,1,.1,1)
-            cyan = (0,1,1,1)
-            navy_opaque = (0,.2,.2,.5)
-            blue_opaque = (0,0,1,.2)
-        else:
-            green = red = orange = yellow = cyan = navy_opaque = blue_opaque = (1,1,1,.5)
+        green  = (.3,1,.3,1)
+        red = (1,.1,.1,1)
+        orange = (1,.8,.2,1)
+        yellow = (1,1,.1,1)
+        cyan = (0,1,1,1)
+        navy_opaque = (0,.2,.2,.5)
+        blue_opaque = (0,0,1,.2)
 
         ## Hovered Non-manifold Edge or Vert
         if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
@@ -1812,17 +1806,25 @@ class PolyLineKnife(object):
 
 
     ## 3D drawing
-    def draw3d(self,context,nearest=False):
+    def draw3d(self,context,unselected=False,nearest=False):
         #ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
         if self.input_points.is_empty: return
 
-        if self.is_selected:
-            blue = (.1,.1,.8,1)
-            blue2 = (.1,.2,1,.8)
-            green = (.2,.5,.2,1)
-            orange = (1,.8,.2,1)
-        else:
-            blue = blue2 = green = orange = (1,1,1,.2)
+        # when polyline select mode is enabled..
+        if unselected or nearest:
+            if unselected: color = (.1,.1,.8,.3)
+            if nearest: color = (.3,1,.3,1)
+            common_drawing.draw3d_points(context, self.input_points.world_locs, color, 2)
+            if self.cyclic:
+                common_drawing.draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]], color, 2,"GL_LINE_STRIP")
+            else:
+                common_drawing.draw3d_polyline(context, self.input_points.world_locs, color, 2,"GL_LINE_STRIP")
+            return
+
+        blue = (.1,.1,.8,1)
+        blue2 = (.1,.2,1,.8)
+        green = (.2,.5,.2,1)
+        orange = (1,.8,.2,1)
 
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
@@ -1878,16 +1880,6 @@ class PolyLineKnife(object):
 
         bgl.glLineWidth(1)  # Why are these two lines down here?
         bgl.glDepthRange(0.0, 1.0)
-
-        if not self.is_selected or nearest:
-            if not self.is_selected: color = (.1,.1,.8,.3)
-            if nearest: color = (.3,1,.3,1)
-            #draw3d_points(context, self.input_points.world_locs, color, 3)
-            if self.cyclic:
-                common_drawing.draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]], color, 2,"GL_LINE_STRIP")
-            else:
-                common_drawing.draw3d_polyline(context, self.input_points.world_locs, color, 2,"GL_LINE_STRIP")
-            return
 
         # Preview Polylines
         if self.ed_cross_map.count:
