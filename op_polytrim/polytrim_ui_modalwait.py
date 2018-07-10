@@ -29,20 +29,21 @@ class Polytrim_UI_ModalWait():
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
             self.knife.hover(context, x, y)
+            self.get_visual_grid(context)
             self.ui_text_update(context)
             return 'main'
 
         if  eventd['press'] == 'LEFTMOUSE':
             x,y = eventd['mouse']  #gather the 2D coordinates of the mouse click
             self.knife.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
-            if (self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT') or len(self.knife.points_data) == 1:
+            if (self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT') or self.knife.input_points.num_points == 1:
                 self.sketch = [(x,y)]
                 return 'sketch'
             return 'main'
 
         if eventd['press'] == 'RIGHTMOUSE':
             x,y = eventd['mouse']
-            if self.knife.start_edge and self.knife.hovered[1] == 0 and self.knife.num_points() > 1:
+            if self.knife.start_edge and self.knife.hovered[1] == 0 and self.knife.input_points.num_points > 1:
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')

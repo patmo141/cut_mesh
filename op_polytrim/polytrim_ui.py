@@ -24,6 +24,8 @@ class Polytrim_UI:
         self.is_navigating   = False
         self.sketch_curpos   = (0, 0)
         self.sketch          = []
+        self.view            = None
+        self.vis_grid        = None
 
         self.knife = PolyLineKnife(context,context.object)
         context.window.cursor_modal_set('CROSSHAIR')
