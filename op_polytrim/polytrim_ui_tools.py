@@ -4,8 +4,11 @@ Created on Oct 10, 2015
 @author: Patrick
 '''
 from .. import common_utilities
-from bpy_extras import view3d_utils
 from .polytrim_datastructure import InputPointMap
+from bpy_extras import view3d_utils
+from mathutils import Vector
+
+
 
 class Polytrim_UI_Tools():
 
@@ -56,17 +59,28 @@ class Polytrim_UI_Tools():
     def set_ui_text_main(self, context):
         context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
 
-    def get_visual_grid(self, context):
-        if self.view != context.space_data.region_3d.view_matrix:
-            self.view = context.space_data.region_3d.view_matrix.copy()
-            self.vis_grid = Accel2d(self.view)
-            self.vis_grid.print_grid()
-        return 1
+    def get_polyline_locs(self, context):
+        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+        screen_locs = {}
+        for polyline in self.polylines:
+            screen_locs[polyline] = []
+            for loc in polyline.input_points.world_locs:
+                loc2d = loc3d_reg2D(context.region, context.space_data.region_3d, loc)
+                screen_locs[polyline].append(loc2d)
+        return screen_locs
 
-class Accel2d():
+    def find_nearest_polyline(self, x, y, screen_locs):
+        def dist(v):
+            if v == None:
+                print('v off screen')
+                return 100000000
+            diff = v - Vector((x, y))
+            return diff.length
+        
+        for polyline in screen_locs:
+            for loc in screen_locs[polyline]:
+                if dist(loc) < 20:
+                    self.nearest = polyline
+                    return
+        self.nearest = None
 
-    def __init__(self, view):
-        self.grid = [view]
-        self.view = view
-
-    def print_grid(self): print(self.grid)

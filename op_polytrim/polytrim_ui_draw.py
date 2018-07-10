@@ -18,11 +18,13 @@ class Polytrim_UI_Draw():
         pass
 
     def draw_3d(self,context):
-        self.knife.draw3d(context)
+        for polyline in self.polylines:
+            if polyline == self.nearest: polyline.draw3d(context, nearest=True)
+            else: polyline.draw3d(context)
 
 
     def draw_2d(self,context):
-        self.knife.draw(context)
+        if self.knife.is_selected: self.knife.draw(context)
 
-        if len(self.sketch):
+        if self.sketch:
             common_drawing.draw_polyline_from_points(context, self.sketch, (.8,.3,.3,.8), 2, "GL_LINE_SMOOTH")
