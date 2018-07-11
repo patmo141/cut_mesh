@@ -26,8 +26,6 @@ class PolyLineKnife(object):
     A class which manages user placed points on an object to create a
     poly_line, adapted to the objects surface.
     '''
-
-    ## Initializing
     def __init__(self,context, cut_object, ui_type = 'DENSE_POLY'):
         self.source_ob = cut_object
         self.bme = bmesh.new()
@@ -41,9 +39,9 @@ class PolyLineKnife(object):
         self.hovered = [None, -1]
         self.start_edge = None
         self.end_edge = None
-        self.face_changes = [] #the indices where the next point lies on a different face
-        self.face_groups = dict()   #maps bmesh face index to all the points in user drawn polyline which fall upon it
-        self.face_chain = set()  #all faces crossed by the cut curve. set of type BMFace
+        self.face_changes = [] 
+        self.face_groups = dict()  
+        self.face_chain = set() 
 
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
         self.ed_cross_map = EdgeIntersectionMap()
@@ -1757,7 +1755,8 @@ class PolyLineKnife(object):
             next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes)
             bad_ind_2 = self.face_changes[next_face_chng_ind]
             if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = self.input_points.num_points - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
-            common_drawing.draw_polyline_from_3dpoints(context, [self.input_points.get_point(bad_ind).world_loc, self.input_points(bad_ind_2).world_loc], red, 4, 'GL_LINE')
+            print("HEY:", self.input_points.get_point(bad_ind).world_loc, self.input_points.get_point(bad_ind_2).world_loc)
+            common_drawing.draw_polyline_from_3dpoints(context, [self.input_points.get_point(bad_ind).world_loc, self.input_points.get_point(bad_ind_2).world_loc], red, 4, 'GL_LINE')
 
         ## Origin Point
         common_drawing.draw_3d_points(context,[self.input_points.get_point(0).world_loc], 8, orange)
@@ -1806,19 +1805,22 @@ class PolyLineKnife(object):
 
 
     ## 3D drawing
-    def draw3d(self,context,unselected=False,nearest=False):
+    def draw3d(self,context,special=None):
         #ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
         if self.input_points.is_empty: return
 
         # when polyline select mode is enabled..
-        if unselected or nearest:
-            if unselected: color = (.1,.1,.8,.3)
-            if nearest: color = (.3,1,.3,1)
-            common_drawing.draw3d_points(context, self.input_points.world_locs, color, 2)
+        if special:
+            if special == "lite": color = (1,1,1,.5)
+            elif special == "extra-lite": color = (1,1,1,.2)
+            elif special == "green": color = (.3,1,.3,1)
+
+            #common_drawing.draw3d_points(context, self.input_points.world_locs, color, 2)
             if self.cyclic:
                 common_drawing.draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]], color, 2,"GL_LINE_STRIP")
             else:
                 common_drawing.draw3d_polyline(context, self.input_points.world_locs, color, 2,"GL_LINE_STRIP")
+
             return
 
         blue = (.1,.1,.8,1)
@@ -1903,7 +1905,6 @@ class PolyLineKnife(object):
         bgl.glDepthRange(0.0, 1.0)
 
 
-
 class InputPoint(object):
     '''
     Representation of an input point
@@ -1936,7 +1937,6 @@ class InputPoint(object):
         print("face index:", self.face_index, '\n')
 
 
-
 class InputPointMap(object):
     '''
     Collection of all InputPoints
@@ -1959,8 +1959,6 @@ class InputPointMap(object):
     face_indices = property(face_indices)
 
     def get_point(self, ind=-1): return self.points[ind]
-    
-        
 
     ### single point manipulation
     def change_point(self, ind, point): self.points[ind] = point

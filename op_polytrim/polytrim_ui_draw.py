@@ -18,16 +18,17 @@ class Polytrim_UI_Draw():
         pass
 
     def draw_3d(self,context):
-        for polyline in self.polylines:
-            if polyline == self.nearest: polyline.draw3d(context, nearest=True)
-            elif polyline == self.knife: polyline.draw3d(context)
-            else: polyline.draw3d(context, unselected=True)
-        
-            
-
+        if self.PLM.mode == 'wait':
+            for polyline in self.PLM.polylines:
+                if polyline == self.PLM.current: polyline.draw3d(context)
+                else: polyline.draw3d(context, special="extra-lite")
+        elif self.PLM.mode == 'select':
+            for polyline in self.PLM.polylines:
+                if polyline == self.PLM.hovered: polyline.draw3d(context, special="green")
+                else: polyline.draw3d(context, special="lite")
 
     def draw_2d(self,context):
-        if self.knife: self.knife.draw(context)
+        if self.PLM.current: self.PLM.current.draw(context)
 
         if self.sketch:
             common_drawing.draw_polyline_from_points(context, self.sketch, (.8,.3,.3,.8), 2, "GL_LINE_SMOOTH")

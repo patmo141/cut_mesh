@@ -21,92 +21,113 @@ class Polytrim_UI_ModalWait():
 
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':
-            context.area.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
-            if self.knife.grab_initiate():
+            if self.PLM.current.grab_initiate():
+                context.area.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
                 return 'grab'
-            else:
-                #need to select a point
-                return 'main'
+            return 'main'
 
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
-            self.knife.hover(context, x, y)
+            self.PLM.current.hover(context, x, y)
             self.ui_text_update(context)
             return 'main'
 
         if  eventd['press'] == 'LEFTMOUSE':
             x,y = eventd['mouse']  #gather the 2D coordinates of the mouse click
-            self.knife.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
-            if (self.knife.ui_type == 'DENSE_POLY' and self.knife.hovered[0] == 'POINT') or self.knife.input_points.num_points == 1:
+            self.PLM.current.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
+            if (self.PLM.current.ui_type == 'DENSE_POLY' and self.PLM.current.hovered[0] == 'POINT') or self.PLM.current.input_points.num_points == 1:
                 self.sketch = [(x,y)]
                 return 'sketch'
             return 'main'
 
         if eventd['press'] == 'RIGHTMOUSE':
             x,y = eventd['mouse']
-            if self.knife.start_edge and self.knife.hovered[1] == 0 and self.knife.input_points.num_points > 1:
+            if self.PLM.current.start_edge and self.PLM.current.hovered[1] == 0 and self.PLM.current.input_points.num_points > 1:
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
-            self.knife.click_delete_point(mode = 'mouse')
-            self.knife.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
+            self.PLM.current.click_delete_point(mode = 'mouse')
+            self.PLM.current.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
             return 'main'
 
         if eventd['press'] == 'A':
-            if self.knife.input_points.num_points > 1:
+            if self.PLM.current.input_points.num_points > 1:
+                context.window.cursor_modal_set('DEFAULT')
+                context.area.header_text_set("LEFT-CLICK: select, RIGHT-CLICK: delete, PRESS-N: new, ESC: cancel")
+                self.PLM.initiate_select_mode(context)
                 return 'select'
             else: showErrorMessage("You must have 2 or more points out before you can ")
             return 'main'
 
         if eventd['press'] == 'C':
-            if self.knife.start_edge != None and self.knife.end_edge == None:
+            if self.PLM.current.start_edge != None and self.PLM.current.end_edge == None:
                 showErrorMessage('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
-            elif self.knife.start_edge == None and not self.knife.cyclic:
+            elif self.PLM.current.start_edge == None and not self.PLM.current.cyclic:
                 showErrorMessage('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
             else:
-                self.knife.make_cut()
+                self.PLM.current.make_cut()
                 context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
 
             return 'main'
 
         if eventd['press'] == 'K':
-            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
-                self.knife.split_geometry(eventd['context'], mode = 'KNIFE')
+            if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
+                self.PLM.current.split_geometry(eventd['context'], mode = 'KNIFE')
+                self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
+                if len(self.PLM.polylines):
+                    self.PLM.current = self.PLM.polylines[-1]
+                    return 'main'
                 return 'finish'
 
         if eventd['press'] == 'P':
-            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
-                self.knife.split_geometry(eventd['context'], mode = 'SEPARATE')
-            return 'finish'
+            if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
+                self.PLM.current.split_geometry(eventd['context'], mode = 'SEPARATE')
+                self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
+                if len(self.PLM.polylines):
+                    self.PLM.current = self.PLM.polylines[-1]
+                    return 'main'
+                return 'finish'
 
         if eventd['press'] == 'X':
-            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
-                self.knife.split_geometry(eventd['context'], mode = 'DELETE')
-            return 'finish'
+            if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
+                self.PLM.current.split_geometry(eventd['context'], mode = 'DELETE')
+                self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
+                if len(self.PLM.polylines):
+                    self.PLM.current = self.PLM.polylines[-1]
+                    return 'main'
+                return 'finish'
 
         if eventd['press'] == 'Y':
-            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
-                self.knife.split_geometry(eventd['context'], mode = 'SPLIT')
-            return 'finish'
+            if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
+                self.PLM.current.split_geometry(eventd['context'], mode = 'SPLIT')
+                self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
+                if len(self.PLM.polylines):
+                    self.PLM.current = self.PLM.polylines[-1]
+                    return 'main'
+                return 'finish'
 
         if eventd['press'] == 'SHIFT+D':
-            if self.knife.split and self.knife.face_seed and self.knife.ed_cross_map.is_used:
-                self.knife.split_geometry(eventd['context'], mode = 'DUPLICATE')
-            return 'finish'
+            if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
+                self.PLM.current.split_geometry(eventd['context'], mode = 'DUPLICATE')
+                self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
+                if len(self.PLM.polylines):
+                    self.PLM.current = self.PLM.polylines[-1]
+                    return 'main'
+                return 'finish'
 
         if eventd['press'] == 'S':
-            if len(self.knife.bad_segments) != 0:
+            if len(self.PLM.current.bad_segments) != 0:
                 showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
                 return 'main'
 
-            if self.knife.start_edge == None and not self.knife.cyclic:
+            if self.PLM.current.start_edge == None and not self.PLM.current.cyclic:
                 showErrorMessage('Finish closing cut boundary loop')
                 return 'main'
 
-            elif self.knife.start_edge != None and self.knife.end_edge == None:
+            elif self.PLM.current.start_edge != None and self.PLM.current.end_edge == None:
                 showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
                 return 'main'
 
-            elif not self.knife.ed_cross_map.is_used:
+            elif not self.PLM.current.ed_cross_map.is_used:
                 showErrorMessage('Press "C" to preview the cut success before setting the seed')
                 return 'main'
 
@@ -115,7 +136,7 @@ class Polytrim_UI_ModalWait():
             return 'inner'
 
         if eventd['press'] == 'RET' :
-            self.knife.confirm_cut_to_mesh()
+            self.PLM.current.confirm_cut_to_mesh()
             return 'finish'
 
         elif eventd['press'] == 'ESC':
@@ -129,22 +150,22 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
             x,y = eventd['mouse']
-            self.knife.grab_confirm(context, x, y)
-            if self.knife.ed_cross_map.is_used:
-                self.knife.make_cut()
+            self.PLM.current.grab_confirm(context, x, y)
+            if self.PLM.current.ed_cross_map.is_used:
+                self.PLM.current.make_cut()
             self.ui_text_update(context)
             return 'main'
 
         elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
             #put it back!
-            self.knife.grab_cancel()
+            self.PLM.current.grab_cancel()
             self.ui_text_update(context)
             return 'main'
 
         elif eventd['type'] == 'MOUSEMOVE':
             #update the b_pt location
             x,y = eventd['mouse']
-            self.knife.grab_mouse_move(context,x, y)
+            self.PLM.current.grab_mouse_move(context,x, y)
             return 'grab'
 
     def modal_sketch(self,context,eventd):
@@ -160,48 +181,41 @@ class Polytrim_UI_ModalWait():
 
         elif eventd['release'] == 'LEFTMOUSE':
             is_sketch = self.sketch_confirm(context, eventd)
-            if self.knife.ed_cross_map.is_used and is_sketch:
-                self.knife.make_cut()
+            if self.PLM.current.ed_cross_map.is_used and is_sketch:
+                self.PLM.current.make_cut()
             self.ui_text_update(context)
             self.sketch = []
             return 'main'
 
     def modal_select(self, context, eventd):
-        screen_locs = self.get_polyline_locs(context)
-        self.knife = None
         if eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
-            self.find_nearest_polyline(x,y,screen_locs)
-            if self.nearest: context.window.cursor_modal_set('DEFAULT')
-            else: context.window.cursor_modal_set('CROSSHAIR')
+            self.PLM.hover(context, x, y)
             return 'select'
 
         elif eventd['press'] == 'LEFTMOUSE':
-            if self.nearest:
-                self.knife = self.nearest
-                self.nearest = None
+            if self.PLM.hovered:
+                self.PLM.select(context)
+                self.set_ui_text_main(context)
                 context.window.cursor_modal_set('CROSSHAIR')
                 return 'main'
-            else:
-                self.polylines.append(PolyLineKnife(context, context.object))
-                self.knife = self.polylines[-1]
-                self.nearest = None
-                context.window.cursor_modal_set('CROSSHAIR')
-                return 'main'
-
-        elif eventd['press'] == 'RIGHTMOUSE':
-            if self.nearest:
-                if len(self.polylines) == 1: showErrorMessage("Cannot delete last polyline. Make another one, then you can delete this one")
-                else:
-                    self.polylines.pop(self.polylines.index(self.nearest))
-                    self.nearest = None
-                    context.window.cursor_modal_set('CROSSHAIR')
             return 'select'
 
-        elif eventd['press'] == 'ESC':
-            self.nearest = None
-            self.knife = self.polylines[-1]
+        elif eventd['press'] == 'RIGHTMOUSE':
+            if self.PLM.hovered and self.PLM.num_polylines > 1:
+                self.PLM.delete(context)
+            return 'select'
+
+        elif eventd['press'] == 'N':
+            self.PLM.start_new_polyline(context)
             context.window.cursor_modal_set('CROSSHAIR')
+            self.set_ui_text_main(context)
+            return 'main'
+
+        elif eventd['press'] in {'ESC', 'A'}:
+            self.PLM.terminate_select_mode()
+            context.window.cursor_modal_set('CROSSHAIR')
+            self.set_ui_text_main(context)
             return 'main'
 
     def modal_inner(self,context,eventd):
@@ -209,12 +223,12 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'LEFTMOUSE':
             x,y = eventd['mouse']
 
-            result = self.knife.click_seed_select(context, x,y)
+            result = self.PLM.current.click_seed_select(context, x,y)
             # found a good face
             if result == 1:
                 context.window.cursor_modal_set('CROSSHAIR')
-                if self.knife.ed_cross_map.is_used and not self.knife.bad_segments and not self.knife.split:
-                    self.knife.confirm_cut_to_mesh_no_ops()
+                if self.PLM.current.ed_cross_map.is_used and not self.PLM.current.bad_segments and not self.PLM.current.split:
+                    self.PLM.current.confirm_cut_to_mesh_no_ops()
                     context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
                 return 'main'
             # found a bad face
