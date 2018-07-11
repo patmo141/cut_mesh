@@ -4,6 +4,7 @@ Created on Oct 11, 2015
 @author: Patrick
 '''
 from ..common_utilities import showErrorMessage
+from .polytrim_datastructure import PolyLineKnife
 
 class Polytrim_UI_ModalWait():
 
@@ -11,6 +12,7 @@ class Polytrim_UI_ModalWait():
         # general navigation
         nmode = self.modal_nav(context, eventd)
         if nmode != '':
+            print("nmode")
             return nmode  #stop here and tell parent modal to 'PASS_THROUGH'
 
         # test code that will break operator :)
@@ -29,7 +31,6 @@ class Polytrim_UI_ModalWait():
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
             self.knife.hover(context, x, y)
-            self.get_visual_grid(context)
             self.ui_text_update(context)
             return 'main'
 
@@ -48,6 +49,11 @@ class Polytrim_UI_ModalWait():
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')
             self.knife.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
+            return 'main'
+
+        if eventd['press'] == 'A':
+            if self.knife.has_points:
+                return 'select'
             return 'main'
 
         if eventd['press'] == 'C':
@@ -157,6 +163,37 @@ class Polytrim_UI_ModalWait():
                 self.knife.make_cut()
             self.ui_text_update(context)
             self.sketch = []
+            return 'main'
+
+    def modal_select(self, context, eventd):
+        context.window.cursor_modal_set('DEFAULT')
+        self.knife.is_selected = False
+        screen_locs = self.get_polyline_locs(context)
+
+        if eventd['type'] == 'MOUSEMOVE':
+            x,y = eventd['mouse']
+            closest = self.find_nearest_polyline(x,y,screen_locs)
+            if closest: closest.is_hovered = True
+            return 'select'
+
+        elif eventd['press'] == 'LEFTMOUSE':
+            if self.nearest:
+                self.knife = self.nearest
+                self.knife.is_selected = True
+                self.nearest = None
+                context.window.cursor_modal_set('CROSSHAIR')
+                return 'main'
+            return 'select'
+
+        elif eventd['press'] == 'N':
+            self.polylines.append(PolyLineKnife(context, context.object))
+            self.knife = self.polylines[-1]
+            context.window.cursor_modal_set('CROSSHAIR')
+            return 'main'
+
+        elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
+            context.window.cursor_modal_set('CROSSHAIR')
+            self.knife.is_selected = True
             return 'main'
 
     def modal_inner(self,context,eventd):
