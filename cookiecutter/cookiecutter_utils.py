@@ -1,9 +1,7 @@
 '''
 Copyright (C) 2018 CG Cookie
-http://cgcookie.com
-hello@cgcookie.com
 
-Created by Jonathan Denning, Jonathan Williamson, Patrick Moore
+https://github.com/CGCookie/retopoflow
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,22 +17,13 @@ Created by Jonathan Denning, Jonathan Williamson, Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-__all__ = [
-    'bezier',
-    'blender',
-    'bmesh_render',
-    'debug',
-    'decorators',
-    'globals',
-    'hasher',
-    'logger',
-    'maths',
-    'metaclasses',
-    'profiler',
-    'shaders',
-    'ui',
-    'useractions',
-    'utils',
-    'xmesh',
-]
+import inspect
 
+import bpy
+
+class CookieCutter_Utils:
+    def find_fns(self, key):
+        c = type(self)
+        objs = [getattr(c,k) for k in dir(c)]
+        fns = [fn for fn in objs if inspect.isfunction(fn)]
+        return [(getattr(fn,key),fn) for fn in fns if hasattr(fn,key)]
