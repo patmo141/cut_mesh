@@ -3,14 +3,21 @@ Created on Oct 8, 2015
 
 @author: Patrick
 '''
-from ..modaloperator import ModalOperator
+
+from ..cookiecutter.cookiecutter import CookieCutter
+from ..common import ui
+
+
 from .polytrim_ui            import Polytrim_UI
 from .polytrim_ui_modalwait  import Polytrim_UI_ModalWait
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
+from .polytrim_datastructure import PolyLineKnife
+from .polytrim_ui_tools import PolyLineManager
 
 
-class CutMesh_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_UI_Tools, Polytrim_UI_Draw):
+#ModalOperator
+class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_UI_Tools, Polytrim_UI_Draw):
     ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     
@@ -22,49 +29,64 @@ class CutMesh_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytr
     bl_region_type = 'TOOLS'
     bl_options = {'REGISTER','UNDO'}
     
-    def __init__(self):
-        FSM = {}
-        FSM['sketch']  = self.modal_sketch
-        FSM['grab']    = self.modal_grab
-        FSM['select']  = self.modal_select
-        FSM['inner']   = self.modal_inner
-        self.initialize(FSM)
+    default_keymap = {
+        # key: a human-readable label
+        # val: a str or a set of strings representing the user action
+        'action': {'LEFTMOUSE'},
+        'cancel': {'ESC', 'RIGHTMOUSE'},
+        'grab': 'G',
+        'delete': {'RIGHTMOUSE'},
+        'toggle selection': 'A',
+        'preview cut': 'C',
+        # ... more
+    }
     
-    def start_poll(self, context):
+    @classmethod
+    def can_start(cls, context):
         ''' Called when tool is invoked to determine if tool can start '''
-                
         if context.mode != 'OBJECT':
             #showErrorMessage('Object Mode please')
             return False
-        
         if not context.object:
             return False
-        
         if context.object.type != 'MESH':
             #showErrorMessage('Must select a mesh object')
             return False
-        
-        
         return True
     
-    def start(self, context):
-        ''' Called when tool is invoked '''
-        self.start_ui(context)
+    def start(self):
+        opts = {
+            'pos': 8,
+            'movable': True,
+            'bgcolor': (0.2, 0.2, 0.2, 0.8),
+            'padding': 0,
+            }
+        win = self.wm.create_window('test', opts)
+        self.lbl = win.add(ui.UI_Label('main'))
+        exitbuttons = win.add(ui.UI_Container(margin=0,vertical=False))
+        exitbuttons.add(ui.UI_Button('commit', self.done))
+        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
+        
+        self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
+        self.mode_pos        = (0, 0)
+        self.cur_pos         = (0, 0)
+        self.mode_radius     = 0
+        self.action_center   = (0, 0)
+        self.is_navigating   = False
+        self.sketch_curpos   = (0, 0)
+        self.sketch          = []
+
+        self.PLM = PolyLineManager()
+        self.PLM.add(PolyLineKnife(self.context, self.context.object))
+        self.PLM.current = self.PLM.polylines[0]
+
+        self.cursor_modal_set('CROSSHAIR')
+        self.set_ui_text_main()
     
-    def end(self, context):
+    def end(self):
         ''' Called when tool is ending modal '''
-        self.end_ui(context)
+        self.header_text_set()
+        self.cursor_modal_restore()
     
-    def end_commit(self, context):
-        ''' Called when tool is committing '''
-        
-        
-        self.cleanup(context, 'commit')
-    
-    def end_cancel(self, context):
-        ''' Called when tool is canceled '''
-        self.cleanup(context, 'cancel')
-        pass
-    
-    def update(self, context):
+    def update(self):
         pass

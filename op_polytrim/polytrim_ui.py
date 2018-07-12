@@ -9,43 +9,9 @@ import bpy
 import bmesh
 from mathutils import Matrix, Vector
 
-from .polytrim_datastructure import PolyLineKnife
-from .polytrim_ui_tools import PolyLineManager
 from .cache import polytrim_undo_cache
 
 class Polytrim_UI:
-
-    def start_ui(self, context):
-
-        self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
-        self.mode_pos        = (0, 0)
-        self.cur_pos         = (0, 0)
-        self.mode_radius     = 0
-        self.action_center   = (0, 0)
-        self.is_navigating   = False
-        self.sketch_curpos   = (0, 0)
-        self.sketch          = []
-
-        self.PLM = PolyLineManager()
-        self.PLM.add(PolyLineKnife(context,context.object))
-        self.PLM.current = self.PLM.polylines[0]
-
-        context.window.cursor_modal_set('CROSSHAIR')
-        self.set_ui_text_main(context)
-
-    def end_ui(self, context):
-        context.area.header_text_set()
-        context.window.cursor_modal_restore()
-
-    def cleanup(self, context, cleantype=''):
-        '''
-        remove temporary object
-        '''
-        if cleantype == 'commit':
-            pass
-
-        elif cleantype == 'cancel':
-            pass
     ###############################
     # undo functions
     def create_undo_snapshot(self, action):

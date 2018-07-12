@@ -12,7 +12,7 @@ from mathutils import Vector
 
 class Polytrim_UI_Tools():
 
-    def sketch_confirm(self, context, eventd):
+    def sketch_confirm(self):
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.PLM.current.ui_type == 'DENSE_POLY':
             print('A sketch was not detected..')
@@ -21,7 +21,8 @@ class Polytrim_UI_Tools():
             return False
 
         # Get user view ray
-        x,y = eventd['mouse']  #coordinates of where LeftMouse was released
+        x,y = self.actions.mouse  #coordinates of where LeftMouse was released
+        context = self.context
         region = context.region
         rv3d = context.region_data
         view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, (x,y))  #get the direction under the mouse given the user 3DView perspective matrix
@@ -42,22 +43,22 @@ class Polytrim_UI_Tools():
         return True
 
     ## updates the text at the bottom of the viewport depending on certain conditions
-    def ui_text_update(self, context):
+    def ui_text_update(self):
         if self.PLM.current.bad_segments:
-            context.area.header_text_set("Fix Bad segments by moving control points.")
+            self.header_text_set("Fix Bad segments by moving control points.")
         elif self.PLM.current.ed_cross_map.is_used:
-            context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
+            self.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
         elif self.PLM.current.hovered[0] == 'POINT':
             if self.PLM.current.hovered[1] == 0:
-                context.area.header_text_set("For origin point, left click to toggle cyclic")
+                self.header_text_set("For origin point, left click to toggle cyclic")
             else:
-                context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
+                self.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
         else:
-            self.set_ui_text_main(context)
+            self.set_ui_text_main()
 
     # sets the viewports text during general creation of line
-    def set_ui_text_main(self, context):
-        context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
+    def set_ui_text_main(self):
+        self.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
 
 
 class PolyLineManager(object):
