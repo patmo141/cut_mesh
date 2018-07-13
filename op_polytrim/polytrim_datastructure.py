@@ -649,16 +649,19 @@ class PolyLineKnife(object):
     
     def reprocess_points(self, resolution):
         print('REPROCESSING')
-        mx, imx = self.get_matrices()
+        
         #decide on n_points
         #calc the path length, divide by resolution, round
-        locs = self.input_points.world_locs()
-        
+        locs = [p.world_loc for p in self.input_points.points]
+        print('Attempting to get locations from input points')
+        print(locs)
         L = common_utilities.get_path_length(locs)
         n_points = math.ceil(L/resolution)
         
-        print(locs)
+        
         print(n_points)
+        
+        mx, imx = self.get_matrices()
         #redisitribute locations
         if self.cyclic:
             edges = [(0,1),(1,0)]
