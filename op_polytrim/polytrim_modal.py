@@ -38,6 +38,8 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_UI_ModalWait, Polytri
         'delete': {'RIGHTMOUSE'},
         'toggle selection': 'A',
         'preview cut': 'C',
+        'up': 'UP_ARROW',
+        'down': 'DOWN_ARROW'
         # ... more
     }
     

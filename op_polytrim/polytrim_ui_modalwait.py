@@ -6,15 +6,18 @@ Created on Oct 11, 2015
 
 import random
 
+from bpy_extras import view3d_utils
+
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common_utilities import showErrorMessage
 from .polytrim_datastructure import PolyLineKnife
+
 
 class Polytrim_UI_ModalWait():
     @CookieCutter.FSM_State('main')
     def modal_wait(self):
         context = self.context
-        
+
         # test code that will break operator :)
         #if self.actions.pressed('F9'): bad = 3.14 / 0
         #if self.actions.pressed('F10'): assert False
@@ -49,6 +52,14 @@ class Polytrim_UI_ModalWait():
             self.PLM.current.click_delete_point(mode = 'mouse')
             self.PLM.current.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
             return
+
+        if self.actions.pressed('up'):
+            x,y = self.actions.mouse
+            view = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, (x,y))
+            self.PLM.current.double_points(view)
+
+        if self.actions.pressed('down'):
+            self.PLM.current.halve_points()
 
         if self.actions.pressed('toggle selection'):
             if self.PLM.current.input_points.num_points > 1:
@@ -198,7 +209,7 @@ class Polytrim_UI_ModalWait():
     @CookieCutter.FSM_State('select')
     def modal_select(self):
         context = self.context
-        
+
         if self.actions.mousemove:
             x,y = self.actions.mouse
             self.PLM.hover(context, x, y)

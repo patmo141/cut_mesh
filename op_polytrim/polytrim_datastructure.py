@@ -3,6 +3,7 @@ Created on Oct 8, 2015
 
 @author: Patrick
 '''
+from __future__ import division
 import time
 import math
 
@@ -1679,6 +1680,29 @@ class PolyLineKnife(object):
                         print('remove last vert from last face group')
                         v_group.pop()
                         self.face_groups[e_ind] = v_group
+
+    def double_points(self, view):
+        for i in range(self.input_points.num_points - 1):
+            pass
+            p1 = self.input_points.get_point(i*2)
+            p2 = self.input_points.get_point(i*2+1)
+            new_world_loc = Vector((
+                    (p1.world_loc[0] + p2.world_loc[0]) / 2.0,
+                    (p1.world_loc[1] + p2.world_loc[1]) / 2.0,
+                    (p1.world_loc[2] + p2.world_loc[2]) / 2.0
+                ))
+            new_local_loc = Vector((
+                    (p1.local_loc[0] + p2.local_loc[0]) / 2.0,
+                    (p1.local_loc[1] + p2.local_loc[1]) / 2.0,
+                    (p1.local_loc[2] + p2.local_loc[2]) / 2.0
+                ))
+            self.input_points.insert_point(i*2+1, new_world_loc, new_local_loc, view, None)
+
+
+
+    def halve_points(self):
+        for i in range( self.input_points.num_points - 2, 0, -2):
+            self.input_points.pop(i)
 
 
     ## ******************************
