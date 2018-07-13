@@ -15,7 +15,7 @@ from .polytrim_datastructure import PolyLineKnife
 
 class Polytrim_UI_ModalWait():
     @CookieCutter.FSM_State('main')
-    def modal_wait(self):
+    def modal_main(self):
         context = self.context
         self.cursor_modal_set('CROSSHAIR')
 
@@ -165,6 +165,7 @@ class Polytrim_UI_ModalWait():
     def modal_grab(self):
         # no navigation in grab mode
         context = self.context
+        self.cursor_modal_set('HAND')
 
         if self.actions.pressed('LEFTMOUSE'):
             #confirm location

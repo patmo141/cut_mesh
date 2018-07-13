@@ -19,8 +19,12 @@ https://github.com/CGCookie/retopoflow
 
 class CookieCutter_FSM:
     class FSM_State:
-        def __init__(self, state):
+        @staticmethod
+        def get_state(state, substate):
+            return '%s__%s' % (state, substate)
+        def __init__(self, state, substate='main'):
             self.state = state
+            self.substate = substate
         def __call__(self, fn):
             self.fn = fn
             self.fnname = fn.__name__
@@ -28,23 +32,43 @@ class CookieCutter_FSM:
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:
-                    print('Caught exception in function "%s" (state: "%s")' % (self.fnname, self.state))
+                    print('Caught exception in function "%s" ("%s")' % (
+                        self.fnname, self.fsmstate
+                    ))
                     print(e)
-                    return None
+                    return
             run.fnname = self.fnname
-            run.fsmstate = self.state
+            run.fsmstate = CookieCutter_FSM.FSM_State.get_state(self.state, self.substate)
             return run
     
     def fsm_init(self):
+        self._state_prev = None
         self._state = 'main'
         self._fsm_states = {}
         for (m,fn) in self.find_fns('fsmstate'):
-            assert m not in self._fsm_states
+            assert m not in self._fsm_states, 'Duplicate states registered!'
             self._fsm_states[m] = fn
     
+    def _fsm_call(self, state, substate='main', fail_if_not_exist=False):
+        s = CookieCutter_FSM.FSM_State.get_state(state, substate)
+        if s not in self._fsm_states:
+            assert not fail_if_not_exist
+            return
+        try:
+            return self._fsm_states[s](self)
+        except Exception as e:
+            print('Caught exception in state ("%s")' % (s))
+            print(e)
+            return
+        
+    
     def fsm_update(self):
-        assert self._state in self._fsm_states
-        nmode = self._fsm_states[self._state](self)
+        if self._state != self._state_prev:
+            if self._state_prev:
+                self._fsm_call(self._state_prev, substate='exit')
+            self._fsm_call(self._state, substate='enter')
+            self._state_prev = self._state
+        nmode = self._fsm_call(self._state, fail_if_not_exist=True)
         if nmode: self._state = nmode
     
 
