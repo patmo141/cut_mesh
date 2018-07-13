@@ -26,6 +26,7 @@ class CutMesh_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytr
         FSM = {}
         FSM['sketch']  = self.modal_sketch
         FSM['grab']    = self.modal_grab
+        FSM['select']  = self.modal_select
         FSM['inner']   = self.modal_inner
         self.initialize(FSM)
 

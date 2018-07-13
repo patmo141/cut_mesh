@@ -47,13 +47,10 @@ def face_neighbors_strict(bmface):
 
 
 def vert_neighbors_manifold(bmvert):
-    
     neighbors = [ed.other_vert(bmvert) for ed in bmvert.link_edges]
     return [v for v in neighbors if v.is_manifold]
 
-
 def vert_neighbors(bmvert):
-    
     neighbors = [ed.other_vert(bmvert) for ed in bmvert.link_edges]
     return neighbors
 
@@ -1063,3 +1060,9 @@ def join_bmesh(source, target, src_trg_map, src_mx = None, trg_mx = None):
             print('seems some verts were left in that should not have been')
             
     del src_trg_map
+
+
+def ensure_lookup(bme):
+    bme.verts.ensure_lookup_table()
+    bme.edges.ensure_lookup_table()
+    bme.faces.ensure_lookup_table()

@@ -10,6 +10,7 @@ import bmesh
 from mathutils import Matrix, Vector
 
 from .polytrim_datastructure import PolyLineKnife
+from .polytrim_ui_tools import PolyLineManager
 from .cache import polytrim_undo_cache
 
 class Polytrim_UI:
@@ -25,7 +26,10 @@ class Polytrim_UI:
         self.sketch_curpos   = (0, 0)
         self.sketch          = []
 
-        self.knife = PolyLineKnife(context,context.object)
+        self.PLM = PolyLineManager()
+        self.PLM.add(PolyLineKnife(context,context.object))
+        self.PLM.current = self.PLM.polylines[0]
+
         context.window.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main(context)
 

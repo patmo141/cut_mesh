@@ -33,7 +33,8 @@ from bpy.types import SpaceView3D
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .common.utils import exception_handler, registered_object_add, registered_check
+from .common.debug import debugger
+from .common.utils import registered_object_add, registered_check
 
 #from .lib.common_classes import TextBox
 #from . import key_maps
@@ -106,7 +107,7 @@ class ModalOperator(Operator):
             }
 
     def handle_exception(self, serious=False):
-        errormsg = exception_handler()
+        errormsg, errorhash = debugger.get_exception_info_and_hash()
         # if max number of exceptions occur within threshold of time, abort!
         curtime = time.time()
         self.exceptions_caught += [(errormsg, curtime)]
