@@ -26,6 +26,10 @@ class Polytrim_UI_ModalWait():
                 return 'grab'
             return 'main'
 
+        if eventd['press'] == 'R':
+            self.PLM.current.reprocess_points(2)
+            return 'main'
+            
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
             self.PLM.current.hover(context, x, y)

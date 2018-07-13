@@ -20,6 +20,7 @@ from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
 from ..common_utilities import bversion
+from .. import common_utilities
 
 class PolyLineKnife(object):
     '''
@@ -645,6 +646,39 @@ class PolyLineKnife(object):
         print(self.face_groups)
 
     # Finds the selected face and returns a status
+    
+    def reprocess_points(self, resolution):
+        print('REPROCESSING')
+        mx, imx = self.get_matrices()
+        #decide on n_points
+        #calc the path length, divide by resolution, round
+        locs = self.input_points.world_locs()
+        
+        L = common_utilities.get_path_length(locs)
+        n_points = math.ceil(L/resolution)
+        
+        print(locs)
+        print(n_points)
+        #redisitribute locations
+        if self.cyclic:
+            edges = [(0,1),(1,0)]
+        else:
+            edges = [(0,1),(1,2)]
+        new_locs, new_edges = common_utilities.space_evenly_on_path(locs, edges, n_points)
+        
+        new_input = InputPointMap()
+        new_input_points = []
+        #now, need to re_snap them
+        for l in new_locs:
+            local_pt, normal, face_ind, d =  self.bvh.find_nearest(imx * l)
+            
+            new_input_points += [InputPoint(l, local_pt, normal, face_ind)]
+        
+        new_input.add_points(points = new_input_points)
+        self.input_points = new_input
+        
+        print(new_input)
+        
     def click_seed_select(self, context, x, y):
         mx, imx = self.get_matrices()
 
