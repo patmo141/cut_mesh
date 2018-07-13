@@ -97,7 +97,10 @@ class CookieCutter_UI:
     # common Blender UI functions
     
     def header_text_set(self, s=None):
-        self.context.area.header_text_set(s)
+        if s is not None:
+            self.context.area.header_text_set(s)
+        else:
+            self.context.area.header_text_set()
     
     def cursor_modal_set(self, v):
         self.context.window.cursor_modal_set(v)

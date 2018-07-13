@@ -4,4 +4,4 @@ Created on Oct 8, 2015
 
 '''
 
-__all__ = ["polytrim_modal"]
+__all__ = ["polytrim"]

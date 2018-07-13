@@ -35,11 +35,15 @@ bl_info = {
 # Blender imports
 import bpy
 
+from .common.logger import Logger
+
+Logger.set_log_filename('cut_mesh')
+
 #TODO Preferences
 #TODO Menu
 
 #Tools
-from .op_polytrim.polytrim_modal import CutMesh_Polytrim
+from .op_polytrim.polytrim import CutMesh_Polytrim
 from .op_poly_geopath.p_geopath_modal import CutMesh_PGeopath
 from .op_geopath.geopath_modal import CGC_Geopath
 from .op_slice.slice_modal import CGC_Slice

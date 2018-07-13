@@ -9,15 +9,15 @@ from ..common import ui
 
 
 from .polytrim_ui            import Polytrim_UI
-from .polytrim_ui_modalwait  import Polytrim_UI_ModalWait
+from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
 from .polytrim_datastructure import PolyLineKnife
-from .polytrim_ui_tools import PolyLineManager
+from .polytrim_ui_tools      import PolyLineManager
 
 
 #ModalOperator
-class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_UI_ModalWait, Polytrim_UI_Tools, Polytrim_UI_Draw):
+class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_Tools, Polytrim_UI_Draw):
     ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
     

@@ -17,11 +17,13 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from ..common.debug import debugger
+
 class CookieCutter_FSM:
     class FSM_State:
         @staticmethod
         def get_state(state, substate):
-            return '%s__%s' % (state, substate)
+            return '%s__%s' % (str(state), str(substate))
         def __init__(self, state, substate='main'):
             self.state = state
             self.substate = substate
@@ -32,18 +34,18 @@ class CookieCutter_FSM:
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:
-                    print('Caught exception in function "%s" ("%s")' % (
-                        self.fnname, self.fsmstate
+                    print('Caught exception in function "%s" ("%s", "%s")' % (
+                        self.fnname, self.state, self.substate
                     ))
-                    print(e)
+                    debugger.print_exception()
                     return
             run.fnname = self.fnname
             run.fsmstate = CookieCutter_FSM.FSM_State.get_state(self.state, self.substate)
             return run
     
     def fsm_init(self):
-        self._state_prev = None
-        self._state = 'main'
+        self._state_next = 'main'
+        self._state = None
         self._fsm_states = {}
         for (m,fn) in self.find_fns('fsmstate'):
             assert m not in self._fsm_states, 'Duplicate states registered!'
@@ -58,18 +60,25 @@ class CookieCutter_FSM:
             return self._fsm_states[s](self)
         except Exception as e:
             print('Caught exception in state ("%s")' % (s))
-            print(e)
+            debugger.print_exception()
             return
         
     
     def fsm_update(self):
-        if self._state != self._state_prev:
-            if self._state_prev:
-                self._fsm_call(self._state_prev, substate='exit')
+        if self._state_next is not None and self._state_next != self._state:
+            if self._fsm_call(self._state, substate='can exit') == False:
+                print('Cannot exit %s' % str(self._state))
+                self._state_next = None
+                return
+            if self._fsm_call(self._state_next, substate='can enter') == False:
+                print('Cannot enter %s' % str(self._state_next))
+                self._state_next = None
+                return
+            print('%s -> %s' % (str(self._state), str(self._state_next)))
+            self._fsm_call(self._state, substate='exit')
+            self._state = self._state_next
             self._fsm_call(self._state, substate='enter')
-            self._state_prev = self._state
-        nmode = self._fsm_call(self._state, fail_if_not_exist=True)
-        if nmode: self._state = nmode
+        self._state_next = self._fsm_call(self._state, fail_if_not_exist=True)
     
 
 

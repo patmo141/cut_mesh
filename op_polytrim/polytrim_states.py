@@ -13,7 +13,7 @@ from ..common_utilities import showErrorMessage
 from .polytrim_datastructure import PolyLineKnife
 
 
-class Polytrim_UI_ModalWait():
+class Polytrim_States():
     @CookieCutter.FSM_State('main')
     def modal_main(self):
         context = self.context
@@ -31,19 +31,9 @@ class Polytrim_UI_ModalWait():
             self.ui_text_update()
 
         #after navigation filter, these are relevant events in this state
-        if self.actions.pressed('grab'):
-            if self.PLM.current.grab_initiate():
-                self.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
-                return 'grab'
-            return
+        if self.actions.pressed('grab'): return 'grab'
 
-        if self.actions.pressed('LEFTMOUSE'):
-            x,y = self.actions.mouse  #gather the 2D coordinates of the mouse click
-            self.PLM.current.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
-            if (self.PLM.current.ui_type == 'DENSE_POLY' and self.PLM.current.hovered[0] == 'POINT') or self.PLM.current.input_points.num_points == 1:
-                self.sketch = [(x,y)]
-                return 'sketch'
-            return
+        if self.actions.pressed('LEFTMOUSE'): return 'sketch'
 
         if self.actions.pressed('delete'):
             x,y = self.actions.mouse
@@ -127,26 +117,7 @@ class Polytrim_UI_ModalWait():
                     return 'main'
                 return 'finish'
 
-        if self.actions.pressed('S'):
-            if len(self.PLM.current.bad_segments) != 0:
-                showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
-                return 'main'
-
-            if self.PLM.current.start_edge == None and not self.PLM.current.cyclic:
-                showErrorMessage('Finish closing cut boundary loop')
-                return 'main'
-
-            elif self.PLM.current.start_edge != None and self.PLM.current.end_edge == None:
-                showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
-                return 'main'
-
-            elif not self.PLM.current.ed_cross_map.is_used:
-                showErrorMessage('Press "C" to preview the cut success before setting the seed')
-                return 'main'
-
-            self.cursor_modal_set('EYEDROPPER')
-            self.header_text_set("Left Click Region to select area to cut")
-            return 'inner'
+        if self.actions.pressed('S'): return 'inner'
 
         if self.actions.pressed('RET'):
             self.PLM.current.confirm_cut_to_mesh()
@@ -160,6 +131,14 @@ class Polytrim_UI_ModalWait():
             #return 'cancel'
 
         return 'main'
+
+    @CookieCutter.FSM_State('grab', 'can enter')
+    def grab_can_enter(self):
+        return self.PLM.current.grab_initiate()
+    
+    @CookieCutter.FSM_State('grab', 'enter')
+    def grab_enter(self):
+        self.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
 
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
@@ -189,6 +168,18 @@ class Polytrim_UI_ModalWait():
             x,y = self.actions.mouse
             self.PLM.current.grab_mouse_move(context,x, y)
 
+    @CookieCutter.FSM_State('sketch', 'can enter')
+    def sketch_can_enter(self):
+        context = self.context
+        x,y = self.actions.mouse  #gather the 2D coordinates of the mouse click
+        self.PLM.current.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
+        return (self.PLM.current.ui_type == 'DENSE_POLY' and self.PLM.current.hovered[0] == 'POINT') or self.PLM.current.input_points.num_points == 1
+
+    @CookieCutter.FSM_State('sketch', 'enter')
+    def sketch_enter(self):
+        x,y = self.actions.mouse  #gather the 2D coordinates of the mouse click
+        self.sketch = [(x,y)]
+    
     @CookieCutter.FSM_State('sketch')
     def modal_sketch(self):
         if self.actions.mousemove:
@@ -242,10 +233,32 @@ class Polytrim_UI_ModalWait():
             self.set_ui_text_main()
             return 'main'
 
+    @CookieCutter.FSM_State('inner', 'can enter')
+    def inner_can_enter(self):
+        print('testing if we can enter inner mode')
+        if len(self.PLM.current.bad_segments) != 0:
+            showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
+            return False
+        if self.PLM.current.start_edge == None and not self.PLM.current.cyclic:
+            showErrorMessage('Finish closing cut boundary loop')
+            return False
+        if self.PLM.current.start_edge != None and self.PLM.current.end_edge == None:
+            showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
+            return False
+        if not self.PLM.current.ed_cross_map.is_used:
+            showErrorMessage('Press "C" to preview the cut success before setting the seed')
+            return False
+    
+    @CookieCutter.FSM_State('inner', 'enter')
+    def inner_enter(self):
+        self.header_text_set("Left Click Region to select area to cut")
+
     @CookieCutter.FSM_State('inner')
     def modal_inner(self):
+        self.cursor_modal_set('EYEDROPPER')
+        
         if self.actions.pressed('LEFTMOUSE'):
-            x,y = self.self.actions.mouse
+            x,y = self.actions.mouse
 
             result = self.PLM.current.click_seed_select(self.context, x,y)
             # found a good face
