@@ -17,6 +17,7 @@ class Polytrim_UI_ModalWait():
     @CookieCutter.FSM_State('main')
     def modal_wait(self):
         context = self.context
+        self.cursor_modal_set('CROSSHAIR')
 
         # test code that will break operator :)
         #if self.actions.pressed('F9'): bad = 3.14 / 0
