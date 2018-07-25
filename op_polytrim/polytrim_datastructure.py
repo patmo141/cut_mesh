@@ -194,7 +194,7 @@ class PolyLineKnife(object):
     ## Initiates a grab if point is selected
     def grab_initiate(self):
         if self.selected != -1:
-            self.grab_point = self.input_points.get_point(self.selected).copy
+            self.grab_point = self.input_points.get_point(self.selected).copy()
             self.grab_undo_loc = self.grab_point.world_loc
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
@@ -1681,6 +1681,12 @@ class PolyLineKnife(object):
                         v_group.pop()
                         self.face_groups[e_ind] = v_group
 
+    def refresh_source_object(self, context):
+        self.bme = bmesh.new()
+        self.bme.from_mesh(context.object.data)
+        self.bvh = BVHTree.FromBMesh(self.bme)
+
+
 
     ## ******************************
     ## ****** HELPER FUNCTIONS *****
@@ -1802,7 +1808,8 @@ class PolyLineKnife(object):
         if self.face_seed:
             #TODO direct bmesh face drawing util
             vs = self.face_seed.verts
-            common_drawing.draw_3d_points(context,[self.source_ob.matrix_world * v.co for v in vs], 4, yellow)
+            locs = [self.source_ob.matrix_world * v.co for v in vs]
+            common_drawing.draw_3d_points(context, locs, 4, yellow)
 
 
     ## 3D drawing
@@ -1812,16 +1819,13 @@ class PolyLineKnife(object):
 
         # when polyline select mode is enabled..
         if special:
+            locs = self.input_points.world_locs
+            if self.cyclic: locs += [self.input_points.world_locs[0]]
             if special == "lite": color = (1,1,1,.5)
             elif special == "extra-lite": color = (1,1,1,.2)
             elif special == "green": color = (.3,1,.3,1)
 
-            #common_drawing.draw3d_points(context, self.input_points.world_locs, color, 2)
-            if self.cyclic:
-                common_drawing.draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]], color, 2,"GL_LINE_STRIP")
-            else:
-                common_drawing.draw3d_polyline(context, self.input_points.world_locs, color, 2,"GL_LINE_STRIP")
-
+            common_drawing.draw3d_polyline(context, locs, color, 2,"GL_LINE_STRIP")
             return
 
         blue = (.1,.1,.8,1)
@@ -1916,9 +1920,6 @@ class InputPoint(object):
         self.view = view
         self.face_index = face_ind
 
-    def copy(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
-    copy = property(copy)
-
     def set_world_loc(self, loc): self.world_loc = loc
     def set_local_loc(self, loc): self.local_loc = loc
     def set_view(self, view): self.view = view
@@ -1936,6 +1937,8 @@ class InputPoint(object):
         print("local location:", self.local_loc, '\n')
         print("view direction:", self.view, '\n')
         print("face index:", self.face_index, '\n')
+
+    def copy(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
 
 
 class InputPointMap(object):
