@@ -39,9 +39,9 @@ class PolyLineKnife(object):
         self.hovered = [None, -1]
         self.start_edge = None
         self.end_edge = None
-        self.face_changes = [] 
-        self.face_groups = dict()  
-        self.face_chain = set() 
+        self.face_changes = []
+        self.face_groups = dict()
+        self.face_chain = set()
 
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
         self.ed_cross_map = EdgeIntersectionMap()
