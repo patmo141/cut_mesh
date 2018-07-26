@@ -39,9 +39,9 @@ class PolyLineKnife(object):
         self.hovered = [None, -1]
         self.start_edge = None
         self.end_edge = None
-        self.face_changes = [] 
-        self.face_groups = dict()  
-        self.face_chain = set() 
+        self.face_changes = []
+        self.face_groups = dict()
+        self.face_chain = set()
 
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
         self.ed_cross_map = EdgeIntersectionMap()
@@ -1681,11 +1681,12 @@ class PolyLineKnife(object):
                         v_group.pop()
                         self.face_groups[e_ind] = v_group
 
-    def refresh_source_object(self, context):
+    def refresh_object_structures(self, context):
         self.bme = bmesh.new()
         self.bme.from_mesh(context.object.data)
+        ensure_lookup(self.bme)
+        self.bvh = None
         self.bvh = BVHTree.FromBMesh(self.bme)
-
 
 
     ## ******************************
