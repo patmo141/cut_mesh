@@ -16,7 +16,7 @@ class Polytrim_UI_Tools():
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.PLM.current.ui_type == 'DENSE_POLY':
             print('A sketch was not detected..')
-            if self.PLM.current.hovered== ['POINT', 0] and not self.PLM.current.start_edge and self.PLM.current.input_points.num_points > 2:
+            if self.PLM.current.hovered== ['POINT', 0] and not self.PLM.current.start_edge and self.PLM.current.num_points > 2:
                 self.PLM.current.toggle_cyclic()  #self.PLM.current.cyclic = self.PLM.current.cyclic == False  #toggle behavior?
             return False
 
