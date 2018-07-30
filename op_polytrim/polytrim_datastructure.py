@@ -33,6 +33,8 @@ class PolyLineKnife(object):
         ensure_lookup(self.bme)
         self.bvh = BVHTree.FromBMesh(self.bme)
 
+        self.test = None
+
         self.input_points = InputPointMap()
         self.cyclic = False
         self.selected = -1
@@ -494,11 +496,20 @@ class PolyLineKnife(object):
         # ray casting
         view_vector, ray_origin, ray_target= self.get_view_ray_data(context, (x, y))
         loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
+        # print("loc",loc)
+        # print("no:",no)
+        # print("face index:",face_ind)
 
         self.mouse = Vector((x, y))
+        print("mouse location", self.mouse)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         if len(self.non_man_points):
             co3d, index, dist = self.kd.find(mx * loc)
+            # print("coord:",co3d)
+            # print("index:",index)
+            # print("disance:",dist)
+            # print()
+            # self.test = co3d
 
             #get the actual non man vert from original list
             close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
@@ -1900,6 +1911,8 @@ class PolyLineKnife(object):
         draw3d_points(context, [self.input_points.world_locs[0]], orange, 10)
         if self.input_points.num_points > 1:
             draw3d_points(context, self.input_points.world_locs[1:], blue, 6)
+        if self.test:
+            draw3d_points(context, [self.test], blue, 20)
 
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
