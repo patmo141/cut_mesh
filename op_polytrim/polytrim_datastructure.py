@@ -19,7 +19,9 @@ from bpy_extras import view3d_utils
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
-from ..common_utilities import bversion, get_view_ray_data, ray_cast, get_matrices
+from ..common_utilities import get_matrices
+from ..common.rays import get_view_ray_data, ray_cast
+from ..common.blender import bversion
 
 class PolyLineKnife(object):
     '''

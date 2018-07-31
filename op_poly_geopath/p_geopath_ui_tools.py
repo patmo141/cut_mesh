@@ -4,7 +4,8 @@ Created on Oct 10, 2015
 @author: Patrick
 '''
 import math
-from .. import common_utilities
+from ..common.rays import ray_cast_path
+from ..common.maths import get_path_length, space_evenly_on_path
 from bpy_extras import view3d_utils
 
 class PGeopath_UI_Tools():
@@ -25,10 +26,10 @@ class PGeopath_UI_Tools():
         self.knife.hover(context,x,y)
         print('last hovered %i' % last_hovered)
         
-        sketch_3d = common_utilities.ray_cast_path(context, self.knife.cut_ob,self.sketch)
-        L = common_utilities.get_path_length(sketch_3d)
+        sketch_3d = ray_cast_path(context, self.knife.cut_ob,self.sketch)
+        L = get_path_length(sketch_3d)
         n = math.ceil(L/.4)  #maybe go 200
-        sketch_3d, eds = common_utilities.space_evenly_on_path(sketch_3d, [(0,1),(1,2)], n)
+        sketch_3d, eds = space_evenly_on_path(sketch_3d, [(0,1),(1,2)], n)
         if self.knife.hovered[0] == None:  #drawing out into space
             #add the points in
             if last_hovered == len(self.knife.pts) - 1:

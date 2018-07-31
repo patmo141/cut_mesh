@@ -3,7 +3,8 @@ Created on Oct 10, 2015
 
 @author: Patrick
 '''
-from ..common_utilities import get_view_ray_data, ray_cast, ray_cast_path, get_matrices
+from ..common_utilities import get_matrices
+from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
 from .polytrim_datastructure import InputPointMap, PolyLineKnife
 from bpy_extras import view3d_utils
 from mathutils import Vector

@@ -3,7 +3,7 @@ Created on Oct 11, 2015
 
 @author: Patrick
 '''
-from ..common.blender import show_error_message
+from ..common.blender import show_error_message, show_blender_popup
 from .polytrim_datastructure import PolyLineKnife
 
 class Polytrim_UI_ModalWait():
@@ -43,7 +43,7 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'RIGHTMOUSE':
             x,y = eventd['mouse']
             if self.PLM.current.start_edge and self.PLM.current.hovered[1] == 0 and self.PLM.current.num_points > 1:
-                show_error_message('Can not delete the first point for this kind of cut.')
+                show_error_message('Can not delete the first point for this kind of cut.', "Don't do this!")
                 return 'main'
             self.PLM.current.click_delete_point(mode = 'mouse')
             self.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
