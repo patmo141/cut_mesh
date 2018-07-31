@@ -188,8 +188,8 @@ def iter_running_sum(lw):
 
 def get_view_ray_data(context, coord):
     ''' get data to use in ray casting '''
-    view_vector = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, coord)
-    ray_origin = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, coord)
+    view_vector = region_2d_to_vector_3d(context.region, context.region_data, coord)
+    ray_origin = region_2d_to_origin_3d(context.region, context.region_data, coord)
     ray_target = ray_origin + (view_vector * 1000)
     return [view_vector, ray_origin, ray_target]
 
