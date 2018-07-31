@@ -16,7 +16,7 @@ class Polytrim_UI_Tools():
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.PLM.current.ui_type == 'DENSE_POLY':
             print('A sketch was not detected..')
-            if self.PLM.current.hovered== ['POINT', 0] and not self.PLM.current.start_edge and self.PLM.current.input_points.num_points > 2:
+            if self.PLM.current.hovered== ['POINT', 0] and not self.PLM.current.start_edge and self.PLM.current.num_points > 2:
                 self.PLM.current.toggle_cyclic()  #self.PLM.current.cyclic = self.PLM.current.cyclic == False  #toggle behavior?
             return False
 
@@ -33,8 +33,8 @@ class Polytrim_UI_Tools():
         sketch_locs = sketch_3d[0::5] # getting every fifth point's location
         sketch_views = [view_vector]*len(sketch_locs)
         sketch_points = InputPointMap()
-        sketch_points.add_points(sketch_locs, [None]*len(sketch_locs), sketch_views, [None]*len(sketch_locs))
- 
+        sketch_points.add_multiple(sketch_locs, [None]*len(sketch_locs), sketch_views, [None]*len(sketch_locs))
+
         # Make the sketch
         self.PLM.current.make_sketch(hovered_start, sketch_points, view_vector)
         self.PLM.current.snap_poly_line()  #why do this again?

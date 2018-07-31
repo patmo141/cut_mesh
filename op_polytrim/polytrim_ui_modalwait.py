@@ -35,14 +35,14 @@ class Polytrim_UI_ModalWait():
         if  eventd['press'] == 'LEFTMOUSE':
             x,y = eventd['mouse']  #gather the 2D coordinates of the mouse click
             self.PLM.current.click_add_point(context, x,y)  #Send the 2D coordinates to Knife Class
-            if (self.PLM.current.ui_type == 'DENSE_POLY' and self.PLM.current.hovered[0] == 'POINT') or self.PLM.current.input_points.num_points == 1:
+            if (self.PLM.current.ui_type == 'DENSE_POLY' and self.PLM.current.hovered[0] == 'POINT') or self.PLM.current.num_points == 1:
                 self.sketch = [(x,y)]
                 return 'sketch'
             return 'main'
 
         if eventd['press'] == 'RIGHTMOUSE':
             x,y = eventd['mouse']
-            if self.PLM.current.start_edge and self.PLM.current.hovered[1] == 0 and self.PLM.current.input_points.num_points > 1:
+            if self.PLM.current.start_edge and self.PLM.current.hovered[1] == 0 and self.PLM.current.num_points > 1:
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.PLM.current.click_delete_point(mode = 'mouse')
@@ -50,7 +50,7 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
         if eventd['press'] == 'A':
-            if self.PLM.current.input_points.num_points > 1:
+            if self.PLM.current.num_points > 1:
                 context.window.cursor_modal_set('DEFAULT')
                 context.area.header_text_set("LEFT-CLICK: select, RIGHT-CLICK: delete, PRESS-N: new, ESC: cancel")
                 self.PLM.initiate_select_mode(context)
