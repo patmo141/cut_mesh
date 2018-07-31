@@ -1311,19 +1311,11 @@ class PolyLineKnife(object):
         #bmesh.ops.recalc_face_normals(self.bme, faces = self.bme.faces)
 
         if mode == 'KNIFE':
-            '''
-            this mode just confirms the new cut edges to the mesh
-            does not separate them
-            '''
-
+            ''' just confirms the new cut edges to the mesh, no separation '''
             self.bme.to_mesh(self.source_ob.data)
 
-        if mode == 'SEPARATE':
-            '''
-            separates the selected portion into a new object
-            leaving hole in original object
-            this is destructive
-            '''
+        elif mode == 'SEPARATE':
+            ''' separates into 2 split objects '''
             if not (self.split and self.face_seed): return
             output_bme = bmesh.new()
 
@@ -1349,7 +1341,6 @@ class PolyLineKnife(object):
             output_bme.to_mesh(new_data)
             context.scene.objects.link(new_ob)
 
-
             # Get material
             mat = bpy.data.materials.get("Polytrim Material")
             if mat is None:
@@ -1367,14 +1358,8 @@ class PolyLineKnife(object):
             bmesh.ops.delete(self.bme, geom = self.inner_faces, context = 5)
             self.bme.to_mesh(self.source_ob.data)
 
-
-
         elif mode == 'DELETE':
-            '''
-            deletes the selected region of mesh
-            This is destructive method
-            '''
-            print('DELETING THE INNER GEOM')
+            ''' deletes selection from source object '''
             self.find_select_inner_faces()
 
             gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False) 
@@ -1387,30 +1372,6 @@ class PolyLineKnife(object):
 
             self.bme.to_mesh(self.source_ob.data)
             self.bme.free()
-
-
-        elif mode == 'SPLIT':
-            '''
-            splits the mesh, leaving 2 separate pieces in the original object
-            This is destructive method
-            '''
-            if not self.split: return
-            #print('There are %i perimeter edges' % len(self.perimeter_edges))
-
-            #old_eds = set([e for e in self.bme.edges])
-            #gdict = bmesh.ops.split_edges(self.bme, edges = self.perimeter_edges, verts = [], use_verts = False)
-            #this dictionary is bad...just empy stuff
-
-            #ensure_lookup(self.bme)
-
-            #current_edges = set([e for e in self.bme.edges])
-            #new_edges = current_edges - old_eds
-            #for ed in new_edges:
-            #    ed.select_set(True)
-            #print('There are %i new edges' % len(new_edges))
-
-            self.bme.to_mesh(self.source_ob.data)
-
 
         elif mode == 'DUPLICATE':
             '''
@@ -1499,7 +1460,6 @@ class PolyLineKnife(object):
         #    f.select_set(True)
 
         print('Found %i faces in the region' % len(inner_faces))
-
 
     #################
     #### drawing ####
@@ -1679,150 +1639,6 @@ class PolyLineKnife(object):
 
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
-
-    ######################################
-    #### these belong outside of here ####
-
-    def hover(self,context,x,y):
-        '''
-        finds points/edges/etc that are near cursor
-         * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
-        '''
-        mx, imx = get_matrices(self.source_ob)
-        self.mouse = Vector((x, y))
-        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-        # ray tracing
-        view_vector, ray_origin, ray_target = get_view_ray_data(context, (x,y))
-        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, None)
-
-        if self.input_points.is_empty:
-            self.hovered = [None, -1]
-            self.hover_non_man(context, x, y)
-            return
-
-       # find length between vertex and mouse
-        def dist(v):
-            if v == None:
-                print('v off screen')
-                return 100000000
-            diff = v - self.mouse
-            return diff.length
-
-
-        def dist3d(v3):
-            if v3 == None:
-                return 100000000
-            delt = v3 - self.source_ob.matrix_world * loc
-            return delt.length
-
-        
-        closest_3d_loc = min(self.input_points.world_locs, key = dist3d)
-        pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_loc))
-        if pixel_dist  < 20:
-            self.hovered = ['POINT', self.input_points.world_locs.index(closest_3d_loc)]
-            return
-
-        if self.num_points == 1:
-            self.hovered = [None, -1]
-            return
-
-        ## ?? What is happening here
-        line_inters3d = []
-        for i in range(self.num_points):
-            nexti = (i + 1) % self.num_points
-            if next == 0 and not self.cyclic:
-                self.hovered = [None, -1]
-                return
-
-
-            intersect3d = intersect_point_line(self.source_ob.matrix_world * loc, self.input_points.get(i).world_loc, self.input_points.get(nexti).world_loc)
-
-            if intersect3d != None:
-                dist3d = (intersect3d[0] - loc).length
-                bound3d = intersect3d[1]
-                if  (bound3d < 1) and (bound3d > 0):
-                    line_inters3d += [dist3d]
-                    #print('intersect line3d success')
-                else:
-                    line_inters3d += [1000000]
-            else:
-                line_inters3d += [1000000]
-
-        ## ?? And here
-        i = line_inters3d.index(min(line_inters3d))
-        nexti = (i + 1) % self.num_points
-
-        ## ?? And here
-        a  = loc3d_reg2D(context.region, context.space_data.region_3d,self.input_points.get(i).world_loc)
-        b = loc3d_reg2D(context.region, context.space_data.region_3d,self.input_points.get(nexti).world_loc)
-
-        ## ?? and here, obviously, its stopping and setting hovered to EDGE, but how?
-        if a and b:
-            intersect = intersect_point_line(Vector((x,y)).to_3d(), a.to_3d(),b.to_3d())
-            dist = (intersect[0].to_2d() - Vector((x,y))).length_squared
-            bound = intersect[1]
-            if (dist < 400) and (bound < 1) and (bound > 0):
-                self.hovered = ['EDGE', i]
-                return
-
-        ## Multiple points, but not hovering over edge or point.
-        self.hovered = [None, -1]
-
-        if self.start_edge != None:
-            self.hover_non_man(context, x, y)  #todo, optimize because double ray cast per mouse move!
-
-    def hover_non_man(self,context,x,y):
-        '''
-        finds nonman edges and verts nearby to cursor location
-        '''
-        region = context.region
-        rv3d = context.region_data
-        mx, imx = get_matrices(self.source_ob)
-        # ray casting
-        view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
-        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, None)
-
-        self.mouse = Vector((x, y))
-        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-        if len(self.non_man_points):
-            co3d, index, dist = self.kd.find(mx * loc)
-
-            #get the actual non man vert from original list
-            close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
-            close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
-            if len(close_eds) == 2:
-                bm0 = close_eds[0].other_vert(close_bmvert)
-                bm1 = close_eds[1].other_vert(close_bmvert)
-
-                a0 = bm0.co
-                b   = close_bmvert.co
-                a1  = bm1.co
-
-                inter_0, d0 = intersect_point_line(loc, a0, b)
-                inter_1, d1 = intersect_point_line(loc, a1, b)
-
-                screen_0 = loc3d_reg2D(region, rv3d, mx * inter_0)
-                screen_1 = loc3d_reg2D(region, rv3d, mx * inter_1)
-                screen_v = loc3d_reg2D(region, rv3d, mx * b)
-
-                if screen_0 and screen_1 and screen_v:
-                    screen_d0 = (self.mouse - screen_0).length
-                    screen_d1 = (self.mouse - screen_1).length
-                    screen_dv = (self.mouse - screen_v).length
-
-                    if 0 < d0 <= 1 and screen_d0 < 20:
-                        self.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
-                        return
-                    elif 0 < d1 <= 1 and screen_d1 < 20:
-                        self.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
-                        return
-                    elif screen_dv < 20:
-                        if abs(d0) < abs(d1):
-                            self.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
-                            return
-                        else:
-                            self.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
-                            return
 
 class InputPoint(object):
     '''

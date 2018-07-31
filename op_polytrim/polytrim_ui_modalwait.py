@@ -28,7 +28,7 @@ class Polytrim_UI_ModalWait():
 
         if  eventd['type'] == 'MOUSEMOVE':
             x,y = eventd['mouse']
-            self.PLM.current.hover(context, x, y)
+            self.hover(context, x, y)
             self.ui_text_update(context)
             return 'main'
 
@@ -46,7 +46,7 @@ class Polytrim_UI_ModalWait():
                 showErrorMessage('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.PLM.current.click_delete_point(mode = 'mouse')
-            self.PLM.current.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
+            self.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
             return 'main'
 
         if eventd['press'] == 'A':
@@ -90,15 +90,6 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'X':
             if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
                 self.PLM.current.split_geometry(eventd['context'], mode = 'DELETE')
-                self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
-                if len(self.PLM.polylines):
-                    self.PLM.current = self.PLM.polylines[-1]
-                    return 'main'
-                return 'finish'
-
-        if eventd['press'] == 'Y':
-            if self.PLM.current.split and self.PLM.current.face_seed and self.PLM.current.ed_cross_map.is_used:
-                self.PLM.current.split_geometry(eventd['context'], mode = 'SPLIT')
                 self.PLM.polylines.pop(self.PLM.polylines.index(self.PLM.current))
                 if len(self.PLM.polylines):
                     self.PLM.current = self.PLM.polylines[-1]
