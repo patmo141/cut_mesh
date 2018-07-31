@@ -19,7 +19,7 @@ from bpy_extras import view3d_utils
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from .. import common_drawing
-from ..common_utilities import bversion, get_view_ray_data
+from ..common_utilities import bversion, get_view_ray_data, ray_cast, get_matrices
 
 class PolyLineKnife(object):
     '''
@@ -121,11 +121,11 @@ class PolyLineKnife(object):
         this will add a point into the trim line
         close the curve into a cyclic curve
         '''
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
         # ray tracing
         def none_selected(): self.selected = -1 # use in self.ray_cast()
         view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
-        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, none_selected)
+        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
         # if user is currently hovering over non man edge
@@ -211,10 +211,10 @@ class PolyLineKnife(object):
         '''
         region = context.region
         rv3d = context.region_data
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
         # ray tracing
         view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
-        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, self.grab_cancel)
+        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, self.grab_cancel)
         if loc == None: return
 
         #check if first or end point and it's a non man edge!
@@ -412,7 +412,7 @@ class PolyLineKnife(object):
         self.face_changes = []
         self.face_groups = dict()
 
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
 
         last_face_ind = None
         for i, point in enumerate(self.input_points.points):
@@ -511,7 +511,7 @@ class PolyLineKnife(object):
         makes cutting path by walking algorithm
         '''
         if self.split: return #already did this, no going back!
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
         print('\n','BEGIN CUT ON POLYLINE')
 
         self.ed_cross_map = EdgeIntersectionMap()
@@ -775,11 +775,11 @@ class PolyLineKnife(object):
         '''
         finds the selected face and returns a status
         '''
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
 
         # ray casting
         view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
-        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, None)
 
         if face_ind != -1:
             if face_ind not in [f.index for f in self.face_chain]:
@@ -1504,34 +1504,6 @@ class PolyLineKnife(object):
 
         print('Found %i faces in the region' % len(inner_faces))
 
-    def ray_cast(self, imx, ray_origin, ray_target, also_do_this):
-        '''
-        get info from casting a ray
-        '''
-        if bversion() < '002.077.000':
-            loc, no, face_ind = self.source_ob.ray_cast(imx * ray_origin, imx * ray_target)
-            if face_ind == -1:
-                if also_do_this:
-                    also_do_this()
-                    return [None, None, None]
-                else:
-                    pass
-        else:
-            res, loc, no, face_ind = self.source_ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
-            if not res:
-                if also_do_this:
-                    also_do_this()
-                    return [None, None, None]
-                else:
-                    pass
-
-        return [loc, no, face_ind]
-
-    def get_matrices(self):
-        ''' obtain blender object matrices '''
-        mx = self.source_ob.matrix_world
-        imx = mx.inverted()
-        return [mx, imx]
 
     #################
     #### drawing ####
@@ -1720,12 +1692,12 @@ class PolyLineKnife(object):
         finds points/edges/etc that are near cursor
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
         '''
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
         self.mouse = Vector((x, y))
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray tracing
         view_vector, ray_origin, ray_target = get_view_ray_data(context, (x,y))
-        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, None)
 
         if self.input_points.is_empty:
             self.hovered = [None, -1]
@@ -1809,10 +1781,10 @@ class PolyLineKnife(object):
         '''
         region = context.region
         rv3d = context.region_data
-        mx, imx = self.get_matrices()
+        mx, imx = get_matrices(self.source_ob)
         # ray casting
         view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
-        loc, no, face_ind = self.ray_cast(imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(self.source_ob, imx, ray_origin, ray_target, None)
 
         self.mouse = Vector((x, y))
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d

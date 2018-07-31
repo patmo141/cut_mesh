@@ -101,6 +101,12 @@ def showErrorMessage(message, wrap=80):
     bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
     return
 
+def get_matrices(ob):
+    ''' obtain blender object matrices '''
+    mx = ob.matrix_world
+    imx = mx.inverted()
+    return [mx, imx]
+
 def callback_register(self, context):
         #if str(bpy.app.build_revision)[2:7].lower == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
     self._handle = bpy.types.SpaceView3D.draw_handler_add(self.menu.draw, (self, context), 'WINDOW', 'POST_PIXEL')
@@ -192,6 +198,29 @@ def get_view_ray_data(context, coord):
     ray_origin = region_2d_to_origin_3d(context.region, context.region_data, coord)
     ray_target = ray_origin + (view_vector * 1000)
     return [view_vector, ray_origin, ray_target]
+
+def ray_cast(ob, imx, ray_origin, ray_target, also_do_this):
+    '''
+    cast ray from to view to specified target on object. 
+    '''
+    if bversion() < '002.077.000':
+        loc, no, face_ind = ob.ray_cast(imx * ray_origin, imx * ray_target)
+        if face_ind == -1:
+            if also_do_this:
+                also_do_this()
+                return [None, None, None]
+            else:
+                pass
+    else:
+        res, loc, no, face_ind = ob.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        if not res:
+            if also_do_this:
+                also_do_this()
+                return [None, None, None]
+            else:
+                pass
+
+    return [loc, no, face_ind]
 
 def ray_cast_region2d(region, rv3d, screen_coord, ob, settings):
     '''
