@@ -82,25 +82,6 @@ def dprint(s, l=2):
     if settings.debug >= l:
         print('DEBUG(%i): %s' % (l, s))
 
-def showErrorMessage(message, wrap=80):
-    lines = []
-    if wrap > 0:
-        while len(message) > wrap:
-            i = message.rfind(' ',0,wrap)
-            if i == -1:
-                lines += [message[:wrap]]
-                message = message[wrap:]
-            else:
-                lines += [message[:i]]
-                message = message[i+1:]
-    if message:
-        lines += [message]
-    def draw(self,context):
-        for line in lines:
-            self.layout.label(line)
-    bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
-    return
-
 def get_matrices(ob):
     ''' obtain blender object matrices '''
     mx = ob.matrix_world
@@ -113,7 +94,7 @@ def callback_register(self, context):
         #else:
             #self._handle = context.region.callback_add(self.menu.draw, (self, context), 'POST_PIXEL')
         #return None
-            
+
 def callback_cleanup(self, context):
     #if str(bpy.app.build_revision)[2:7].lower() == "unkno" or eval(str(bpy.app.build_revision)[2:7]) >= 53207:
     bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")

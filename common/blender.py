@@ -60,7 +60,6 @@ def show_blender_popup(message, title="Message", icon="INFO", wrap=80):
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
     return
 
-
 def show_blender_text(textblock_name, hide_header=True, goto_top=True):
     if textblock_name not in bpy.data.texts:
         # no textblock to show
@@ -86,4 +85,21 @@ def show_blender_text(textblock_name, hide_header=True, goto_top=True):
                 # hide header
                 bpy.ops.screen.header({'window':win, 'region':area.regions[2], 'area':area})
 
-
+def show_error_message(message, wrap=80):
+    lines = []
+    if wrap > 0:
+        while len(message) > wrap:
+            i = message.rfind(' ',0,wrap)
+            if i == -1:
+                lines += [message[:wrap]]
+                message = message[wrap:]
+            else:
+                lines += [message[:i]]
+                message = message[i+1:]
+    if message:
+        lines += [message]
+    def draw(self,context):
+        for line in lines:
+            self.layout.label(line)
+    bpy.context.window_manager.popup_menu(draw, title="Error Message", icon="ERROR")
+    return

@@ -296,7 +296,7 @@ class PolyLineKnife(object):
         self.end_edge_undo = None
         return
 
-    def make_sketch(self, hovered_start, sketch_points, view_vector):
+    def add_sketch_points(self, hovered_start, sketch_points, view_vector):
         '''
         rebuilds the list of input points depending on the sketch
         '''
@@ -887,9 +887,6 @@ class PolyLineKnife(object):
 
                     #if len(vert_inds) == 1:
                     #    new_bmverts[0].co = self.cut_pts[vert_inds[0]]
-
-                    #self.bme.verts.ensure_lookup_table()
-                    #self.bme.edges.ensure_lookup_table()
                 else:
                     print('#################################')
                     print('there are not user drawn points...what do we do!?')

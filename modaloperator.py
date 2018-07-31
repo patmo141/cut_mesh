@@ -123,7 +123,7 @@ class ModalOperator(Operator):
             print('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
             print('-'*100)
             print('\n'*5)
-            #showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
+            #show_error_message('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
         
         self.fsm_mode = 'main'

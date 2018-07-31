@@ -41,8 +41,8 @@ class Polytrim_UI_Tools():
         sketch_points = InputPointMap()
         sketch_points.add_multiple(sketch_locs, [None]*len(sketch_locs), sketch_views, [None]*len(sketch_locs))
 
-        # Make the sketch
-        self.PLM.current.make_sketch(hovered_start, sketch_points, view_vector)
+        # Add the sketch in
+        self.PLM.current.add_sketch_points(hovered_start, sketch_points, view_vector)
         self.PLM.current.snap_poly_line()  #why do this again?
 
         return True

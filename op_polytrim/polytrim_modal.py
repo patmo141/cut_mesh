@@ -34,14 +34,14 @@ class CutMesh_Polytrim(ModalOperator, Polytrim_UI, Polytrim_UI_ModalWait, Polytr
         ''' Called when tool is invoked to determine if tool can start '''
                 
         if context.mode != 'OBJECT':
-            #showErrorMessage('Object Mode please')
+            #show_error_message('Object Mode please')
             return False
         
         if not context.object:
             return False
         
         if context.object.type != 'MESH':
-            #showErrorMessage('Must select a mesh object')
+            #show_error_message('Must select a mesh object')
             return False
         
         

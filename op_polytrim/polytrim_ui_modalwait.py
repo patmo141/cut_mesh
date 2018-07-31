@@ -3,7 +3,7 @@ Created on Oct 11, 2015
 
 @author: Patrick
 '''
-from ..common_utilities import showErrorMessage
+from ..common.blender import show_error_message
 from .polytrim_datastructure import PolyLineKnife
 
 class Polytrim_UI_ModalWait():
@@ -43,7 +43,7 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'RIGHTMOUSE':
             x,y = eventd['mouse']
             if self.PLM.current.start_edge and self.PLM.current.hovered[1] == 0 and self.PLM.current.num_points > 1:
-                showErrorMessage('Can not delete the first point for this kind of cut.')
+                show_error_message('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.PLM.current.click_delete_point(mode = 'mouse')
             self.hover(context, x, y) ## this fixed index out range error in draw function after deleteing last point.
@@ -55,14 +55,14 @@ class Polytrim_UI_ModalWait():
                 context.area.header_text_set("LEFT-CLICK: select, RIGHT-CLICK: delete, PRESS-N: new, ESC: cancel")
                 self.PLM.initiate_select_mode(context)
                 return 'select'
-            else: showErrorMessage("You must have 2 or more points out before you can ")
+            else: show_error_message("You must have 2 or more points out before you can ")
             return 'main'
 
         if eventd['press'] == 'C':
             if self.PLM.current.start_edge != None and self.PLM.current.end_edge == None:
-                showErrorMessage('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
+                show_error_message('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
             elif self.PLM.current.start_edge == None and not self.PLM.current.cyclic:
-                showErrorMessage('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
+                show_error_message('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
             else:
                 self.PLM.current.make_cut()
                 context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
@@ -107,19 +107,19 @@ class Polytrim_UI_ModalWait():
 
         if eventd['press'] == 'S':
             if len(self.PLM.current.bad_segments) != 0:
-                showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
+                show_error_message('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
                 return 'main'
 
             if self.PLM.current.start_edge == None and not self.PLM.current.cyclic:
-                showErrorMessage('Finish closing cut boundary loop')
+                show_error_message('Finish closing cut boundary loop')
                 return 'main'
 
             elif self.PLM.current.start_edge != None and self.PLM.current.end_edge == None:
-                showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
+                show_error_message('Finish cutting to another non-manifold boundary/edge of the object')
                 return 'main'
 
             elif not self.PLM.current.ed_cross_map.is_used:
-                showErrorMessage('Press "C" to preview the cut success before setting the seed')
+                show_error_message('Press "C" to preview the cut success before setting the seed')
                 return 'main'
 
             context.window.cursor_modal_set('EYEDROPPER')
@@ -220,15 +220,15 @@ class Polytrim_UI_ModalWait():
                 context.window.cursor_modal_set('CROSSHAIR')
                 if self.PLM.current.ed_cross_map.is_used and not self.PLM.current.bad_segments and not self.PLM.current.split:
                     self.PLM.current.confirm_cut_to_mesh_no_ops()
-                    context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
+                    context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife")
                 return 'main'
             # found a bad face
             elif result == -1:
-                showErrorMessage('Seed is too close to cut boundary, try again more interior to the cut')
+                show_error_message('Seed is too close to cut boundary, try again more interior to the cut')
                 return 'inner'
             # face not found
             else:
-                showErrorMessage('Seed not found, try again')
+                show_error_message('Seed not found, try again')
                 return 'inner'
 
         if eventd['press'] in {'RET', 'ESC'}:
