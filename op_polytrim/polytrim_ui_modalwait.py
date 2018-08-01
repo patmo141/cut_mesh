@@ -22,6 +22,7 @@ class Polytrim_UI_ModalWait():
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':
             if self.plm.current.grab_initiate():
+                self.plm.current.grab_mouse_move(context,self.mouse)
                 context.area.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
                 return 'grab'
             return 'main'
@@ -33,7 +34,7 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
         if  eventd['press'] == 'LEFTMOUSE':
-            self.plm.current.click_add_point(context, self.mouse[0],self.mouse[1])  #Send the 2D coordinates to Knife Class
+            self.plm.current.click_add_point(context, self.mouse)  #Send the 2D coordinates to Knife Class
             if (self.plm.current.ui_type == 'DENSE_POLY' and self.plm.current.hovered[0] == 'POINT') or self.plm.current.num_points == 1:
                 self.sketch = [self.mouse]
                 return 'sketch'
@@ -135,11 +136,10 @@ class Polytrim_UI_ModalWait():
 
     def modal_grab(self,context,eventd):
         # no navigation in grab mode
-
+        
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
-            x,y = eventd['mouse']
-            self.plm.current.grab_confirm(context, x, y)
+            self.plm.current.grab_confirm(context)
             if self.plm.current.ed_cross_map.is_used:
                 self.plm.current.make_cut()
             self.ui_text_update(context)
@@ -154,7 +154,7 @@ class Polytrim_UI_ModalWait():
         elif eventd['type'] == 'MOUSEMOVE':
             #update the b_pt location
             self.mouse = eventd['mouse']
-            self.plm.current.grab_mouse_move(context,self.mouse[0],self.mouse[1])
+            self.plm.current.grab_mouse_move(context, self.mouse)
             return 'grab'
 
     def modal_sketch(self,context,eventd):
@@ -177,6 +177,7 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
     def modal_select(self, context, eventd):
+        # no navigation in select mode
         if eventd['type'] == 'MOUSEMOVE':
             self.mouse = eventd['mouse']
             self.plm.hover(context, self.mouse)
@@ -212,7 +213,7 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'LEFTMOUSE':
             self.mouse = eventd['mouse']
 
-            result = self.plm.current.click_seed_select(context, self.mouse[0], self.mouse[1])
+            result = self.plm.current.click_seed_select(context, self.mouse)
             # found a good face
             if result == 1:
                 context.window.cursor_modal_set('CROSSHAIR')
