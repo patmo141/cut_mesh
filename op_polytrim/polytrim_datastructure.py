@@ -243,9 +243,9 @@ class PolyLineKnife(object):
             screen_1 = loc3d_reg2D(region, rv3d, self.mx * inter_1)
             screen_v = loc3d_reg2D(region, rv3d, self.mx * b)
 
-            screen_d0 = (Vector((x,y)) - screen_0).length
-            screen_d1 = (Vector((x,y)) - screen_1).length
-            screen_dv = (Vector((x,y)) - screen_v).length
+            screen_d0 = (Vector(mouse_loc) - screen_0).length
+            screen_d1 = (Vector(mouse_loc) - screen_1).length
+            screen_dv = (Vector(mouse_loc) - screen_v).length
 
             if 0 < d0 <= 1 and screen_d0 < 60:
                 ed, pt = close_eds[0], inter_0
