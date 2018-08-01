@@ -3,7 +3,7 @@ Created on Oct 11, 2015
 
 @author: Patrick
 '''
-from ..common_utilities import showErrorMessage
+from ..common.blender import show_error_message
 
 class PGeopath_UI_ModalWait():
     
@@ -37,7 +37,7 @@ class PGeopath_UI_ModalWait():
         
         if eventd['press'] == 'RIGHTMOUSE':
             if self.knife.start_edge != None and self.knife.hovered[1] == 0:
-                showErrorMessage('Can not delete the first point for this kind of cut.')
+                show_error_message('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.knife.click_delete_point(mode = 'mouse')
             if len(self.knife.new_cos):
@@ -46,10 +46,10 @@ class PGeopath_UI_ModalWait():
                 
         if eventd['press'] == 'C':
             if self.knife.start_edge != None and self.knife.end_edge == None:
-                showErrorMessage('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
+                show_error_message('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
             
             if self.knife.start_edge == None and not self.knife.cyclic:
-                showErrorMessage('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
+                show_error_message('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
                     
             self.knife.make_geodesic_cut()
             context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
@@ -80,18 +80,18 @@ class PGeopath_UI_ModalWait():
             
         if eventd['press'] == 'S':
             if len(self.knife.bad_segments) != 0:
-                showErrorMessage('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
+                show_error_message('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
                 context.area.header_text_set("Fix Red segments by moving control points then press 'S'")
                 return 'main'
             
             if self.knife.start_edge == None and not self.knife.cyclic:
-                showErrorMessage('Finish closing cut boundary loop')
+                show_error_message('Finish closing cut boundary loop')
                 return 'main'
             elif self.knife.start_edge != None and self.knife.end_edge == None:
-                showErrorMessage('Finish cutting to another non-manifold boundary/edge of the object')
+                show_error_message('Finish cutting to another non-manifold boundary/edge of the object')
                 return 'main'
             elif len(self.knife.new_cos) == 0:
-                showErrorMessage('Press "C" to preview the cut success before setting the seed')
+                show_error_message('Press "C" to preview the cut success before setting the seed')
                 return 'main'
             
             context.window.cursor_modal_set('EYEDROPPER')
@@ -177,10 +177,10 @@ class PGeopath_UI_ModalWait():
                 return 'main'
             
             elif result == -1:
-                showErrorMessage('Seed is too close to cut boundary, try again more interior to the cut')
+                show_error_message('Seed is too close to cut boundary, try again more interior to the cut')
                 return 'inner'
             else:
-                showErrorMessage('Seed not found, try again')
+                show_error_message('Seed not found, try again')
                 return 'inner'
         
         if eventd['press'] in {'RET', 'ESC'}:

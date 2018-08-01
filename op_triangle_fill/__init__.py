@@ -13,7 +13,8 @@ from mathutils import Vector
 
 from bpy.props import FloatProperty, BoolProperty, IntProperty, EnumProperty
 from ..bmesh_fns import edge_loops_from_bmedges, join_bmesh
-from ..common_utilities import sort_objects_by_angles, delta_angles
+from ..common.maths import delta_angles
+from ..common.debug import sort_objects_by_angles
 
 def relax_bmesh(bme, verts, exclude, iterations = 1, spring_power = .1):
     '''

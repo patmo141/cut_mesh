@@ -32,11 +32,11 @@ class CGC_Geopath(ModalOperator, GeoPath_UI, GeoPath_UI_ModalWait, GeoPath_UI_Dr
         ''' Called when tool is invoked to determine if tool can start '''
                 
         if context.mode != 'OBJECT':
-            #showErrorMessage('Object Mode please')
+            #show_error_message('Object Mode please')
             return False
         
         if context.object.type != 'MESH':
-            #showErrorMessage('Must select a mesh object')
+            #show_error_message('Must select a mesh object')
             return False
         
         return True
