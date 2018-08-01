@@ -195,6 +195,8 @@ class PolyLineKnife(object):
         '''
         if self.selected != -1:
             self.grab_point = self.input_points.get(self.selected).duplicate()
+            print("Point:",self.input_points.get(self.selected))
+            print("Grab Point:", self.grab_point)
             self.grab_undo_loc = self.grab_point.world_loc
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
@@ -210,12 +212,11 @@ class PolyLineKnife(object):
         rv3d = context.region_data
         # ray tracing
         view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
-        loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, self.grab_cancel)
-        if loc == None: return
-        print("GRAB POINT",self.grab_point)
-
-        #check if first or end point and it's a non man edge!
-        if self.selected == 0 and self.start_edge or self.selected == (self.num_points -1) and self.end_edge:
+        loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, None)
+        if face_ind == -1: return
+            
+        # check to see if the start_edge or end_edge points are selected
+        if (self.selected == 0 and self.start_edge) or (self.selected == (self.num_points -1) and self.end_edge):
 
             co3d, index, dist = self.kd.find(self.mx * loc)
 
@@ -224,9 +225,7 @@ class PolyLineKnife(object):
             close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
-            if len(close_eds) != 2:
-                self.grab_cancel()
-                return
+            if len(close_eds) != 2: return
 
             bm0 = close_eds[0].other_vert(close_bmvert)
             bm1 = close_eds[1].other_vert(close_bmvert)
@@ -248,19 +247,14 @@ class PolyLineKnife(object):
 
             if 0 < d0 <= 1 and screen_d0 < 60:
                 ed, pt = close_eds[0], inter_0
-
             elif 0 < d1 <= 1 and screen_d1 < 60:
                 ed, pt = close_eds[1], inter_1
-
             elif screen_dv < 60:
                 if abs(d0) < abs(d1):
                     ed, pt = close_eds[0], b
-
                 else:
                     ed, pt = close_eds[1], b
-
             else:
-                self.grab_cancel()
                 return
 
             if self.selected == 0:
@@ -271,8 +265,6 @@ class PolyLineKnife(object):
             self.grab_point.set_values(self.mx * pt, pt, view_vector, ed.link_faces[0].index)
         else:
             self.grab_point.set_values(self.mx * loc, loc, view_vector, face_ind)
-        print("world loc:", self.grab_point.world_loc)
-        print("undo loc:", self.grab_undo_loc)
 
     def grab_cancel(self):
         '''

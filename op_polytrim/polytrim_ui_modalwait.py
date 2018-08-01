@@ -22,6 +22,7 @@ class Polytrim_UI_ModalWait():
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':
             if self.plm.current.grab_initiate():
+                self.plm.current.grab_mouse_move(context,self.mouse[0],self.mouse[1])
                 context.area.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
                 return 'grab'
             return 'main'
@@ -135,7 +136,7 @@ class Polytrim_UI_ModalWait():
 
     def modal_grab(self,context,eventd):
         # no navigation in grab mode
-
+        
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
             x,y = eventd['mouse']
@@ -177,6 +178,7 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
     def modal_select(self, context, eventd):
+        # no navigation in select mode
         if eventd['type'] == 'MOUSEMOVE':
             self.mouse = eventd['mouse']
             self.plm.hover(context, self.mouse)
