@@ -117,13 +117,13 @@ class PolyLineKnife(object):
 
     def toggle_cyclic(self): self.cyclic = self.cyclic == False
 
-    def click_add_point(self,context,x,y):
+    def click_add_point(self,context,mouse_loc):
         '''
         this will add a point into the trim line
         close the curve into a cyclic curve
         '''
         def none_selected(): self.selected = -1 # use in self.ray_cast()
-        view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
+        view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
         loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
@@ -204,17 +204,17 @@ class PolyLineKnife(object):
         else:
             return False
 
-    def grab_mouse_move(self,context,x,y):
+    def grab_mouse_move(self,context,mouse_loc):
         '''
         sets variables depending on where cursor is moved
         '''
         region = context.region
         rv3d = context.region_data
         # ray tracing
-        view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
+        view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
         loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, None)
         if face_ind == -1: return
-            
+
         # check to see if the start_edge or end_edge points are selected
         if (self.selected == 0 and self.start_edge) or (self.selected == (self.num_points -1) and self.end_edge):
 
@@ -276,7 +276,7 @@ class PolyLineKnife(object):
         self.grab_point = None
         return
 
-    def grab_confirm(self, context, x, y):
+    def grab_confirm(self, context):
         '''
         sets new variables based on new location
         '''
@@ -757,12 +757,12 @@ class PolyLineKnife(object):
         print('FACE GROUPS')
         print(self.face_groups)
 
-    def click_seed_select(self, context, x, y):
+    def click_seed_select(self, context, mouse_loc):
         '''
         finds the selected face and returns a status
         '''
         # ray casting
-        view_vector, ray_origin, ray_target= get_view_ray_data(context, (x, y))
+        view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
         loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, None)
 
         if face_ind != -1:
