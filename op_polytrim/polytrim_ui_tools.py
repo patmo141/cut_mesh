@@ -165,50 +165,50 @@ class Polytrim_UI_Tools():
         region = context.region
         rv3d = context.region_data
         mx, imx = get_matrices(polyline.source_ob)
+        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray casting
         view_vector, ray_origin, ray_target= get_view_ray_data(context, self.mouse)
-        loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
+        rc_loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
 
-        self.mouse = Vector(self.mouse)
-        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+
         if len(polyline.non_man_points):
-            co3d, index, dist = polyline.kd.find(mx * loc)
+            coord, index, dist = polyline.kd.find(mx * rc_loc)
 
             #get the actual non man vert from original list
             close_bmvert = polyline.bme.verts[polyline.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
             close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
             if len(close_eds) == 2:
-                bm0 = close_eds[0].other_vert(close_bmvert)
-                bm1 = close_eds[1].other_vert(close_bmvert)
+                ed1_vert = close_eds[0].other_vert(close_bmvert)
+                ed2_vert = close_eds[1].other_vert(close_bmvert)
+                v_loc   = close_bmvert.co
 
-                a0 = bm0.co
-                b   = close_bmvert.co
-                a1  = bm1.co
+                close_loc1, dist_perc1 = intersect_point_line(rc_loc, ed1_vert.co, v_loc)
+                close_loc2, dist_perc2 = intersect_point_line(rc_loc, ed2_vert.co, v_loc)
 
-                inter_0, d0 = intersect_point_line(loc, a0, b)
-                inter_1, d1 = intersect_point_line(loc, a1, b)
+                close_loc1_screen = loc3d_reg2D(region, rv3d, mx * close_loc1)
+                close_loc2_screen = loc3d_reg2D(region, rv3d, mx * close_loc2)
+                v_loc_screen = loc3d_reg2D(region, rv3d, mx * v_loc)
 
-                screen_0 = loc3d_reg2D(region, rv3d, mx * inter_0)
-                screen_1 = loc3d_reg2D(region, rv3d, mx * inter_1)
-                screen_v = loc3d_reg2D(region, rv3d, mx * b)
+                if close_loc1_screen and close_loc2_screen and v_loc_screen:
+                    mouse_to_loc_dist1 = (Vector(self.mouse) - close_loc1_screen).length
+                    mouse_to_loc_dist2 = (Vector(self.mouse) - close_loc2_screen).length
+                    mouse_to_v_dist = (Vector(self.mouse) - v_loc_screen).length
 
-                if screen_0 and screen_1 and screen_v:
-                    screen_d0 = (self.mouse - screen_0).length
-                    screen_d1 = (self.mouse - screen_1).length
-                    screen_dv = (self.mouse - screen_v).length
-
-                    if 0 < d0 <= 1 and screen_d0 < 20:
-                        polyline.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
+                    if 0 < dist_perc1 <= 1 and mouse_to_loc_dist1 < 20:
+                        print("Here 111")
+                        polyline.hovered = ['NON_MAN_ED', (close_eds[0], mx * close_loc1)]
                         return
-                    elif 0 < d1 <= 1 and screen_d1 < 20:
-                        polyline.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
+                    elif 0 < dist_perc2 <= 1 and mouse_to_loc_dist2 < 20:
+                        print("Here 222")
+                        polyline.hovered = ['NON_MAN_ED', (close_eds[1], mx * close_loc2)]
                         return
-                    elif screen_dv < 20:
-                        if abs(d0) < abs(d1):
-                            polyline.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
+                    elif mouse_to_v_dist < 20:
+                        print("Here 333")
+                        if abs(dist_perc1) < abs(dist_perc2):
+                            polyline.hovered = ['NON_MAN_VERT', (close_eds[0], mx*v_loc)]
                             return
                         else:
-                            polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
+                            polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*v_loc)]
                             return
 
 class PolyLineManager(object):

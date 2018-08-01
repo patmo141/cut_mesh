@@ -197,8 +197,6 @@ class PolyLineKnife(object):
         '''
         if self.selected != -1:
             self.grab_point = self.input_points.get(self.selected).duplicate()
-            print("Point:",self.input_points.get(self.selected))
-            print("Grab Point:", self.grab_point)
             self.grab_undo_loc = self.grab_point.world_loc
             self.start_edge_undo = self.start_edge
             self.end_edge_undo = self.end_edge
