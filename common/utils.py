@@ -20,11 +20,11 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import os
-
+import sys
 import bpy
+
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from mathutils import Vector, Matrix
-
 from .profiler import profiler
 from .debug import dprint
 from .maths import (
@@ -131,8 +131,22 @@ def shorten_floats(s):
     s = re.sub(r'(?P<digs>\d\.\d\d\d)\d+', r'\g<digs>', s)
     return s
 
+def get_matrices(ob):
+    ''' obtain blender object matrices '''
+    mx = ob.matrix_world
+    imx = mx.inverted()
+    return [mx, imx]
 
 
+class AddonLocator(object):
+    def __init__(self, f=None):
+        self.fullInitPath = f if f else __file__
+        self.FolderPath = os.path.dirname(self.fullInitPath)
+        self.FolderName = os.path.basename(self.FolderPath)
+    
+    def AppendPath(self):
+        sys.path.append(self.FolderPath)
+        print("Addon path has been registered into system path for this session")
 
 class UniqueCounter():
     __counter = 0

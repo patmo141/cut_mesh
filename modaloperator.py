@@ -109,6 +109,7 @@ class ModalOperator(Operator):
     def handle_exception(self, serious=False):
         errormsg, errorhash = debugger.get_exception_info_and_hash()
         # if max number of exceptions occur within threshold of time, abort!
+        print('\n',errormsg)
         curtime = time.time()
         self.exceptions_caught += [(errormsg, curtime)]
         # keep exceptions that have occurred within the last 5 seconds
@@ -122,7 +123,7 @@ class ModalOperator(Operator):
             print('Something went wrong. Please start an error report with CG Cookie so we can fix it!')
             print('-'*100)
             print('\n'*5)
-            #showErrorMessage('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
+            #show_error_message('Something went wrong. Please start an error report with CG Cookie so we can fix it!', wrap=240)
             self.exception_quit = True
         
         self.fsm_mode = 'main'

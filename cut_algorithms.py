@@ -14,7 +14,7 @@ from mathutils.geometry import intersect_line_plane, intersect_point_line, dista
 
 #Cut Mesh imports
 from .bmesh_fns import face_neighbors, flood_selection_faces, grow_selection_to_find_face, edge_loops_from_bmedges, walk_non_man_edge
-from .common_utilities import bversion
+from .common.blender import bversion
 
 #basic utils
 def list_shift(seq, n):

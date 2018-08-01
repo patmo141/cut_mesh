@@ -16,7 +16,7 @@ from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
 from ..geodesic import geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
-from ..common_utilities import bversion
+from ..common.blender import bversion
 
 class GeoPath(object):
     '''
