@@ -4,7 +4,7 @@ Created on Oct 10, 2015
 @author: Patrick
 '''
 from ..common.utils import get_matrices
-from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
+from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path, ray_cast_visible
 from .polytrim_datastructure import InputPointMap, PolyLineKnife
 from bpy_extras import view3d_utils
 from mathutils import Vector
@@ -78,7 +78,7 @@ class Polytrim_UI_Tools():
         mx, imx = get_matrices(polyline.source_ob)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray tracing
-        view_vector, ray_origin, ray_target = get_view_ray_data(context,self.mouse)
+        view_vector, ray_origin, ray_target = get_view_ray_data(context, self.mouse)
         loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
 
         if polyline.input_points.is_empty:
@@ -169,7 +169,7 @@ class Polytrim_UI_Tools():
         # ray casting
         view_vector, ray_origin, ray_target= get_view_ray_data(context, self.mouse)
         rc_loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
-
+        
 
         if len(polyline.non_man_points):
             coord, index, dist = polyline.kd.find(mx * rc_loc)
@@ -181,10 +181,22 @@ class Polytrim_UI_Tools():
                 ed1_vert = close_eds[0].other_vert(close_bmvert)
                 ed2_vert = close_eds[1].other_vert(close_bmvert)
                 v_loc   = close_bmvert.co
+                polyline.v_loc = mx * v_loc
+
+                #making sure the verts are visible to the user's view
+                test = ray_cast(polyline.source_ob, imx, ray_origin,mx * v_loc, None)
+                print(test[2] !=  -1)
+                mod = Vector((.01,.01,.01)) # this helps reduce error..
+                close_world_locs = [mx * v_loc, mx * ed1_vert.co, mx * ed2_vert.co]
+                modded_test_locs = [mx * (v_loc + mod), mx * (ed1_vert.co + mod), mx * (ed2_vert.co + mod)]
+                modded_test_locs2 = [mx * (v_loc - mod), mx * (ed1_vert.co - mod), mx * (ed2_vert.co - mod)]
+                all_test_locs = close_world_locs + modded_test_locs + modded_test_locs2
+                verts_visible = ray_cast_visible(all_test_locs, polyline.source_ob, rv3d)
+                if not any(verts_visible): return
 
                 close_loc1, dist_perc1 = intersect_point_line(rc_loc, ed1_vert.co, v_loc)
                 close_loc2, dist_perc2 = intersect_point_line(rc_loc, ed2_vert.co, v_loc)
-
+ 
                 close_loc1_screen = loc3d_reg2D(region, rv3d, mx * close_loc1)
                 close_loc2_screen = loc3d_reg2D(region, rv3d, mx * close_loc2)
                 v_loc_screen = loc3d_reg2D(region, rv3d, mx * v_loc)
@@ -195,15 +207,12 @@ class Polytrim_UI_Tools():
                     mouse_to_v_dist = (Vector(self.mouse) - v_loc_screen).length
 
                     if 0 < dist_perc1 <= 1 and mouse_to_loc_dist1 < 20:
-                        print("Here 111")
                         polyline.hovered = ['NON_MAN_ED', (close_eds[0], mx * close_loc1)]
                         return
                     elif 0 < dist_perc2 <= 1 and mouse_to_loc_dist2 < 20:
-                        print("Here 222")
                         polyline.hovered = ['NON_MAN_ED', (close_eds[1], mx * close_loc2)]
                         return
                     elif mouse_to_v_dist < 20:
-                        print("Here 333")
                         if abs(dist_perc1) < abs(dist_perc2):
                             polyline.hovered = ['NON_MAN_VERT', (close_eds[0], mx*v_loc)]
                             return

@@ -1463,6 +1463,11 @@ class PolyLineKnife(object):
 
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
+        
+        if self.v_loc:
+            common_drawing.draw_3d_points(context,[self.v_loc], 8, red)
+
+
         ## Hovered Non-manifold Edge or Vert
         if self.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             ed, pt = self.hovered[1]
