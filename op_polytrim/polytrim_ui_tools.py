@@ -183,15 +183,14 @@ class Polytrim_UI_Tools():
                 v_loc   = close_bmvert.co
                 polyline.v_loc = mx * v_loc
 
-                #making sure the verts are visible to the user's view
-                test = ray_cast(polyline.source_ob, imx, ray_origin,mx * v_loc, None)
-                print(test[2] !=  -1)
+                # Making sure the verts are visible to the user's view
                 mod = Vector((.01,.01,.01)) # this helps reduce error..
                 close_world_locs = [mx * v_loc, mx * ed1_vert.co, mx * ed2_vert.co]
                 modded_test_locs = [mx * (v_loc + mod), mx * (ed1_vert.co + mod), mx * (ed2_vert.co + mod)]
                 modded_test_locs2 = [mx * (v_loc - mod), mx * (ed1_vert.co - mod), mx * (ed2_vert.co - mod)]
                 all_test_locs = close_world_locs + modded_test_locs + modded_test_locs2
                 verts_visible = ray_cast_visible(all_test_locs, polyline.source_ob, rv3d)
+                print(verts_visible)
                 if not any(verts_visible): return
 
                 close_loc1, dist_perc1 = intersect_point_line(rc_loc, ed1_vert.co, v_loc)
