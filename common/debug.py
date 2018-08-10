@@ -37,7 +37,6 @@ from datetime import datetime
 from hashlib import md5
 
 # Blender imports
-import blf
 import bmesh
 import bpy
 from bpy_extras.view3d_utils import (
@@ -139,7 +138,8 @@ class Debugger:
         message += ['  - %s' % s for s in errormsg.splitlines()]
         message = '\n'.join(message)
         print('%s\n%s\n%s' % ('_' * 100, message, '^' * 100))
-        get_global('logger').add(message) # write error to log text object
+        logger = get_global('logger')
+        if logger: logger.add(message)   # write error to log text object
         # if Debugger._exception_count < 10:
         #     show_blender_popup(
         #         message,
@@ -176,6 +176,10 @@ debugger = Debugger()
 dprint = debugger.dprint
 set_global(debugger)
 
+
+
+#######################################################################
+# TODO: the following functions need to go somewhere more appropriate
 
 
 
@@ -423,7 +427,6 @@ def vector_angle_between_near_parallel(v0, v1, vcross):
     a = v0.angle(v1)
     d = v0.cross(v1).dot(vcross)
     return a if d>0 else 2*math.pi - a
-
 
 def sort_objects_by_angles(vec_about, l_objs, l_vecs):
     if len(l_objs) <= 1:  return l_objs
