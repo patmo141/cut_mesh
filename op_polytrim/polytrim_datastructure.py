@@ -159,6 +159,86 @@ class PolyLineKnife(object):
             if self.ed_cross_map.is_used:
                 self.make_cut()
 
+
+    def interpolate_input_point_pair(self, p0, p1, factor):
+        '''
+        will return a linear interpolation of this point with other
+        needs to be at this level, because snapping to the source object is critical
+        
+        '''
+        assert factor > 0.0
+        assert factor < 1.0
+        
+        new_pt = p0.duplicate()
+        
+        new_pt.set_world_loc(factor * p0.world_loc + (1-factor)*p1.world_loc)
+        new_pt.set_local_loc(factor * p0.local_loc + (1-factor)*p1.local_loc)
+        new_pt.view = factor * p0.view + (1-factor) * p1.view
+        new_pt.view.normalize()
+        
+        #need to snap it and find face index
+        loc, no, ind, d = self.bvh.find_nearest(new_pt.local_loc)
+        
+        #view stays the same
+        new_pt.set_face_ind(ind)
+        new_pt.set_local_loc(loc)
+        new_pt.set_world_loc(self.mx * loc)
+    
+        return new_pt
+        
+        
+    def re_tesselate_segment(self, ip_start, ip_end, tesselation_mode = 'LINEAR', clamp_existings = True):
+        '''
+        High level function which allows re-tesselation of segments with various options
+        
+        Eg:  Linear, error_based, step_sized, CubicSpline
+        '''
+        
+        return None
+    
+    def linear_re_tesselate_segment(self, ip_start, ip_end, res, clamp_existing = True):
+        '''
+        will retesselate a segment.  Important that ip0 and ip1 is the direction desired
+        for example if ip_start is at index 5 and ip_end is at index 2.  it will re-tesselate
+        
+        5,6,7,8.....N, 0,1 2. so retesslate(ip5, ip2) will not be same as retesslate(ip2, ip5)
+        '''
+        assert ip_start in self.input_points.points
+        assert ip_end in self.input_points.points
+        
+        ind_start = self.input_points.points.index(ip_start)
+        ind_end = self.input_points.points.index(ip_end)
+        
+        if ind_start > ind_end and self.cyclic:
+            points = self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
+            
+        elif ind_start > ind_end and not self.cyclic:
+            ind_start, ind_end = ind_end, ind_start
+            points = self.input_points.points[ind_start:ind_end]
+        else:
+            points = self.input_points.points[ind_start:ind_end]
+        
+        
+        new_points = []
+        for i in range(0, len(points) - 1):
+            L = (points[i+1].world_loc - points[i-1].world_loc).length
+            n_steps = math.floor(L/res)
+            
+            for n in range(n_steps):
+                factor = n/n_steps
+                new_points += [self.interpolate_input_point_pair(points[i], points[i+1], factor)]
+                
+        new_points += [points[-1]]  #get the final point on there
+        
+        
+        if ind_start > ind_end and self.cyclic:
+            self.input_points.points = new_points + self.input_points[ind_end:ind_start]  #self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
+            
+        else:
+            self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points[ind_end:]
+            
+              
+        
     def click_delete_point(self, mode = 'mouse'):
         '''
         removes point from the trim line
@@ -241,9 +321,9 @@ class PolyLineKnife(object):
             screen_1 = loc3d_reg2D(region, rv3d, self.mx * inter_1)
             screen_v = loc3d_reg2D(region, rv3d, self.mx * b)
 
-            screen_d0 = (Vector((x,y)) - screen_0).length
-            screen_d1 = (Vector((x,y)) - screen_1).length
-            screen_dv = (Vector((x,y)) - screen_v).length
+            screen_d0 = (Vector((mouse_loc)) - screen_0).length
+            screen_d1 = (Vector((mouse_loc)) - screen_1).length
+            screen_dv = (Vector((mouse_loc)) - screen_v).length
 
             if 0 < d0 <= 1 and screen_d0 < 60:
                 ed, pt = close_eds[0], inter_0
@@ -1647,6 +1727,7 @@ class InputPoint(object):
         self.face_index = face_ind
 
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
+
 
     def print_data(self): # for debugging
         print('\n', "POINT DATA", '\n')
