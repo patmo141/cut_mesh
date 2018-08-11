@@ -41,7 +41,7 @@ class Polytrim_States():
                 show_error_message('Can not delete the first point for this kind of cut.')
                 return 'main'
             self.plm.current.click_delete_point(mode='mouse')
-            self.plm.current.hover() ## this fixed index out range error in draw function after deleteing last point.
+            self.hover()
             return
 
         if self.actions.pressed('toggle selection'):
