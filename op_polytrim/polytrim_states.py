@@ -39,7 +39,7 @@ class Polytrim_States():
             x,y = self.actions.mouse
             if self.plm.current.start_edge and self.plm.current.hovered[1] == 0 and self.plm.current.num_points > 1:
                 show_error_message('Can not delete the first point for this kind of cut.')
-                return 'main'
+                return
             self.plm.current.click_delete_point(mode='mouse')
             self.hover()
             return
@@ -51,7 +51,7 @@ class Polytrim_States():
                 self.plm.initiate_select_mode(context)
                 return 'select'
             else: show_error_message("You must have 2 or more points out before you can ")
-            return 'main'
+            return
 
         # if self.actions.pressed('up'):
         #     x,y = self.actions.mouse
@@ -95,7 +95,7 @@ class Polytrim_States():
                 self.plm.polylines.pop(self.plm.polylines.index(self.plm.current))
                 if len(self.plm.polylines):
                     self.plm.current = self.plm.polylines[-1]
-                    return 'main'
+                    return
                 return 'finish'
 
         # if self.actions.pressed('Y'):
@@ -128,8 +128,6 @@ class Polytrim_States():
             self.done(cancel=True)
             return
             #return 'cancel'
-
-        return 'main'
 
     ######################################################
     # grab state

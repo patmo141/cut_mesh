@@ -69,7 +69,8 @@ class Polytrim_UI_Tools():
 
     def set_ui_text_main(self):
         ''' sets the viewports text during general creation of line '''
-        self.context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
+        self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
+        #self.context.area.header_text_set()
 
     def hover(self):
         '''

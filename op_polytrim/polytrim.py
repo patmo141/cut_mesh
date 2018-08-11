@@ -58,15 +58,11 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
         return True
 
     def start(self):
-        opts = {
-            'pos': 8,
-            'movable': True,
-            'bgcolor': (0.2, 0.2, 0.2, 0.8),
-            'padding': 0,
-            }
-        win = self.wm.create_window('test', opts)
-        self.lbl = win.add(ui.UI_Label('main'))
-        exitbuttons = win.add(ui.UI_Container(margin=0,vertical=False))
+        info = self.wm.create_window('info', {'pos':9, 'movable':False})
+        info.add(ui.UI_Label('PolyTrim'))
+        self.info_label = info.add(ui.UI_Markdown('info here', min_size=(200,10)))
+        self.info_label.set_markdown('Here is what to do next...')
+        exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done))
         exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
 

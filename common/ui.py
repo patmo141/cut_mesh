@@ -1082,7 +1082,7 @@ class UI_Markdown(UI_Padding):
         super().__init__(margin=margin, margin_left=margin_left, margin_right=margin_right)
         self.defer_recalc = True
 
-        self.min_size = self.drawing.scale(min_size)
+        self.min_size = self.drawing.scale(Vec2D(min_size))
         self.set_markdown(markdown)
 
         self.defer_recalc = False
