@@ -40,6 +40,7 @@ class CookieCutter_UI:
                     return fn(*args, **kwargs)
                 except Exception as e:
                     print('Caught exception in drawing "%s", calling "%s"' % (self.mode, self.fnname))
+                    debugger.print_exception()
                     print(e)
                     return None
             run.fnname = self.fnname
@@ -77,6 +78,7 @@ class CookieCutter_UI:
             except Exception as e:
                 print('Caught exception while trying to draw window UI')
                 debugger.print_exception()
+                print(e)
 
         self._handle_preview = self._space.draw_handler_add(preview, tuple(), 'WINDOW', 'PRE_VIEW')
         self._handle_postview = self._space.draw_handler_add(postview, tuple(), 'WINDOW', 'POST_VIEW')
