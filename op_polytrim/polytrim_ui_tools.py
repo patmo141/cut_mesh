@@ -17,7 +17,7 @@ class Polytrim_UI_Tools():
     Functions helpful with user interactions in polytrim
     '''
 
-    def sketch_confirm(self, context, eventd):
+    def sketch_confirm(self):
         '''
         prepares the points gathered from sketch for adding to PolyLineKnife 
         '''
@@ -29,13 +29,15 @@ class Polytrim_UI_Tools():
             return False
 
         # Get user view ray
+        context = self.context
         region = context.region
         rv3d = context.region_data
-        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, self.mouse)  #get the direction under the mouse given the user 3DView perspective matrix
+        mouse = self.actions.mouse
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, mouse)  #get the direction under the mouse given the user 3DView perspective matrix
 
         ## Preparing sketch information
         hovered_start = self.plm.current.hovered # need to know what hovered was at the beginning of the sketch
-        self.hover(context)  #rehover to see where sketch ends
+        self.hover()  #rehover to see where sketch ends
         sketch_3d = ray_cast_path(context, self.plm.current.source_ob, self.sketch)  #at this moment we are going into 3D space, this returns world space locations
         sketch_locs = sketch_3d[0::5] # getting every fifth point's location
         sketch_views = [view_vector]*len(sketch_locs)
@@ -48,10 +50,11 @@ class Polytrim_UI_Tools():
 
         return True
 
-    def ui_text_update(self, context):
+    def ui_text_update(self):
         '''
         updates the text at the bottom of the viewport depending on certain conditions
         '''
+        context = self.context
         if self.plm.current.bad_segments:
             context.area.header_text_set("Fix Bad segments by moving control points.")
         elif self.plm.current.ed_cross_map.is_used:
@@ -62,28 +65,33 @@ class Polytrim_UI_Tools():
             else:
                 context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
         else:
-            self.set_ui_text_main(context)
+            self.set_ui_text_main()
 
-    def set_ui_text_main(self, context):
+    def set_ui_text_main(self):
         ''' sets the viewports text during general creation of line '''
-        context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
+        self.context.area.header_text_set("Left click to place cut points on the mesh, then press 'C' to preview the cut")
 
-    def hover(self,context):
+    def hover(self):
         '''
         finds points/edges/etc that are near cursor
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
         '''
+
+        # TODO: update self.hover to use Accel2D?
+
         polyline = self.plm.current
+        mouse = self.actions.mouse
+        context = self.context
 
         mx, imx = get_matrices(polyline.source_ob)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray tracing
-        view_vector, ray_origin, ray_target = get_view_ray_data(context,self.mouse)
+        view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
         loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
 
         if polyline.input_points.is_empty:
             polyline.hovered = [None, -1]
-            self.hover_non_man(context)
+            self.hover_non_man()
             return
 
        # find length between vertex and mouse
@@ -91,7 +99,7 @@ class Polytrim_UI_Tools():
             if v == None:
                 print('v off screen')
                 return 100000000
-            diff = v - Vector(self.mouse)
+            diff = v - Vector(mouse)
             return diff.length
 
 
@@ -143,8 +151,8 @@ class Polytrim_UI_Tools():
 
         ## ?? and here, obviously, its stopping and setting hovered to EDGE, but how?
         if a and b:
-            intersect = intersect_point_line(Vector(self.mouse).to_3d(), a.to_3d(),b.to_3d())
-            dist = (intersect[0].to_2d() - Vector(self.mouse)).length_squared
+            intersect = intersect_point_line(Vector(mouse).to_3d(), a.to_3d(),b.to_3d())
+            dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
             bound = intersect[1]
             if (dist < 400) and (bound < 1) and (bound > 0):
                 polyline.hovered = ['EDGE', i]
@@ -154,22 +162,24 @@ class Polytrim_UI_Tools():
         polyline.hovered = [None, -1]
 
         if polyline.start_edge != None and polyline.end_edge == None:
-            self.hover_non_man(context)  #todo, optimize because double ray cast per mouse move!
+            self.hover_non_man()  #todo, optimize because double ray cast per mouse move!
 
-    def hover_non_man(self,context):
+    def hover_non_man(self):
         '''
         finds nonman edges and verts nearby to cursor location
         '''
         polyline = self.plm.current
+        mouse = self.actions.mouse
+        context = self.context
 
         region = context.region
         rv3d = context.region_data
         mx, imx = get_matrices(polyline.source_ob)
         # ray casting
-        view_vector, ray_origin, ray_target= get_view_ray_data(context, self.mouse)
+        view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse)
         loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
 
-        self.mouse = Vector(self.mouse)
+        mouse = Vector(mouse)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         if len(polyline.non_man_points):
             co3d, index, dist = polyline.kd.find(mx * loc)
@@ -193,9 +203,9 @@ class Polytrim_UI_Tools():
                 screen_v = loc3d_reg2D(region, rv3d, mx * b)
 
                 if screen_0 and screen_1 and screen_v:
-                    screen_d0 = (self.mouse - screen_0).length
-                    screen_d1 = (self.mouse - screen_1).length
-                    screen_dv = (self.mouse - screen_v).length
+                    screen_d0 = (mouse - screen_0).length
+                    screen_d1 = (mouse - screen_1).length
+                    screen_dv = (mouse - screen_v).length
 
                     if 0 < d0 <= 1 and screen_d0 < 20:
                         polyline.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]

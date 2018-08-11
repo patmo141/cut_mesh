@@ -29,8 +29,8 @@ class Polytrim_UI_ModalWait():
 
         if  eventd['type'] == 'MOUSEMOVE':
             self.mouse = eventd['mouse']
-            self.hover(context)
-            self.ui_text_update(context)
+            self.hover()
+            self.ui_text_update()
             return 'main'
 
         if  eventd['press'] == 'LEFTMOUSE':
@@ -45,7 +45,7 @@ class Polytrim_UI_ModalWait():
                 show_error_message('Can not delete the first point for this kind of cut.', "Don't do this!")
                 return 'main'
             self.plm.current.click_delete_point(mode = 'mouse')
-            self.hover(context) ## this fixed index out range error in draw function after deleteing last point.
+            self.hover() ## this fixed index out range error in draw function after deleteing last point.
             return 'main'
 
         if eventd['press'] == 'A':
@@ -136,19 +136,19 @@ class Polytrim_UI_ModalWait():
 
     def modal_grab(self,context,eventd):
         # no navigation in grab mode
-        
+
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
             self.plm.current.grab_confirm(context)
             if self.plm.current.ed_cross_map.is_used:
                 self.plm.current.make_cut()
-            self.ui_text_update(context)
+            self.ui_text_update()
             return 'main'
 
         elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
             #put it back!
             self.plm.current.grab_cancel()
-            self.ui_text_update(context)
+            self.ui_text_update()
             return 'main'
 
         elif eventd['type'] == 'MOUSEMOVE':
@@ -169,10 +169,10 @@ class Polytrim_UI_ModalWait():
             return 'sketch'
 
         elif eventd['release'] == 'LEFTMOUSE':
-            is_sketch = self.sketch_confirm(context, eventd)
+            is_sketch = self.sketch_confirm()
             if self.plm.current.ed_cross_map.is_used and is_sketch:
                 self.plm.current.make_cut()
-            self.ui_text_update(context)
+            self.ui_text_update()
             self.sketch = []
             return 'main'
 
@@ -186,7 +186,7 @@ class Polytrim_UI_ModalWait():
         elif eventd['press'] == 'LEFTMOUSE':
             if self.plm.hovered:
                 self.plm.select(context)
-                self.set_ui_text_main(context)
+                self.set_ui_text_main()
                 context.window.cursor_modal_set('CROSSHAIR')
                 return 'main'
             return 'select'
@@ -199,13 +199,13 @@ class Polytrim_UI_ModalWait():
         elif eventd['press'] == 'N':
             self.plm.start_new_polyline(context)
             context.window.cursor_modal_set('CROSSHAIR')
-            self.set_ui_text_main(context)
+            self.set_ui_text_main()
             return 'main'
 
         elif eventd['press'] in {'ESC', 'A'}:
             self.plm.terminate_select_mode()
             context.window.cursor_modal_set('CROSSHAIR')
-            self.set_ui_text_main(context)
+            self.set_ui_text_main()
             return 'main'
 
     def modal_inner(self,context,eventd):

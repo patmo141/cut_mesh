@@ -32,7 +32,7 @@ class Polytrim_UI:
         self.plm.current = self.plm.polylines[0]
 
         context.window.cursor_modal_set('CROSSHAIR')
-        self.set_ui_text_main(context)
+        self.set_ui_text_main()
 
     def end_ui(self, context):
         context.area.header_text_set()
