@@ -166,8 +166,8 @@ class PolyLineKnife(object):
         needs to be at this level, because snapping to the source object is critical
         
         '''
-        assert factor > 0.0
-        assert factor < 1.0
+        assert factor >= 0.0
+        assert factor <= 1.0
         
         new_pt = p0.duplicate()
         
@@ -209,35 +209,47 @@ class PolyLineKnife(object):
         ind_start = self.input_points.points.index(ip_start)
         ind_end = self.input_points.points.index(ip_end)
         
+        print('Am I considered cyclic yet?')
+        print(self.cyclic)
+        print(ind_start, ind_end)
+        
         if ind_start > ind_end and self.cyclic:
             points = self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
             
         elif ind_start > ind_end and not self.cyclic:
             ind_start, ind_end = ind_end, ind_start
-            points = self.input_points.points[ind_start:ind_end]
+            points = self.input_points.points[ind_start:ind_end+1]  #need to get the last point
         else:
-            points = self.input_points.points[ind_start:ind_end]
+            points = self.input_points.points[ind_start:ind_end+1]  #need to get the last point
         
         
         new_points = []
         for i in range(0, len(points) - 1):
-            L = (points[i+1].world_loc - points[i-1].world_loc).length
+            L = (points[i+1].world_loc - points[i].world_loc).length
             n_steps = math.floor(L/res)
             
+            if n_steps == 0: #don't loose points at closer resolution
+                new_points += [points[i].duplicate()]
+                
             for n in range(n_steps):
                 factor = n/n_steps
-                new_points += [self.interpolate_input_point_pair(points[i], points[i+1], factor)]
+                new_points += [self.interpolate_input_point_pair(points[i+1], points[i], factor)]
                 
         new_points += [points[-1]]  #get the final point on there
         
         
-        if ind_start > ind_end and self.cyclic:
-            self.input_points.points = new_points + self.input_points[ind_end:ind_start]  #self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
+        if ind_start > ind_end and self.cyclic:  #crosses over the "start" of the cyclic
+            self.input_points.points = new_points + self.input_points.points[ind_end:ind_start]  #self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
+        
+        elif ind_start < ind_end and self.cyclic:
             
+            self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
+                
         else:
-            self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points[ind_end:]
-            
-              
+            self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
+        
+        self.selected = -1    
+        print('I did it!')      
         
     def click_delete_point(self, mode = 'mouse'):
         '''

@@ -61,6 +61,27 @@ class Polytrim_States():
         # if self.actions.pressed('down'):
         #     self.plm.current.halve_points()
 
+        #re-tesselate at 3mm resolution
+        if self.actions.pressed('T'):
+            n_pts = self.plm.current.num_points
+            self.plm.current.linear_re_tesselate_segment(self.plm.current.input_points.points[0],
+                                                         self.plm.current.input_points.points[n_pts-1],
+                                                         res = 3.0)
+        
+        
+        if self.actions.pressed('F1'):
+            n_pts = self.plm.current.num_points
+            self.plm.current.linear_re_tesselate_segment(self.plm.current.input_points.points[2],
+                                                         self.plm.current.input_points.points[4],
+                                                         res = 3.0)
+            
+        if self.actions.pressed('F2'):
+            n_pts = self.plm.current.num_points
+            self.plm.current.linear_re_tesselate_segment(self.plm.current.input_points.points[4],
+                                                         self.plm.current.input_points.points[2],
+                                                         res = 3.0)
+            
+             
         if self.actions.pressed('preview cut'):
             if self.plm.current.start_edge != None and self.plm.current.end_edge == None:
                 show_error_message('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
