@@ -19,7 +19,7 @@ class Polytrim_UI_Draw():
                 else: polyline.draw3d(context, special="extra-lite")
         
         
-            if self.plm.current.snap_element:
+            if self.plm.current.snap_element != None:
                 bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
                 bgl.glEnable(bgl.GL_BLEND)
                 bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
@@ -29,10 +29,10 @@ class Polytrim_UI_Draw():
                 bgl.glDepthFunc(bgl.GL_LEQUAL)
                 
                 circleShader.enable()
-                print('matriz buffer')
+                #print('matriz buffer')
                 circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
-                print('set the uMVPMatrix')
-                print(self.drawing.get_view_matrix_buffer())
+                #print('set the uMVPMatrix')
+                #print(self.drawing.get_view_matrix_buffer())
                 
                 circleShader['uInOut'] = 0.8
                 self.drawing.point_size(40)
@@ -46,6 +46,11 @@ class Polytrim_UI_Draw():
                 
                 bgl.glEnd()
                 circleShader.disable()
+                
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
+                bgl.glDepthRange(0.0, 1.0)
+                bgl.glDepthMask(bgl.GL_TRUE)
+        
         
         elif self.plm.mode == 'select':
             for polyline in self.plm.polylines:

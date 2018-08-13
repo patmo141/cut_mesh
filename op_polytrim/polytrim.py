@@ -3,10 +3,11 @@ Created on Oct 8, 2015
 
 @author: Patrick
 '''
+import bpy
 
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common import ui
-
+from ..common.ui import Drawing
 
 from .polytrim_ui            import Polytrim_UI
 from .polytrim_states        import Polytrim_States
@@ -66,6 +67,9 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
         exitbuttons.add(ui.UI_Button('commit', self.done))
         exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
 
+        #self.drawing = Drawing.get_instance()
+        self.drawing.set_region(bpy.context.region, bpy.context.space_data.region_3d, bpy.context.window)
+        
         self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)

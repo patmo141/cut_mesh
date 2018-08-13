@@ -90,6 +90,8 @@ class Polytrim_UI_Tools():
         view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
         loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
 
+        polyline.snap_element = None
+        
         if polyline.input_points.is_empty:
             polyline.hovered = [None, -1]
             self.hover_non_man()
@@ -120,12 +122,18 @@ class Polytrim_UI_Tools():
             return
 
         elif pixel_dist >= select_radius and pixel_dist < snap_radius:
-            polyline.snap_element = closest_ip
+            
+            print('Setting snap element')
+            print(pixel_dist)
+            
+            if closest_ip.is_endpoint():
+                polyline.snap_element = closest_ip
+            return
             
             
         if polyline.num_points == 1:  #why did we do this? Oh because there are no segments.
             polyline.hovered = [None, -1]
-            
+            polyline.snap_element = None
             return
 
         ##Check distance between ray_cast point, and segments

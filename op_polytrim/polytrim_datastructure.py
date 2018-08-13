@@ -136,46 +136,55 @@ class PolyLineKnife(object):
         #Need to get smarter about closing the loop
         '''
         def none_selected(): self.selected = -1 # use in self.ray_cast()
+        
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
         loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
-
+            
+            
             bmed, wrld_loc = self.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
-
+            ip1 = self.closest_endpoint(wrld_loc)
+            
+            
             self.input_points.add(wrld_loc, self.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
             self.selected = self.input_points.points[-1]
             self.selected.seed_geom = bmed
 
-            ip1 = self.closest_endpoint(wrld_loc)
-            if self.closest_endpoint(wrld_loc):
+            if ip1:
                 seg = InputSegment(self.selected, ip1)
-                self.input_points.segments.add(seg)
-                
-        elif self.hovered[0] == None and self.snap_element == None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+                self.input_points.segments.append(seg)
+                seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
+        elif (self.hovered[0] == None) and (self.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            
+            print('adding in a point')
+            closest_endpoint = self.closest_endpoint(self.mx * loc)
+            print(closest_endpoint)
+            
             self.input_points.add(self.mx * loc, loc, view_vector, face_ind)
             self.selected = self.input_points.points[-1]
             
-            closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
-            if len(closest_endpoints) != 2:
-                #we are not quite hovered but in snap territory
-                return
-            
-            seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
-            self.input_points.segments.append(seg)
-        
+            if closest_endpoint:
+                seg = InputSegment(closest_endpoint, self.selected)
+                self.input_points.segments.append(seg)
+                seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
         
         elif self.hovered[0] == None and self.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             
             closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
-            if len(closest_endpoints) != 2:
+            if closest_endpoints == None:
                 #we are not quite hovered but in snap territory
                 return
             
+            if len(closest_endpoints) != 2:
+                print('len of closest endpoints not 2')
+                return
+            
+            
             seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
             self.input_points.segments.append(seg)
-            
+            seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
         elif self.hovered[0] == 'POINT':
             self.selected = self.hovered[1]
 
@@ -185,6 +194,8 @@ class PolyLineKnife(object):
             point = InputPoint(self.mx * loc, loc, view_vector, face_ind)
             old_seg = self.hovered[1]
             new_seg0, new_seg1 = old_seg.insert_point(point)
+            new_seg0.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
+            new_seg1.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
             self.input_points.segments += [new_seg0, new_seg1]
             self.input_points.points.append(point)
             self.input_points.segments.remove(old_seg)
@@ -207,7 +218,7 @@ class PolyLineKnife(object):
         
         endpoints.sort(key = dist3d)
         
-        return endpoints[0:n_points]
+        return endpoints[0:n_points+1]
     
     def closest_endpoint(self, pt3d):
          
@@ -446,6 +457,10 @@ class PolyLineKnife(object):
         self.selected.seed_geom = self.grab_point.seed_geom
         self.selected.face_index = self.grab_point.face_index
         
+        
+        for seg in self.selected.link_segments:
+            seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
+            
         self.grab_point = None
         
         return
@@ -1777,7 +1792,12 @@ class PolyLineKnife(object):
         # Polylines...InputSegments
         else:
             for seg in self.input_points.segments:
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
+                if seg.bad_segment:
+                    draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
+                elif len(seg.pre_vis_data) >= 2:
+                    draw3d_polyline(context, seg.pre_vis_data,  blue, 2, 'GL_LINE_STRIP' )
+                else:
+                    draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
      
             #if self.cyclic:
             #    draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]],  blue2, 2, 'GL_LINE_STRIP' )
@@ -1868,7 +1888,8 @@ class InputSegment(object):
         ip0.link_segments.append(self)
         ip1.link_segments.append(self)
         
-        self.previs_locs = []  #list of 3d points for previsualization
+        self.pre_vis_data = []  #list of 3d points for previsualization
+        self.bad_segment = False
         
     def other_point(self, ip):
         if ip not in self.input_points: return None
@@ -1928,7 +1949,108 @@ class InputSegment(object):
                         
         return (None, None)
             
+    def pre_vis_cut(self, bme, bvh, mx, imx):
         
+    
+
+        f0 = bme.faces[self.ip0.face_index]  #<<--- Current BMFace
+        f1 = bme.faces[self.ip1.face_index] #<<--- Next BMFace
+
+        if f0 == f1:
+            self.pre_vis_data = [self.ip0.world_loc, self.ip1.world_loc]
+            self.bad_segment = False
+            return
+        
+        ###########################
+        ## Define the cutting plane for this segment#
+        ############################
+
+        surf_no = imx.to_3x3() * self.ip0.view.lerp(self.ip1.view, 0.5)  #must be a better way.
+        e_vec = self.ip1.local_loc - self.ip0.local_loc
+        #define
+        cut_no = e_vec.cross(surf_no)
+        #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
+        cut_pt = .5 * self.ip0.local_loc + 0.5 * self.ip1.local_loc
+
+        #find the shared edge,, check for adjacent faces for this cut segment
+        cross_ed = None
+        for ed in f0.edges:
+            if f1 in ed.link_faces:
+                cross_ed = ed
+                self.face_chain.add(f1)
+                break
+
+        #if no shared edge, need to cut across to the next face
+        if not cross_ed:
+            
+            p_face = None
+
+            vs = []
+            epp = .0000000001
+            use_limit = True
+            attempts = 0
+            while epp < .0001 and not len(vs) and attempts <= 5:
+                attempts += 1
+                vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(
+                    bme,
+                    bvh,
+                    self.ip0.local_loc, self.ip1.local_loc,
+                    max_tests = 1000, debug = True,
+                    prev_face = p_face,
+                    use_limit = use_limit)
+                if len(vs) and error == 'LIMIT_SET':
+                    vs = []
+                    use_limit = False
+                    print('Limit was too limiting, relaxing that consideration')
+
+                elif len(vs) == 0 and error == 'EPSILON':
+                    print('Epsilon was too small, relaxing epsilon')
+                    epp *= 10
+                elif len(vs) == 0 and error:
+                    print('too bad, couldnt adjust due to ' + error)
+                    print(p_face)
+                    print(f0)
+                    break
+
+            if not len(vs):
+                print('\n')
+                print('CUTTING METHOD')
+
+                vs = []
+                epp = .00000001
+                use_limit = True
+                attempts = 0
+                while epp < .0001 and not len(vs) and attempts <= 10:
+                    attempts += 1
+                    vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(
+                        bme,
+                        cut_pt, cut_no,
+                        f0.index,self.ip0.local_loc,
+                        #f1.index, self.cut_pts[ind_p1],
+                        f1.index, self.ip1.local_loc,
+                        max_tests = 10000, debug = True, prev_face = p_face,
+                        epsilon = epp)
+                    if len(vs) and error == 'LIMIT_SET':
+                        vs = []
+                        use_limit = False
+                    elif len(vs) == 0 and error == 'EPSILON':
+                        epp *= 10
+                    elif len(vs) == 0 and error:
+                        print('too bad, couldnt adjust due to ' + error)
+                        print(p_face)
+                        print(f0)
+                        break
+
+            if len(vs):
+                print('crossed %i faces' % len(faces_crossed))
+                self.face_chain = (faces_crossed)
+                self.pre_vis_data = [mx * v for v in vs]
+                self.bad_segment = False
+
+            else:  #we failed to find the next face in the face group
+                self.bad_segment = True
+                self.pre_vis_data = [self.ip0.world_loc, self.ip1.world_loc]
+                print('cut failure!!!')
         
         
 class InputPointMap(object):
@@ -2032,8 +2154,8 @@ class InputPointMap(object):
             
         for p1 in other_points:
             if p1 == None: continue
-            self.segments.append(InputSegment(point, p1))
-
+            seg = InputSegment(point, p1)
+            self.segments.append(seg)
 
     def pop(self, ind=-1): 
         
