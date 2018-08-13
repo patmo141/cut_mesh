@@ -34,11 +34,11 @@ class Polytrim_UI_Draw():
                 #print('set the uMVPMatrix')
                 #print(self.drawing.get_view_matrix_buffer())
                 
-                circleShader['uInOut'] = 0.8
-                self.drawing.point_size(40)
+                circleShader['uInOut'] = 0.5
+                self.drawing.point_size(80)  #this is diameter
                 bgl.glBegin(bgl.GL_POINTS)
                 
-                a = .75
+                a = 1
                 circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
                 circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*a)
                 p1 = self.plm.current.snap_element.world_loc
