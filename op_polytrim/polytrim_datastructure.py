@@ -157,21 +157,20 @@ class PolyLineKnife(object):
                 self.input_points.segments.append(seg)
                 seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
         elif (self.hovered[0] == None) and (self.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            
             print('adding in a point')
             closest_endpoint = self.closest_endpoint(self.mx * loc)
             print(closest_endpoint)
-            
+
             self.input_points.add(self.mx * loc, loc, view_vector, face_ind)
             self.selected = self.input_points.points[-1]
-            
+
             if closest_endpoint:
                 seg = InputSegment(closest_endpoint, self.selected)
                 self.input_points.segments.append(seg)
                 seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-        
+
         elif self.hovered[0] == None and self.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            
+
             closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
             if closest_endpoints == None:
                 #we are not quite hovered but in snap territory
@@ -207,7 +206,7 @@ class PolyLineKnife(object):
         #no need for accel structure here
         n_points = max(0, n_points)
         
-        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint()] #TODO self.endpoints?
+        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint] #TODO self.endpoints?
         
         if len(endpoints) == 0: return None
         n_points = min(n_points, len(endpoints))
@@ -225,7 +224,7 @@ class PolyLineKnife(object):
         def dist3d(point):
             return (point.world_loc - pt3d).length
         
-        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint()] 
+        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint] 
         if len(endpoints) == 0: return None
         
         return min(endpoints, key = dist3d)
@@ -349,10 +348,15 @@ class PolyLineKnife(object):
                 print(self.hovered[0])
                 return
 
+            self.input_points.remove(self.hovered[1])
 
-            print('What is hovered')
-            print(self.hovered[1])
-            self.input_points.remove(self.hovered[1], disconnect = False)
+            if not self.hovered[1].is_endpoint:
+                last_seg1, last_seg2 = self.hovered[1].link_segments
+                ip1 = last_seg1.other_point(self.hovered[1])
+                ip2 = last_seg2.other_point(self.hovered[1])
+                new_seg = InputSegment(ip1, ip2)
+                self.input_points.segments.append(new_seg)
+                new_seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
 
             if self.input_points.is_empty or self.selected == self.hovered[1]:
                 self.selected = None
@@ -1830,9 +1834,11 @@ class InputPoint(object):
 
         #SETTING UP FOR MORE COMPLEX MESH CUTTING
         self.seed_geom = seed_geom #UNUSED, but will be needed if input point exists on an EDGE or VERT in the source mesh
-        
-            
-        
+
+    def is_endpoint(self):
+        if self.seed_geom and len(self.link_segments) > 0: return False  #TODO, better system to delinate edge of mesh
+        if len(self.link_segments) < 2: return True # What if self.link_segments == 2 ??
+    is_endpoint = property(is_endpoint)
 
     def set_world_loc(self, loc): self.world_loc = loc
     def set_local_loc(self, loc): self.local_loc = loc
@@ -1849,12 +1855,7 @@ class InputPoint(object):
                 return seg
             
         return False
-    
-    def is_endpoint(self):
-        if self.seed_geom and len(self.link_segments) > 0: return False  #TODO, better system to delinate edge of mesh
-        if len(self.link_segments) < 2: return True # What if self.link_segments == 2 ??
-        
-        
+
     def set_values(self, world, local, view, face_ind):
         self.world_loc = world
         self.local_loc = local
@@ -1936,23 +1937,20 @@ class InputSegment(object):
          happens in the world coordinates
        
         ''' 
-       
+
 
         intersect3d = intersect_point_line(pt3d, self.ip0.world_loc, self.ip1.world_loc)
 
         if intersect3d == None: return (None, None)
-        
+
         dist3d = (intersect3d[0] - pt3d).length
-            
+
         if  (intersect3d[1] < 1) and (intersect3d[1] > 0):
             return (intersect3d[0], dist3d)
-                        
-        return (None, None)
-            
-    def pre_vis_cut(self, bme, bvh, mx, imx):
-        
-    
 
+        return (None, None)
+
+    def pre_vis_cut(self, bme, bvh, mx, imx):
         f0 = bme.faces[self.ip0.face_index]  #<<--- Current BMFace
         f1 = bme.faces[self.ip1.face_index] #<<--- Next BMFace
 
@@ -1960,7 +1958,7 @@ class InputSegment(object):
             self.pre_vis_data = [self.ip0.world_loc, self.ip1.world_loc]
             self.bad_segment = False
             return
-        
+
         ###########################
         ## Define the cutting plane for this segment#
         ############################
@@ -1982,7 +1980,6 @@ class InputSegment(object):
 
         #if no shared edge, need to cut across to the next face
         if not cross_ed:
-            
             p_face = None
 
             vs = []
@@ -2051,8 +2048,7 @@ class InputSegment(object):
                 self.bad_segment = True
                 self.pre_vis_data = [self.ip0.world_loc, self.ip1.world_loc]
                 print('cut failure!!!')
-        
-        
+
 class InputPointMap(object):
     '''
     Data structure that stores a set of InputPoints that are
@@ -2155,7 +2151,6 @@ class InputPointMap(object):
             self.segments.append(seg)
 
     def pop(self, ind=-1):
-
         point = self.points[ind]
         connected_points = [seg.other_point(point) for seg in point.link_segments]
         

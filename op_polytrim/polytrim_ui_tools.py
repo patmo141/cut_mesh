@@ -126,7 +126,7 @@ class Polytrim_UI_Tools():
             print('Setting snap element')
             print(pixel_dist)
 
-            if closest_ip.is_endpoint():
+            if closest_ip.is_endpoint:
                 polyline.snap_element = closest_ip
             return
 
