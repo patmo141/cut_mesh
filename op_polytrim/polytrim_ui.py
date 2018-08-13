@@ -9,6 +9,7 @@ import bpy
 import bmesh
 from mathutils import Matrix, Vector
 
+from ..common.ui import Drawing
 from .polytrim_datastructure import PolyLineKnife
 from .polytrim_ui_tools import PolyLineManager
 from .cache import polytrim_undo_cache
@@ -16,7 +17,8 @@ from .cache import polytrim_undo_cache
 class Polytrim_UI:
 
     def start_ui(self, context):
-
+        self.drawing = Drawing.get_instance()
+        self.drawing.set_region(context.region, context.space_data.region_3d, bpy.context.window)
         self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)

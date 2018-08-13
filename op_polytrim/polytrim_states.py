@@ -36,10 +36,8 @@ class Polytrim_States():
         if self.actions.pressed('sketch'): return 'sketch'
 
         if self.actions.pressed('delete'):
+            print('delete pressed')
             x,y = self.actions.mouse
-            if self.plm.current.start_edge and self.plm.current.hovered[1] == 0 and self.plm.current.num_points > 1:
-                show_error_message('Can not delete the first point for this kind of cut.')
-                return
             self.plm.current.click_delete_point(mode='mouse')
             self.hover()
             return
@@ -172,6 +170,9 @@ class Polytrim_States():
             #confirm location
             x,y = self.actions.mouse
             self.plm.current.grab_confirm(context)
+            
+            if self.plm.current.selected not in self.plm.current.input_points.points:
+                self.plm.current.selected = -1
             if self.plm.current.ed_cross_map.is_used:
                 self.plm.current.make_cut()
             self.ui_text_update()

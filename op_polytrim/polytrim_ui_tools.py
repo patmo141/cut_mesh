@@ -72,9 +72,9 @@ class Polytrim_UI_Tools():
         self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
         #self.context.area.header_text_set()
 
-    def hover(self):
+    def hover(self, select_radius = 20, snap_radius = 40): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
-        finds points/edges/etc that are near cursor
+        finds points/edges/etc that are near ,mouse
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
         '''
 
@@ -95,7 +95,7 @@ class Polytrim_UI_Tools():
             self.hover_non_man()
             return
 
-       # find length between vertex and mouse
+        #find length between vertex and mouse
         def dist(v):
             if v == None:
                 print('v off screen')
@@ -103,67 +103,61 @@ class Polytrim_UI_Tools():
             diff = v - Vector(mouse)
             return diff.length
 
-
+        #find length between 2 3d points
         def dist3d(v3):
             if v3 == None:
                 return 100000000
             delt = v3 - polyline.source_ob.matrix_world * loc
             return delt.length
 
-        closest_3d_loc = min(polyline.input_points.world_locs, key = dist3d)
-        pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_3d_loc))
-        if pixel_dist  < 20:
-            polyline.hovered = ['POINT', polyline.input_points.world_locs.index(closest_3d_loc)]
+        #closest_3d_loc = min(polyline.input_points.world_locs, key = dist3d)
+        closest_ip = min(polyline.input_points, key = lambda x: dist3d(x.world_loc))
+        pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
+        
+        if pixel_dist  < select_radius:
+            polyline.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
+            polyline.snap_element = None
             return
 
-        if polyline.num_points == 1:
+        elif pixel_dist >= select_radius and pixel_dist < snap_radius:
+            polyline.snap_element = closest_ip
+            
+            
+        if polyline.num_points == 1:  #why did we do this? Oh because there are no segments.
             polyline.hovered = [None, -1]
+            
             return
 
-        ## ?? What is happening here
-        line_inters3d = []
-        for i in range(polyline.num_points):
-            nexti = (i + 1) % polyline.num_points
-            if next == 0 and not polyline.cyclic:
-                polyline.hovered = [None, -1]
-                return
-
-
-            intersect3d = intersect_point_line(polyline.source_ob.matrix_world * loc, polyline.input_points.get(i).world_loc, polyline.input_points.get(nexti).world_loc)
-
-            if intersect3d != None:
-                dist3d = (intersect3d[0] - loc).length
-                bound3d = intersect3d[1]
-                if  (bound3d < 1) and (bound3d > 0):
-                    line_inters3d += [dist3d]
-                    #print('intersect line3d success')
-                else:
-                    line_inters3d += [1000000]
-            else:
-                line_inters3d += [1000000]
+        ##Check distance between ray_cast point, and segments
+        distance_map = {}
+        for seg in polyline.input_points.segments:  #TODO, may need to decide some better naming and better heirarchy
+            
+            close_loc, close_d = seg.closes_point_3d_linear(polyline.source_ob.matrix_world * loc)
+            if close_loc  == None: 
+                distance_map[seg] = 10000000 
+                continue
+            
+            distance_map[seg] = close_d
+    
+        closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])    
 
         ## ?? And here
-        i = line_inters3d.index(min(line_inters3d))
-        nexti = (i + 1) % polyline.num_points
-
-        ## ?? And here
-        a  = loc3d_reg2D(context.region, context.space_data.region_3d,polyline.input_points.get(i).world_loc)
-        b = loc3d_reg2D(context.region, context.space_data.region_3d,polyline.input_points.get(nexti).world_loc)
+        a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
+        b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
 
         ## ?? and here, obviously, its stopping and setting hovered to EDGE, but how?
-        if a and b:
+        if a and b:  #if points are not on the screen, a or b will be None
             intersect = intersect_point_line(Vector(mouse).to_3d(), a.to_3d(),b.to_3d())
             dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
             bound = intersect[1]
-            if (dist < 400) and (bound < 1) and (bound > 0):
-                polyline.hovered = ['EDGE', i]
+            if (dist < select_radius**2) and (bound < 1) and (bound > 0):
+                polyline.hovered = ['EDGE', closest_seg]
                 return
 
         ## Multiple points, but not hovering over edge or point.
         polyline.hovered = [None, -1]
 
-        if polyline.start_edge != None and polyline.end_edge == None:
-            self.hover_non_man()  #todo, optimize because double ray cast per mouse move!
+        self.hover_non_man()  #todo, optimize because double ray cast per mouse move!
 
     def hover_non_man(self):
         '''
@@ -208,23 +202,29 @@ class Polytrim_UI_Tools():
                     screen_d1 = (mouse - screen_1).length
                     screen_dv = (mouse - screen_v).length
 
+                    #TODO, decid how to handle when very very close to vertcies
                     if 0 < d0 <= 1 and screen_d0 < 20:
                         polyline.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
                         return
                     elif 0 < d1 <= 1 and screen_d1 < 20:
                         polyline.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
                         return
-                    elif screen_dv < 20:
-                        if abs(d0) < abs(d1):
-                            polyline.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
-                            return
-                        else:
-                            polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
-                            return
+                    
+                    #For now, not able to split a vert on the edge of the mesh, only edges
+                    #elif screen_dv < 20:
+                    #    if abs(d0) < abs(d1):
+                    #        polyline.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
+                    #        return
+                    #    else:
+                    #        polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
+                    #        return
 
 class PolyLineManager(object):
     '''
     Manages having multiple instances of PolyLineKnife on an object at once.
+    Might not need this so much anymore
+    Or perhaps we should use this to manage insertions, strokes etc since InputPointsMap seems to handle things
+    
     '''
     def __init__(self):
         self.polylines = []
@@ -238,8 +238,8 @@ class PolyLineManager(object):
     def num_polylines(self): return len(self.polylines)
     num_polylines = property(num_polylines)
 
-   ######################
-   ## user interaction ##
+    ######################
+    ## user interaction ##
 
     def initiate_select_mode(self, context):
         self.mode = 'select'

@@ -1,7 +1,15 @@
 '''
 Created on Oct 8, 2015
 
-@author: Patrick
+@author: Patrick,  
+
+#TODO Micah Needs to add email and stuff in here
+License, copyright all that
+This code has an ineresting peidgree
+Inspired by contours Patrick Moore for CGCookie
+Improved by using some PolyStrips concepts Jon Denning @CGCookie and Taylor University
+refreshed again as part of summer practicum by Micah Stewart Summer 2018, Taylor University + Impulse Dental Technologies LLC
+reworked again by Patrick Moore, Micah Stewart and Jon Denning Fall 2018 
 '''
 import time
 import math
@@ -22,6 +30,8 @@ from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
 from ..common.blender import bversion
 from ..common.utils import get_matrices
+from ..common.bezier import CubicBezier, CubicBezierSpline
+from ..common.shaders import circleShader
 
 class PolyLineKnife(object):
     '''
@@ -41,6 +51,7 @@ class PolyLineKnife(object):
         self.cyclic = False
         self.selected = -1
         self.hovered = [None, -1]
+        self.snap_element = None
         self.start_edge = None
         self.end_edge = None
         self.face_changes = []
@@ -121,6 +132,8 @@ class PolyLineKnife(object):
         '''
         this will add a point into the trim line
         close the curve into a cyclic curve
+        
+        #Need to get smarter about closing the loop
         '''
         def none_selected(): self.selected = -1 # use in self.ray_cast()
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
@@ -128,38 +141,85 @@ class PolyLineKnife(object):
         if loc == None: return
 
         if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
-            if self.cyclic:
-                self.selected = -1
-                return
 
-            ed, wrld_loc = self.hovered[1] # hovered[1] is tuple
+            bmed, wrld_loc = self.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
 
-            if self.input_points.is_empty:
-                self.start_edge = ed
-            elif not self.start_edge:
-                self.selected = -1
-                return
-            else:
-                self.end_edge = ed
+            self.input_points.add(wrld_loc, self.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
+            self.selected = self.input_points.points[-1]
+            self.selected.seed_geom = bmed
 
-            self.input_points.add(wrld_loc, self.imx * wrld_loc, view_vector, ed.link_faces[0].index)
-            self.selected = self.num_points -1
-
-        elif self.hovered[0] == None and not self.end_edge:  #adding in a new point at end
+            ip1 = self.closest_endpoint(wrld_loc)
+            if self.closest_endpoint(wrld_loc):
+                seg = InputSegment(self.selected, ip1)
+                self.input_points.segments.add(seg)
+                
+        elif self.hovered[0] == None and self.snap_element == None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             self.input_points.add(self.mx * loc, loc, view_vector, face_ind)
-            self.selected = self.num_points -1
-
+            self.selected = self.input_points.points[-1]
+            
+            closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
+            if len(closest_endpoints) != 2:
+                #we are not quite hovered but in snap territory
+                return
+            
+            seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
+            self.input_points.segments.append(seg)
+        
+        
+        elif self.hovered[0] == None and self.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            
+            closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
+            if len(closest_endpoints) != 2:
+                #we are not quite hovered but in snap territory
+                return
+            
+            seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
+            self.input_points.segments.append(seg)
+            
         elif self.hovered[0] == 'POINT':
             self.selected = self.hovered[1]
 
-        elif self.hovered[0] == 'EDGE':
-            self.input_points.insert(self.hovered[1]+1, self.mx * loc, loc, view_vector, face_ind)
-            self.selected = self.hovered[1] + 1
+        elif self.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
+            
+            #this looks like a TOOLs kind of operation
+            point = InputPoint(self.mx * loc, loc, view_vector, face_ind)
+            old_seg = self.hovered[1]
+            new_seg0, new_seg1 = old_seg.insert_point(point)
+            self.input_points.segments += [new_seg0, new_seg1]
+            self.input_points.points.append(point)
+            self.input_points.segments.remove(old_seg)
+            self.selected = point
 
-            if self.ed_cross_map.is_used:
-                self.make_cut()
-
-
+    
+    def closest_endpoints(self, pt3d, n_points):
+        #in our application, at most there will be 100 endpoints?
+        #no need for accel structure here
+        n_points = max(0, n_points)
+        
+        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint()] #TODO self.endpoints?
+        
+        if len(endpoints) == 0: return None
+        n_points = min(n_points, len(endpoints))
+        
+        
+        def dist3d(point):
+            return (point.world_loc - pt3d).length
+        
+        endpoints.sort(key = dist3d)
+        
+        return endpoints[0:n_points]
+    
+    def closest_endpoint(self, pt3d):
+         
+        def dist3d(point):
+            return (point.world_loc - pt3d).length
+        
+        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint()] 
+        if len(endpoints) == 0: return None
+        
+        return min(endpoints, key = dist3d)
+    
+    
     def interpolate_input_point_pair(self, p0, p1, factor):
         '''
         will return a linear interpolation of this point with other
@@ -196,12 +256,29 @@ class PolyLineKnife(object):
         
         return None
     
-    def linear_re_tesselate_segment(self, ip_start, ip_end, res, clamp_existing = True):
+    def linear_re_tesselate_segment(self, ip_start, ip_end, res):
         '''
-        will retesselate a segment.  Important that ip0 and ip1 is the direction desired
-        for example if ip_start is at index 5 and ip_end is at index 2.  it will re-tesselate
+        ip_start - InputPoint
+        ip_end = InputPoint
+        res - Float (target distance step between points)
         
-        5,6,7,8.....N, 0,1 2. so retesslate(ip5, ip2) will not be same as retesslate(ip2, ip5)
+        
+        re tesesselates all segments between ip_start and ip_end
+        
+        will preserve the original input points, and only add new input points
+        between them as necessary
+        
+        It is important that ip_start to ip_end indicates the direction desired
+        for the segment to be re_tesselated.
+        
+        for example if ip_start is at index 5 and ip_end is at index 2.
+        Input points 5,6,7...N, 0,1 2. will be retesselated
+        
+        However if ip_start is at index 2 and ip_end is at index 5
+        InputPoints 2,3,4,5 will be re_tesslated
+        
+        re_teseselate(ip5, ip2) will not be same as re_tesslate(ip2, ip5)
+        
         '''
         assert ip_start in self.input_points.points
         assert ip_end in self.input_points.points
@@ -249,49 +326,43 @@ class PolyLineKnife(object):
             self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
         
         self.selected = -1    
-        print('I did it!')      
+          
         
     def click_delete_point(self, mode = 'mouse'):
         '''
         removes point from the trim line
         '''
         if mode == 'mouse':
-            if self.hovered[0] != 'POINT': return
+            if self.hovered[0] != 'POINT': 
+                print('hovered is not a point')
+                print(self.hovered[0])
+                return
 
-            if self.selected >= self.hovered[1]: self.selected -= 1
 
-            self.input_points.pop(self.hovered[1])
+            print('What is hovered')
+            print(self.hovered[1])
+            self.input_points.remove(self.hovered[1], disconnect = False)
 
             if self.input_points.is_empty:
                 self.selected = -1
-                self.start_edge = None
 
-            # some kinds of deletes make cyclic false again
-            if self.num_points <= 2 or self.hovered[1] == 0: self.cyclic = False
-
-            if self.end_edge and self.hovered[1] == self.num_points: #notice not -1 because we popped
-                print('deteted last non man edge')
-                self.end_edge = None
-                self.selected = -1
-                return
-        else:
+        else: #hard delete with x key
             if self.selected == -1: return
-            self.input_points.pop(self.selected)
+            self.input_points.remove(self.selected, disconnect= True)
 
-        if self.ed_cross_map.is_used:
-            self.make_cut()
+        #if self.ed_cross_map.is_used:
+        #    self.make_cut()
 
     def grab_initiate(self):
         '''
         sets variables necessary for grabbing functionality
         '''
-        if self.selected != -1:
-            self.grab_point = self.input_points.get(self.selected).duplicate()
-            print("Point:",self.input_points.get(self.selected))
-            print("Grab Point:", self.grab_point)
-            self.grab_undo_loc = self.grab_point.world_loc
-            self.start_edge_undo = self.start_edge
-            self.end_edge_undo = self.end_edge
+        if self.selected != -1 and isinstance(self.selected, InputPoint):
+            #print("Point:",self.selected))
+            #print("Grab Point:", self.grab_point)
+            
+            self.grab_point = self.selected.duplicate()
+            
             return True
         else:
             return False
@@ -308,12 +379,14 @@ class PolyLineKnife(object):
         if face_ind == -1: return
 
         # check to see if the start_edge or end_edge points are selected
-        if (self.selected == 0 and self.start_edge) or (self.selected == (self.num_points -1) and self.end_edge):
+        #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
+        if isinstance(self.selected, InputPoint) and self.selected.seed_geom != None:
 
+            #check the 3d mouse location vs non manifold verts
             co3d, index, dist = self.kd.find(self.mx * loc)
 
             #get the actual non man vert from original list
-            close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
+            close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
             close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
@@ -349,22 +422,16 @@ class PolyLineKnife(object):
             else:
                 return
 
-            if self.selected == 0:
-                self.start_edge = ed
-            else:
-                self.end_edge = ed
-
             self.grab_point.set_values(self.mx * pt, pt, view_vector, ed.link_faces[0].index)
+            self.grab_point.seed_geom = ed
         else:
             self.grab_point.set_values(self.mx * loc, loc, view_vector, face_ind)
-
+            
     def grab_cancel(self):
         '''
         returns variables to their status before grab was initiated
         '''
-        self.input_points.get(self.selected).world_loc = self.grab_undo_loc
-        self.start_edge = self.start_edge_undo
-        self.end_edge = self.end_edge_undo
+        #we have not touched the oringal point!
         self.grab_point = None
         return
 
@@ -372,12 +439,15 @@ class PolyLineKnife(object):
         '''
         sets new variables based on new location
         '''
-        if self.grab_point:
-            self.input_points.replace(self.selected, self.grab_point)
-            self.grab_point = None
-        self.grab_undo_loc = None
-        self.start_edge_undo = None
-        self.end_edge_undo = None
+        
+        self.selected.world_loc = self.grab_point.world_loc
+        self.selected.local_loc = self.grab_point.local_loc
+        self.selected.view = self.grab_point.view
+        self.selected.seed_geom = self.grab_point.seed_geom
+        self.selected.face_index = self.grab_point.face_index
+        
+        self.grab_point = None
+        
         return
 
     def add_sketch_points(self, hovered_start, sketch_points, view_vector):
@@ -585,7 +655,7 @@ class PolyLineKnife(object):
     ###########################
     #### cutting algorithm ####
 
-    def make_cut(self):
+    def make_cut(self, ind = None):
         '''
         makes cutting path by walking algorithm
         '''
@@ -1575,38 +1645,37 @@ class PolyLineKnife(object):
         common_drawing.draw_3d_points(context,[self.input_points.get(0).world_loc], 8, orange)
 
         ## Selected Point
-        if self.selected != -1 and self.num_points >= self.selected + 1:
-            common_drawing.draw_3d_points(context,[self.input_points.get(self.selected).world_loc], 8, cyan)
+        if self.selected != -1 and isinstance(self.selected, InputPoint):
+            common_drawing.draw_3d_points(context,[self.selected.world_loc], 8, cyan)
 
         ## Hovered Point
         if self.hovered[0] == 'POINT':
-            common_drawing.draw_3d_points(context,[self.input_points.get(self.hovered[1]).world_loc], 8, color = (0,1,0,1))
+            common_drawing.draw_3d_points(context,[self.hovered[1].world_loc], 8, color = (0,1,0,1))
         # Insertion Lines (for adding in a point to edge)
         elif self.hovered[0] == 'EDGE':
-            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get(self.hovered[1]).world_loc)
-            next = (self.hovered[1] + 1) % self.num_points
-            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get(next).world_loc)
-            common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], navy_opaque, 2,"GL_LINE_STRIP")
+            seg = self.hovered[1]
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
+            if a and b:
+                common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], navy_opaque, 2,"GL_LINE_STRIP")
 
         # Grab Location Dot and Lines XXX:This part is gross..
         if self.grab_point:
             # Dot
             common_drawing.draw_3d_points(context,[self.grab_point.world_loc], 5, blue_opaque)
             # Lines
-            grab_point_ind = self.input_points.world_locs.index(self.grab_undo_loc)
-            low_ind = grab_point_ind - 1
-            high_ind = (grab_point_ind + 1) % self.num_points
-            low_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get(low_ind).world_loc)
-            grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
-            high_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.input_points.get(high_ind).world_loc)
-            if self.num_points == 1:
-                pass
-            elif self.selected == 0 and not self.cyclic:
-                common_drawing.draw_polyline_from_points(context, [grab_loc, high_loc], blue_opaque, 4,"GL_LINE_STRIP")
-            elif self.selected == self.num_points - 1 and not self.cyclic:
-                common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc], blue_opaque, 4,"GL_LINE_STRIP")
-            else:
-                common_drawing.draw_polyline_from_points(context, [low_loc, grab_loc, high_loc], blue_opaque, 4,"GL_LINE_STRIP")
+            
+            point_orig = self.selected  #had to be selected to be grabbed
+            
+            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
+            
+            for pt_3d in other_locs:
+                other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
+                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
+                if other_loc and grab_loc:
+                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], blue_opaque, 4,"GL_LINE_STRIP")
+                
+                
 
         # Face Seed Vertices
         if self.face_seed:
@@ -1703,43 +1772,76 @@ class PolyLineKnife(object):
             else:
                 color = green
             draw3d_polyline(context,[self.source_ob.matrix_world * v for v in self.ed_cross_map.get_locs()], color, 5, 'GL_LINE_STRIP')
-        # Polylines
+        
+        
+        # Polylines...InputSegments
         else:
-            if self.cyclic:
-                draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]],  blue2, 2, 'GL_LINE_STRIP' )
-            else:
-                draw3d_polyline(context, self.input_points.world_locs ,  blue2, 2, 'GL_LINE' )
+            for seg in self.input_points.segments:
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
+     
+            #if self.cyclic:
+            #    draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]],  blue2, 2, 'GL_LINE_STRIP' )
+            #else:
+            #    draw3d_polyline(context, self.input_points.world_locs ,  blue2, 2, 'GL_LINE' )
         #Points
         draw3d_points(context, [self.input_points.world_locs[0]], orange, 10)
         if self.num_points > 1:
             draw3d_points(context, self.input_points.world_locs[1:], blue, 6)
 
-        bgl.glLineWidth(1)
+        bgl.glLineWidth(1)     
+                
+        
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
+        bgl.glDepthMask(bgl.GL_TRUE)
+
+
 
 class InputPoint(object):
     '''
     Representation of an input point
     '''
-    def __init__(self, world, local, view, face_ind):
+    def __init__(self, world, local, view, face_ind, seed_geom = None):
         self.world_loc = world
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
+        self.link_segments = []
+
+        #SETTING UP FOR MORE COMPLEX MESH CUTTING
+        self.seed_geom = seed_geom #UNUSED, but will be needed if input point exists on an EDGE or VERT in the source mesh
+        
+            
+        
 
     def set_world_loc(self, loc): self.world_loc = loc
     def set_local_loc(self, loc): self.local_loc = loc
     def set_view(self, view): self.view = view
     def set_face_ind(self, face_ind): self.face_index = face_ind
 
+    def are_connected(self, point):   
+        '''
+        takes another input point, and returns InputSegment if they are connected
+        returns False if they are not connected
+        '''
+        for seg in self.link_segments:
+            if seg.other_point(self) == point:
+                return seg
+            
+        return False
+    
+    def is_endpoint(self):
+        if self.seed_geom and len(self.link_segments) > 0: return False  #TODO, better system to delinate edge of mesh
+        if len(self.link_segments) < 2: return True
+        
+        
     def set_values(self, world, local, view, face_ind):
         self.world_loc = world
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
-
+    #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
-
 
     def print_data(self): # for debugging
         print('\n', "POINT DATA", '\n')
@@ -1748,13 +1850,101 @@ class InputPoint(object):
         print("view direction:", self.view, '\n')
         print("face index:", self.face_index, '\n')
 
+##########################################
+#Input Segment ToDos
+#TODO - method to clean segments with unused Input Points
+
+##########################################
+class InputSegment(object):
+    '''
+    Representation of a cut between 2 input points
+    Equivalent to an "edge" in a mesh connecting to verts
+    '''
+    def __init__(self, ip0, ip1):
+        self.input_points = [ip0, ip1]
+        self.ip0 = ip0
+        self.ip1 = ip1
+        
+        ip0.link_segments.append(self)
+        ip1.link_segments.append(self)
+        
+        self.previs_locs = []  #list of 3d points for previsualization
+        
+    def other_point(self, ip):
+        if ip not in self.input_points: return None
+        return self.ip0 if ip == self.ip1 else self.ip1
+    
+
+    def insert_point(self, point):
+        seg0 = InputSegment(self.ip0, point)
+        seg1 = InputSegment(point, self.ip1)
+        
+        
+        self.ip0.link_segments.remove(self)
+        self.ip1.link_segments.remove(self)
+        return seg0, seg1
+    
+    def detach(self):
+        #TODO safety?  Check if in ip0.link_sgements?
+        self.ip0.link_segments.remove(self)
+        self.ip1.link_segments.remove(self)
+        
+    def closes_point_3d_linear(self, pt3d):
+        '''
+        will return the closest point on a straigh line segment
+        drawn between the two input points
+       
+        If the 3D point is not within the infinite cylinder defined
+        by 2 infinite disks placed at each input point and orthogonal
+        to the vector between them, will return None
+       
+       
+       
+        A_pt3d              B_pt3d
+          .                    .
+          |                    |              
+          |                    |              
+          |                    |               
+          |       ip0._________x_________.ip1   
+         
+         
+         A_pt3d will return None, None.  B_pt3d will return 3d location at orthogonal intersection and the distance
+         
+         else, will return a tupple (location of intersection, %along line from ip0 to ip1
+         
+         happens in the world coordinates
+       
+        ''' 
+       
+
+        intersect3d = intersect_point_line(pt3d, self.ip0.world_loc, self.ip1.world_loc)
+
+        if intersect3d == None: return (None, None)
+        
+        dist3d = (intersect3d[0] - pt3d).length
+            
+        if  (intersect3d[1] < 1) and (intersect3d[1] > 0):
+            return (intersect3d[0], dist3d)
+                        
+        return (None, None)
+            
+        
+        
+        
 class InputPointMap(object):
     '''
-    Collection of all InputPoints
+    Data structure that stores a set of InputPoints that are
+    connected with InputSegments.
+    
+    InputPoints store a mapping to the source mesh.
+    InputPoints and Input segments, analogous to Verts and Edges
+    
+    Collection of all InputPoints and Input Segments
      * works with InputPoint objects
     '''
     def __init__(self):
         self.points = []
+        self.segments = []  #order not important, but maintain order in this list for indexing?
 
     def __iter__(self):
         for p in self.points:
@@ -1781,25 +1971,105 @@ class InputPointMap(object):
     def add(self, world=None, local=None, view=None, face_ind=None, p=None):
         point = p
         if not point: point = InputPoint(world, local, view, face_ind)
+        
+        #now handled at a higher level
+        #if len(self.points) > 0:
+        #    last_point = self.points[-1]
+        #    new_segment = InputSegment(last_point, point)
+        #    self.segments.append(new_segment)
         self.points.append(point)
 
     def add_multiple(self, world=None, local=None, view=None, face_ind=None, points=None):
-        if points: self.points += points
+        if points: 
+            #removing this method, and using the "add" to generate connectivity
+            #self.points += points
+            for p in points:
+                self.add(p)  #less efficient but handles the segment generation
         else:
             for i in range(len(world)):
                 self.add(world[i], local[i], view[i], face_ind[i])
 
-    def insert(self, insert_ind, world, local, view, face_ind):
+    def insert(self, insert_ind, world, local, view, face_ind):  #this method will be moved to the InputSegment class laster
         point = InputPoint(world, local, view, face_ind)
+        point_ahead = self.points[insert_ind]
+        
+        if insert_ind != 0:
+            
+            point_behind = self.points[insert_ind- 1]
+            old_seg = point_behind.are_connected(point_ahead)
+            if old_seg:
+                self.segments.remove(old_seg)
+                
+            new_seg0 = InputSegment(point_behind, point)
+            new_seg1 = InputSegment(point, point_ahead)
+            self.segments += [new_seg0, new_seg1]
+            
+        #TODO more generic "node" treatment of InputPoint
+        #this assumes there are no T o X or junctions higher than genus 2
+        
         self.points.insert(insert_ind, point)
 
-    def replace(self, ind, point): self.points[ind] = point
 
-    def pop(self, ind=-1): return self.points.pop(ind)
 
+    def replace(self, ind, point): 
+        
+        if isinstance(ind, InputPoint):
+            old_p = ind
+        else:
+            old_p = self.points[ind]
+        other_points = [seg.other_point(old_p) for seg in old_p.link_segments]
+        
+        for seg in old_p.link_segments:
+            if seg in self.segments:
+                self.segments.remove(seg)
+        
+        if isinstance(ind, int):
+            self.points[ind] = point
+        else:
+            if old_p in self.points:
+                self.points.remove(old_p)
+            self.points.append(point)
+            
+        for p1 in other_points:
+            if p1 == None: continue
+            self.segments.append(InputSegment(point, p1))
+
+
+    def pop(self, ind=-1): 
+        
+        point = self.points[ind]
+        connected_points = [seg.other_point(point) for seg in point.link_segments]
+        
+        if len(connected_points) == 2: #maintain connectivity
+            new_segment = InputSegment(connected_points[0], connected_points[1])    
+            self.segments.append(new_segment)
+            
+        for seg in point.link_segments:   
+            self.segments.remove(seg)
+            
+        self.points.remove(point)
+
+    def remove(self, point, disconnect = True): 
+        
+        if point not in self.points: return False
+        
+        connected_points = [seg.other_point(point) for seg in point.link_segments]
+        
+        if len(connected_points) == 2 and not disconnect: #maintain connectivity
+            new_segment = InputSegment(connected_points[0], connected_points[1])    
+            self.segments.append(new_segment)
+            
+        for seg in point.link_segments:
+            self.segments.remove(seg)
+            seg.other_point(point).link_segments.remove(seg)
+             
+        self.points.remove(point)
+        return True
+        
     def duplicate(self):
         new = InputPointMap()
         new.points = self.points
+        new.segments = self.segments
         return new
 
 class EdgeIntersectionMap(object):
