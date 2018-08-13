@@ -115,22 +115,22 @@ class Polytrim_UI_Tools():
         #closest_3d_loc = min(polyline.input_points.world_locs, key = dist3d)
         closest_ip = min(polyline.input_points, key = lambda x: dist3d(x.world_loc))
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
-        
+
         if pixel_dist  < select_radius:
             polyline.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             polyline.snap_element = None
             return
 
         elif pixel_dist >= select_radius and pixel_dist < snap_radius:
-            
+
             print('Setting snap element')
             print(pixel_dist)
-            
+
             if closest_ip.is_endpoint():
                 polyline.snap_element = closest_ip
             return
-            
-            
+
+
         if polyline.num_points == 1:  #why did we do this? Oh because there are no segments.
             polyline.hovered = [None, -1]
             polyline.snap_element = None
@@ -139,10 +139,10 @@ class Polytrim_UI_Tools():
         ##Check distance between ray_cast point, and segments
         distance_map = {}
         for seg in polyline.input_points.segments:  #TODO, may need to decide some better naming and better heirarchy
-            
+
             close_loc, close_d = seg.closes_point_3d_linear(polyline.source_ob.matrix_world * loc)
-            if close_loc  == None: 
-                distance_map[seg] = 10000000 
+            if close_loc  == None:
+                distance_map[seg] = 10000000
                 continue
             
             distance_map[seg] = close_d

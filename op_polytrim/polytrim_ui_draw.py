@@ -17,23 +17,23 @@ class Polytrim_UI_Draw():
             for polyline in self.plm.polylines:
                 if polyline == self.plm.current: polyline.draw3d(context)
                 else: polyline.draw3d(context, special="extra-lite")
-        
-        
+
+
             if self.plm.current.snap_element != None:
-                bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit 
+                bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
                 bgl.glEnable(bgl.GL_BLEND)
                 bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
                 bgl.glEnable(bgl.GL_DEPTH_TEST)
-                
+
                 # draw in front of geometry
                 bgl.glDepthFunc(bgl.GL_LEQUAL)
-                
+
                 circleShader.enable()
                 #print('matriz buffer')
                 circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
                 #print('set the uMVPMatrix')
                 #print(self.drawing.get_view_matrix_buffer())
-                
+
                 circleShader['uInOut'] = 0.8
                 self.drawing.point_size(40)
                 bgl.glBegin(bgl.GL_POINTS)

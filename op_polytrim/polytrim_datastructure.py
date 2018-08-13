@@ -117,7 +117,7 @@ class PolyLineKnife(object):
 
         self.face_chain = set()  #all faces crossed by the cut curve
 
-        self.selected = -1
+        self.selected = None
         self.hovered = [None, -1]
 
         self.grab_undo_loc = None
@@ -135,7 +135,7 @@ class PolyLineKnife(object):
         
         #Need to get smarter about closing the loop
         '''
-        def none_selected(): self.selected = -1 # use in self.ray_cast()
+        def none_selected(): self.selected = None # use in self.ray_cast()
         
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
         loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, none_selected)
@@ -336,7 +336,7 @@ class PolyLineKnife(object):
         else:
             self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
         
-        self.selected = -1    
+        self.selected = None   
           
         
     def click_delete_point(self, mode = 'mouse'):
@@ -354,11 +354,11 @@ class PolyLineKnife(object):
             print(self.hovered[1])
             self.input_points.remove(self.hovered[1], disconnect = False)
 
-            if self.input_points.is_empty:
-                self.selected = -1
+            if self.input_points.is_empty or self.selected == self.hovered[1]:
+                self.selected = None
 
         else: #hard delete with x key
-            if self.selected == -1: return
+            if not self.selected: return
             self.input_points.remove(self.selected, disconnect= True)
 
         #if self.ed_cross_map.is_used:
@@ -368,7 +368,7 @@ class PolyLineKnife(object):
         '''
         sets variables necessary for grabbing functionality
         '''
-        if self.selected != -1 and isinstance(self.selected, InputPoint):
+        if self.selected and isinstance(self.selected, InputPoint):
             #print("Point:",self.selected))
             #print("Grab Point:", self.grab_point)
             
@@ -1660,7 +1660,7 @@ class PolyLineKnife(object):
         common_drawing.draw_3d_points(context,[self.input_points.get(0).world_loc], 8, orange)
 
         ## Selected Point
-        if self.selected != -1 and isinstance(self.selected, InputPoint):
+        if self.selected and isinstance(self.selected, InputPoint):
             common_drawing.draw_3d_points(context,[self.selected.world_loc], 8, cyan)
 
         ## Hovered Point
@@ -1852,7 +1852,7 @@ class InputPoint(object):
     
     def is_endpoint(self):
         if self.seed_geom and len(self.link_segments) > 0: return False  #TODO, better system to delinate edge of mesh
-        if len(self.link_segments) < 2: return True
+        if len(self.link_segments) < 2: return True # What if self.link_segments == 2 ??
         
         
     def set_values(self, world, local, view, face_ind):
@@ -2111,7 +2111,7 @@ class InputPointMap(object):
             for i in range(len(world)):
                 self.add(world[i], local[i], view[i], face_ind[i])
 
-    def insert(self, insert_ind, world, local, view, face_ind):  #this method will be moved to the InputSegment class laster
+    def insert(self, insert_ind, world, local, view, face_ind):  #this method will be moved to the InputSegment class later
         point = InputPoint(world, local, view, face_ind)
         point_ahead = self.points[insert_ind]
         
@@ -2131,34 +2131,31 @@ class InputPointMap(object):
         
         self.points.insert(insert_ind, point)
 
-
-
-    def replace(self, ind, point): 
-        
+    def replace(self, ind, point):
         if isinstance(ind, InputPoint):
             old_p = ind
         else:
             old_p = self.points[ind]
         other_points = [seg.other_point(old_p) for seg in old_p.link_segments]
-        
+
         for seg in old_p.link_segments:
             if seg in self.segments:
                 self.segments.remove(seg)
-        
+
         if isinstance(ind, int):
             self.points[ind] = point
         else:
             if old_p in self.points:
                 self.points.remove(old_p)
             self.points.append(point)
-            
+
         for p1 in other_points:
             if p1 == None: continue
             seg = InputSegment(point, p1)
             self.segments.append(seg)
 
-    def pop(self, ind=-1): 
-        
+    def pop(self, ind=-1):
+
         point = self.points[ind]
         connected_points = [seg.other_point(point) for seg in point.link_segments]
         
@@ -2171,23 +2168,22 @@ class InputPointMap(object):
             
         self.points.remove(point)
 
-    def remove(self, point, disconnect = True): 
-        
+    def remove(self, point, disconnect = True):
         if point not in self.points: return False
-        
+
         connected_points = [seg.other_point(point) for seg in point.link_segments]
-        
+
         if len(connected_points) == 2 and not disconnect: #maintain connectivity
-            new_segment = InputSegment(connected_points[0], connected_points[1])    
+            new_segment = InputSegment(connected_points[0], connected_points[1])
             self.segments.append(new_segment)
-            
+
         for seg in point.link_segments:
             self.segments.remove(seg)
             seg.other_point(point).link_segments.remove(seg)
-             
+
         self.points.remove(point)
         return True
-        
+
     def duplicate(self):
         new = InputPointMap()
         new.points = self.points
