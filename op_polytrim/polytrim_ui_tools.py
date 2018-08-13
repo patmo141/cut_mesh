@@ -72,14 +72,13 @@ class Polytrim_UI_Tools():
         self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
         #self.context.area.header_text_set()
 
-    def hover(self, select_radius = 20, snap_radius = 40): #TDOD, these radii are pixels? Shoudl they be settings?
+    def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
         '''
 
         # TODO: update self.hover to use Accel2D?
-
         polyline = self.plm.current
         mouse = self.actions.mouse
         context = self.context
@@ -91,6 +90,7 @@ class Polytrim_UI_Tools():
         loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
 
         polyline.snap_element = None
+        polyline.connect_element = None
         
         if polyline.input_points.is_empty:
             polyline.hovered = [None, -1]
@@ -117,17 +117,33 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
+            print('point is hovered')
+            print(pixel_dist)
             polyline.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             polyline.snap_element = None
             return
 
         elif pixel_dist >= select_radius and pixel_dist < snap_radius:
-
-            print('Setting snap element')
+            print('point is within snap radius')
             print(pixel_dist)
-
             if closest_ip.is_endpoint:
                 polyline.snap_element = closest_ip
+                
+                print('This is the close loop scenario')
+                closest_endpoints = polyline.closest_endpoints(polyline.snap_element.world_loc, 2)
+                
+                print('these are the 2 closest endpoints, one should be snap element itself')
+                print(closest_endpoints)
+                if closest_endpoints == None:
+                    #we are not quite hovered but in snap territory
+                    return
+                
+                if len(closest_endpoints) != 2:
+                    print('len of closest endpoints not 2')
+                    return
+                
+                polyline.connect_element = closest_endpoints[1]
+                
             return
 
 

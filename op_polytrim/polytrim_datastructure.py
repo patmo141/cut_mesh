@@ -53,6 +53,7 @@ class PolyLineKnife(object):
         self.hovered = [None, -1]
         self.snap_element = None
         self.start_edge = None
+        self.connect_element = None
         self.end_edge = None
         self.face_changes = []
         self.face_groups = dict()
@@ -156,6 +157,7 @@ class PolyLineKnife(object):
                 seg = InputSegment(self.selected, ip1)
                 self.input_points.segments.append(seg)
                 seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
+        
         elif (self.hovered[0] == None) and (self.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             print('adding in a point')
             closest_endpoint = self.closest_endpoint(self.mx * loc)
@@ -170,8 +172,12 @@ class PolyLineKnife(object):
                 seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
 
         elif self.hovered[0] == None and self.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-
+            
+            print('This is the close loop scenario')
             closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
+            
+            print('these are the 2 closest endpoints, one should be snap element itself')
+            print(closest_endpoints)
             if closest_endpoints == None:
                 #we are not quite hovered but in snap territory
                 return
@@ -184,6 +190,7 @@ class PolyLineKnife(object):
             seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
             self.input_points.segments.append(seg)
             seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
+            
         elif self.hovered[0] == 'POINT':
             self.selected = self.hovered[1]
 
@@ -1678,6 +1685,14 @@ class PolyLineKnife(object):
             if a and b:
                 common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], navy_opaque, 2,"GL_LINE_STRIP")
 
+        # Insertion Lines (for adding closing loop)
+        elif self.snap_element != None and self.connect_element != None:
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.connect_element.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.snap_element.world_loc)
+            if a and b:
+                common_drawing.draw_polyline_from_points(context, [a, b], navy_opaque, 2,"GL_LINE_STRIP")
+                
+                
         # Grab Location Dot and Lines XXX:This part is gross..
         if self.grab_point:
             # Dot
@@ -1808,7 +1823,7 @@ class PolyLineKnife(object):
             #else:
             #    draw3d_polyline(context, self.input_points.world_locs ,  blue2, 2, 'GL_LINE' )
         #Points
-        draw3d_points(context, [self.input_points.world_locs[0]], orange, 10)
+        #draw3d_points(context, [self.input_points.world_locs[0]], orange, 10)
         if self.num_points > 1:
             draw3d_points(context, self.input_points.world_locs[1:], blue, 6)
 
