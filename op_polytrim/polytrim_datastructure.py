@@ -51,6 +51,7 @@ class PolyLineKnife(object):
         self.cyclic = False
         self.selected = -1
         self.hovered = [None, -1]
+        self.closest_ep = None
         self.snap_element = None
         self.start_edge = None
         self.connect_element = None
@@ -159,9 +160,7 @@ class PolyLineKnife(object):
                 seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
         
         elif (self.hovered[0] == None) and (self.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            print('adding in a point')
             closest_endpoint = self.closest_endpoint(self.mx * loc)
-            print(closest_endpoint)
 
             self.input_points.add(self.mx * loc, loc, view_vector, face_ind)
             self.selected = self.input_points.points[-1]
@@ -1707,9 +1706,12 @@ class PolyLineKnife(object):
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
                 grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
                 if other_loc and grab_loc:
-                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], blue_opaque, 4,"GL_LINE_STRIP")
-                
-                
+                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], blue_opaque, 4,"GL_LINE_STRIP")             
+        # Endpoint to Cursor Line
+        elif self.closest_ep:
+            print(self.closest_ep)
+            ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.closest_ep.world_loc)
+            common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], blue_opaque, 4,"GL_LINE_STRIP")
 
         # Face Seed Vertices
         if self.face_seed:
@@ -2168,14 +2170,14 @@ class InputPointMap(object):
     def pop(self, ind=-1):
         point = self.points[ind]
         connected_points = [seg.other_point(point) for seg in point.link_segments]
-        
+
         if len(connected_points) == 2: #maintain connectivity
-            new_segment = InputSegment(connected_points[0], connected_points[1])    
+            new_segment = InputSegment(connected_points[0], connected_points[1])
             self.segments.append(new_segment)
-            
-        for seg in point.link_segments:   
+
+        for seg in point.link_segments:
             self.segments.remove(seg)
-            
+
         self.points.remove(point)
 
     def remove(self, point, disconnect = True):

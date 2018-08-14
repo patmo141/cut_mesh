@@ -96,6 +96,8 @@ class Polytrim_UI_Tools():
             polyline.hovered = [None, -1]
             self.hover_non_man()
             return
+        if face_ind == -1: polyline.closest_ep = None
+        else: polyline.closest_ep = polyline.closest_endpoint(mx * loc)
 
         #find length between vertex and mouse
         def dist(v):
