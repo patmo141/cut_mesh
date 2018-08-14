@@ -34,8 +34,8 @@ class Polytrim_UI_Draw():
                 #print('set the uMVPMatrix')
                 #print(self.drawing.get_view_matrix_buffer())
                 
-                circleShader['uInOut'] = 0.5
-                self.drawing.point_size(80)  #this is diameter
+                circleShader['uInOut'] = 0.3333333
+                self.drawing.point_size(72)  #this is diameter
                 bgl.glBegin(bgl.GL_POINTS)
                 
                 a = 1

@@ -25,7 +25,10 @@ from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
+
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
+from ..geodesic import GeoPath, geodesic_walk, continue_geodesic_walk, gradient_descent
+
 from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
 from ..common.blender import bversion
@@ -1634,6 +1637,12 @@ class PolyLineKnife(object):
 
         print('Found %i faces in the region' % len(inner_faces))
 
+    def preview_bad_segments_geodesic(self):
+        
+        
+        for seg in self.input_points.segments:
+            if seg.bad_segment:
+                seg.pre_vis_geo(self.bme, self.bvh, self.mx)
     #################
     #### drawing ####
 
@@ -1811,9 +1820,14 @@ class PolyLineKnife(object):
         # Polylines...InputSegments
         else:
             for seg in self.input_points.segments:
-                if seg.bad_segment:
+                if seg.bad_segment and len(seg.pre_vis_data) <= 2:
                     draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
-                elif len(seg.pre_vis_data) >= 2:
+                
+                if seg.bad_segment and len(seg.pre_vis_data) >= 2:
+                    draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
+                    draw3d_polyline(context, seg.pre_vis_data,  orange, 2, 'GL_LINE_STRIP' )
+                
+                elif (seg.bad_segment == False) and len(seg.pre_vis_data) >= 2:
                     draw3d_polyline(context, seg.pre_vis_data,  blue, 2, 'GL_LINE_STRIP' )
                 else:
                     draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
@@ -1907,6 +1921,8 @@ class InputSegment(object):
         self.pre_vis_data = []  #list of 3d points for previsualization
         self.bad_segment = False
         
+        self.geodesic = None
+        
     def other_point(self, ip):
         if ip not in self.input_points: return None
         return self.ip0 if ip == self.ip1 else self.ip1
@@ -1965,6 +1981,23 @@ class InputSegment(object):
 
         return (None, None)
 
+    
+    def pre_vis_geo(self, bme, bvh, mx):
+        
+        geo = GeoPath(bme, bvh, mx)
+        geo.seed = bme.faces[self.ip0.face_index]
+        geo.seed_loc = self.ip0.local_loc
+        geo.target = bme.faces[self.ip1.face_index]
+        geo.target_loc =  self.ip0.local_loc
+            
+        geo.calculate_walk()
+        
+        self.geodesic = geo
+        
+        if geo.found_target():
+            geo.gradient_descend()
+            self.pre_vis_data = [mx * v for v in geo.path]
+        
     def pre_vis_cut(self, bme, bvh, mx, imx):
         f0 = bme.faces[self.ip0.face_index]  #<<--- Current BMFace
         f1 = bme.faces[self.ip1.face_index] #<<--- Next BMFace
@@ -2001,7 +2034,7 @@ class InputSegment(object):
             epp = .0000000001
             use_limit = True
             attempts = 0
-            while epp < .0001 and not len(vs) and attempts <= 5:
+            while epp < .0001 and not len(vs) and attempts <= 5:  #TODO, attempts
                 attempts += 1
                 vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(
                     bme,

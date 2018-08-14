@@ -72,7 +72,7 @@ class Polytrim_UI_Tools():
         self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
         #self.context.area.header_text_set()
 
-    def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
+    def hover(self, select_radius = 12, snap_radius = 36): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man

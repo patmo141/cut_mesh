@@ -185,7 +185,9 @@ class GeoPath(object):
         
         
         geos, fixed, close, far = geodesic_walk(self.bme, self.seed, self.seed_loc, 
-                                                targets = [self.target], subset = None, max_iters = 100000,
+                                                targets = [self.target], 
+                                                subset = None, 
+                                                max_iters = 100000,
                                                 min_dist = None)
         
         path_elements, self.path  = gradient_descent(self.bme, geos, 
