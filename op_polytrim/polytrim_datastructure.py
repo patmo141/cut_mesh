@@ -1813,7 +1813,7 @@ class PolyLineKnife(object):
         # Polylines...InputSegments
         else:
             for seg in self.input_points.segments:
-                if seg.bad_segment:
+                if seg.is_bad:
                     draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
                 elif len(seg.pre_vis_data) >= 2:
                     draw3d_polyline(context, seg.pre_vis_data,  blue, 2, 'GL_LINE_STRIP' )
@@ -1899,15 +1899,18 @@ class InputSegment(object):
     Equivalent to an "edge" in a mesh connecting to verts
     '''
     def __init__(self, ip0, ip1):
-        self.input_points = [ip0, ip1]
+        
         self.ip0 = ip0
         self.ip1 = ip1
-        
-        ip0.link_segments.append(self)
-        ip1.link_segments.append(self)
-        
         self.pre_vis_data = []  #list of 3d points for previsualization
         self.bad_segment = False
+        ip0.link_segments.append(self)
+        ip1.link_segments.append(self)
+
+    def input_points(self): return [self.ip0, self.ip1]
+    def is_bad(self): return self.bad_segment
+    input_points = property(input_points)
+    is_bad = property(is_bad)
         
     def other_point(self, ip):
         if ip not in self.input_points: return None

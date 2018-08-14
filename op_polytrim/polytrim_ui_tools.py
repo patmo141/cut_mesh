@@ -162,10 +162,10 @@ class Polytrim_UI_Tools():
             if close_loc  == None:
                 distance_map[seg] = 10000000
                 continue
-            
+
             distance_map[seg] = close_d
-    
-        closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])    
+
+        closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])
 
         ## ?? And here
         a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
