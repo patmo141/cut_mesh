@@ -18,11 +18,6 @@ class Polytrim_UI:
     def start_ui(self, context):
         #self.drawing = Drawing.get_instance()
         #self.drawing.set_region(context.region, context.space_data.region_3d, bpy.context.window)
-        print("THIS IS HAPPENING")
-        print("THIS IS HAPPENING")
-        print("THIS IS HAPPENING")
-        print("THIS IS HAPPENING")
-        print("THIS IS HAPPENING")
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)
         self.mode_radius     = 0
@@ -30,10 +25,6 @@ class Polytrim_UI:
         self.is_navigating   = False
         self.sketch_curpos   = (0, 0)
         self.mouse = None
-
-        self.plm = PolyLineManager()
-        self.plm.add(PolyLineKnife(context,context.object))
-        self.input_net = self.plm.polylines[0]
 
         context.window.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main()

@@ -55,9 +55,6 @@ class Polytrim_UI_Tools():
             ''' takes sketch data and adds it into the datastructures '''
             if not isinstance(end_pnt, InputPoint): end_pnt = None
 
-            print("Start:",start_pnt)
-            print("End:",end_pnt)
-
             prev_pnt = None
             for ind in range(0, len(self.sketch) , 5):
                 if not prev_pnt:
@@ -80,7 +77,149 @@ class Polytrim_UI_Tools():
                 self.polyline.input_net.segments.append(seg)
                 seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
 
-   
+    class GrabHandler():
+        '''
+        UI tool for handling input point grabbing/moving made by user.
+        * Intermediary between polytrim_states and PolyLineKnife
+        '''
+        def __init__(self, network):
+            self.network = network
+            self.grab_point = None
+
+        def initiate_grab_point(self): self.grab_point = self.network.selected.duplicate()
+
+        def move_grab_point(self,context,mouse_loc):
+            '''
+            finds what is near 
+            '''
+            region = context.region
+            rv3d = context.region_data
+            # ray tracing
+            view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
+            loc, no, face_ind = ray_cast(self.network.source_ob, self.network.imx, ray_origin, ray_target, None)
+            if face_ind == -1: return
+
+            # check to see if the start_edge or end_edge points are selected
+            #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
+            if isinstance(self.network.selected, InputPoint) and self.network.selected.seed_geom != None:
+
+                #check the 3d mouse location vs non manifold verts
+                co3d, index, dist = self.network.kd.find(self.network.mx * loc)
+
+                #get the actual non man vert from original list
+                close_bmvert = self.network.bme.verts[self.network.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
+                close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
+                loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+
+                if len(close_eds) != 2: return
+
+                bm0 = close_eds[0].other_vert(close_bmvert)
+                bm1 = close_eds[1].other_vert(close_bmvert)
+
+                a0 = bm0.co
+                b   = close_bmvert.co
+                a1  = bm1.co
+
+                inter_0, d0 = intersect_point_line(loc, a0, b)
+                inter_1, d1 = intersect_point_line(loc, a1, b)
+
+                screen_0 = loc3d_reg2D(region, rv3d, self.network.mx * inter_0)
+                screen_1 = loc3d_reg2D(region, rv3d, self.network.mx * inter_1)
+                screen_v = loc3d_reg2D(region, rv3d, self.network.mx * b)
+
+                screen_d0 = (Vector((mouse_loc)) - screen_0).length
+                screen_d1 = (Vector((mouse_loc)) - screen_1).length
+                screen_dv = (Vector((mouse_loc)) - screen_v).length
+
+                if 0 < d0 <= 1 and screen_d0 < 60:
+                    ed, pt = close_eds[0], inter_0
+                elif 0 < d1 <= 1 and screen_d1 < 60:
+                    ed, pt = close_eds[1], inter_1
+                elif screen_dv < 60:
+                    if abs(d0) < abs(d1):
+                        ed, pt = close_eds[0], b
+                    else:
+                        ed, pt = close_eds[1], b
+                else:
+                    return
+
+                self.grab_point.set_values(self.network.mx * pt, pt, view_vector, ed.link_faces[0].index)
+                self.grab_point.seed_geom = ed
+            else:
+                self.grab_point.set_values(self.network.mx * loc, loc, view_vector, face_ind)
+
+        def grab_cancel(self):
+            '''
+            returns variables to their status before grab was initiated
+            '''
+            #we have not touched the oringal point!
+            self.grab_point = None
+            return
+
+        def finalize(self, context):
+            '''
+            sets new variables based on new location
+            '''
+            self.network.selected.world_loc = self.grab_point.world_loc
+            self.network.selected.local_loc = self.grab_point.local_loc
+            self.network.selected.view = self.grab_point.view
+            self.network.selected.seed_geom = self.grab_point.seed_geom
+            self.network.selected.face_index = self.grab_point.face_index
+
+            for seg in self.network.selected.segments:
+                seg.pre_vis_cut(self.network.bme, self.network.bvh, self.network.mx, self.network.imx)
+
+            self.grab_point = None
+
+            return
+
+    class MouseMove():
+        '''
+        UI tool for storing data depending on where mouse is located
+        * Intermediary between polytrim_states and PolyLineKnife
+        '''
+        def __init__(self, input_net):
+            self.mouse = None
+            self.input_net = input_net
+
+            self.hovered = self.Hovered()
+            self.near = self.Near()
+
+        def update(self, x, y):
+            self.set_loc(x,y)
+            view_vector, ray_origin, ray_target= get_view_ray_data(context, self.mouse)
+            loc, no, face_ind = ray_cast(self.network.source_ob, self.network.imx, ray_origin, ray_target, None)
+            self.hovered.set_ray_cast_data(loc,no,face_ind)
+
+        def set_loc(self, x, y): self.mouse = (x,y)
+
+        class Near():
+            ''' Data about what the mouse is near'''
+            def __init__(self, handler):
+                self.handler = handler
+
+        class Nearest():
+            ''' Data values that are closest to the mouse '''
+            def __init__(self, handler):
+                self.handler = handler
+                self.endpoint = self.nearest_endpoint()
+
+            def nearest_endpoint(self):
+                return None
+
+        class Hovered():
+            ''' Data about what the mouse is directly hovering over'''
+            def __init__(self, handler):
+                self.handler = handler
+                self.face_local_loc = None
+                self.face_normal = None
+                self.face_ind = None
+            
+            def set_ray_cast_data(self, local_loc, normal, face_ind):
+                self.face_local_loc = local_loc
+                self.face_normal = normal
+                self.face_ind = face_ind
+
     def click_add_point(self, network, context, mouse_loc):
         '''
         this will add a point into the trim line
@@ -96,7 +235,7 @@ class Polytrim_UI_Tools():
 
         if network.hovered[0] and 'NON_MAN' in network.hovered[0]:
             bmed, wrld_loc = network.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
-            ip1 = network.closest_endpoint(wrld_loc)
+            ip1 = self.closest_endpoint(wrld_loc)
             
             
             network.input_net.add(wrld_loc, network.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
@@ -109,7 +248,7 @@ class Polytrim_UI_Tools():
                 seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
         
         elif (network.hovered[0] == None) and (network.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            closest_endpoint = network.closest_endpoint(network.mx * loc)
+            closest_endpoint = self.closest_endpoint(network.mx * loc)
 
             network.input_net.add(network.mx * loc, loc, view_vector, face_ind)
             network.selected = network.input_net.points[-1]
@@ -185,22 +324,31 @@ class Polytrim_UI_Tools():
         #if network.ed_cross_map.is_used:
         #    network.make_cut()
 
+    def closest_endpoint(self, pt3d):
+        def dist3d(point):
+            return (point.world_loc - pt3d).length
+
+        endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint] 
+        if len(endpoints) == 0: return None
+
+        return min(endpoints, key = dist3d)
+
     def closest_endpoints(self, pt3d, n_points):
         #in our application, at most there will be 100 endpoints?
         #no need for accel structure here
         n_points = max(0, n_points)
-        
+
         endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint] #TODO self.endpoints?
-        
+
         if len(endpoints) == 0: return None
         n_points = min(n_points, len(endpoints))
-        
-        
+
+
         def dist3d(point):
             return (point.world_loc - pt3d).length
-        
+
         endpoints.sort(key = dist3d)
-        
+
         return endpoints[0:n_points+1]
 
     def ui_text_update(self):
@@ -250,7 +398,7 @@ class Polytrim_UI_Tools():
             self.hover_non_man()
             return
         if face_ind == -1: polyline.closest_ep = None
-        else: polyline.closest_ep = polyline.closest_endpoint(mx * loc)
+        else: polyline.closest_ep = self.closest_endpoint(mx * loc)
 
         #find length between vertex and mouse
         def dist(v):
@@ -396,4 +544,3 @@ class Polytrim_UI_Tools():
                     #    else:
                     #        polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
                     #        return
-                    

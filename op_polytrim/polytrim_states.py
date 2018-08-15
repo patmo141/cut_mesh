@@ -10,7 +10,7 @@ from bpy_extras import view3d_utils
 
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.blender import show_error_message
-from .polytrim_datastructure import PolyLineKnife
+from .polytrim_datastructure import PolyLineKnife, InputPoint
 
 
 class Polytrim_States():
@@ -99,12 +99,13 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return self.input_net.grab_initiate()
+        return (self.input_net.selected and isinstance(self.input_net.selected, InputPoint))
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
         self.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
-        self.input_net.grab_mouse_move(self.context, self.actions.mouse)
+        self.grabber.initiate_grab_point()
+        self.grabber.move_grab_point(self.context, self.actions.mouse)
 
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
@@ -115,8 +116,8 @@ class Polytrim_States():
         if self.actions.pressed('LEFTMOUSE'):
             #confirm location
             x,y = self.actions.mouse
-            self.input_net.grab_confirm(context)
-            
+            self.grabber.finalize(context)
+
             if self.input_net.selected not in self.input_net.input_net.points:
                 self.input_net.selected = -1
             if self.input_net.ed_cross_map.is_used:
@@ -126,7 +127,7 @@ class Polytrim_States():
 
         if self.actions.pressed('cancel'):
             #put it back!
-            self.input_net.grab_cancel()
+            self.grabber.grab_cancel()
             self.ui_text_update()
             return 'main'
 
@@ -134,7 +135,7 @@ class Polytrim_States():
             return
         if self.actions.mousemove_prev:
             #update the b_pt location
-            self.input_net.grab_mouse_move(context, self.actions.mouse)
+            self.grabber.move_grab_point(context, self.actions.mouse)
 
     ######################################################
     # sketch state

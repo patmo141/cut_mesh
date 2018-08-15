@@ -92,7 +92,6 @@ class PolyLineKnife(object): #NetworkCutter
         else:
             self.ui_type = ui_type
 
-        self.grab_point = None
         self.grab_undo_loc = None
         self.start_edge_undo = None
         self.end_edge_undo = None
@@ -109,17 +108,7 @@ class PolyLineKnife(object): #NetworkCutter
     has_points = property(has_points)
     num_points = property(num_points)
 
-    def closest_endpoint(self, pt3d):
-         
-        def dist3d(point):
-            return (point.world_loc - pt3d).length
-        
-        endpoints = [ip for ip in self.input_net.points if ip.is_endpoint] 
-        if len(endpoints) == 0: return None
-        
-        return min(endpoints, key = dist3d)
-
-
+### XXX: Puth these in their own class maybe?
     def interpolate_input_point_pair(self, p0, p1, factor):
         '''
         will return a linear interpolation of this point with other
@@ -145,16 +134,6 @@ class PolyLineKnife(object): #NetworkCutter
         new_pt.set_world_loc(self.mx * loc)
     
         return new_pt
-
-
-    def re_tesselate_segment(self, ip_start, ip_end, tesselation_mode = 'LINEAR', clamp_existings = True):
-        '''
-        High level function which allows re-tesselation of segments with various options
-        
-        Eg:  Linear, error_based, step_sized, CubicSpline
-        '''
-        
-        return None
 
     def linear_re_tesselate_segment(self, ip_start, ip_end, res):
         '''
@@ -226,205 +205,11 @@ class PolyLineKnife(object): #NetworkCutter
             self.input_net.points = self.input_net.points[0:ind_start] + new_points + self.input_net.points[ind_end:]
         
         self.selected = None   
+####
 
-    def grab_initiate(self):
-        '''
-        sets variables necessary for grabbing functionality
-        '''
-        if self.selected and isinstance(self.selected, InputPoint):
-            #print("Point:",self.selected))
-            #print("Grab Point:", self.grab_point)
-            
-            self.grab_point = self.selected.duplicate()
-            
-            return True
-        else:
-            return False
-
-    def grab_mouse_move(self,context,mouse_loc):
-        '''
-        sets variables depending on where cursor is moved
-        '''
-        region = context.region
-        rv3d = context.region_data
-        # ray tracing
-        view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
-        loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, None)
-        if face_ind == -1: return
-
-        # check to see if the start_edge or end_edge points are selected
-        #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
-        if isinstance(self.selected, InputPoint) and self.selected.seed_geom != None:
-
-            #check the 3d mouse location vs non manifold verts
-            co3d, index, dist = self.kd.find(self.mx * loc)
-
-            #get the actual non man vert from original list
-            close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
-            close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
-            loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-
-            if len(close_eds) != 2: return
-
-            bm0 = close_eds[0].other_vert(close_bmvert)
-            bm1 = close_eds[1].other_vert(close_bmvert)
-
-            a0 = bm0.co
-            b   = close_bmvert.co
-            a1  = bm1.co
-
-            inter_0, d0 = intersect_point_line(loc, a0, b)
-            inter_1, d1 = intersect_point_line(loc, a1, b)
-
-            screen_0 = loc3d_reg2D(region, rv3d, self.mx * inter_0)
-            screen_1 = loc3d_reg2D(region, rv3d, self.mx * inter_1)
-            screen_v = loc3d_reg2D(region, rv3d, self.mx * b)
-
-            screen_d0 = (Vector((mouse_loc)) - screen_0).length
-            screen_d1 = (Vector((mouse_loc)) - screen_1).length
-            screen_dv = (Vector((mouse_loc)) - screen_v).length
-
-            if 0 < d0 <= 1 and screen_d0 < 60:
-                ed, pt = close_eds[0], inter_0
-            elif 0 < d1 <= 1 and screen_d1 < 60:
-                ed, pt = close_eds[1], inter_1
-            elif screen_dv < 60:
-                if abs(d0) < abs(d1):
-                    ed, pt = close_eds[0], b
-                else:
-                    ed, pt = close_eds[1], b
-            else:
-                return
-
-            self.grab_point.set_values(self.mx * pt, pt, view_vector, ed.link_faces[0].index)
-            self.grab_point.seed_geom = ed
-        else:
-            self.grab_point.set_values(self.mx * loc, loc, view_vector, face_ind)
-
-    def grab_cancel(self):
-        '''
-        returns variables to their status before grab was initiated
-        '''
-        #we have not touched the oringal point!
-        self.grab_point = None
-        return
-
-    def grab_confirm(self, context):
-        '''
-        sets new variables based on new location
-        '''
-        
-        self.selected.world_loc = self.grab_point.world_loc
-        self.selected.local_loc = self.grab_point.local_loc
-        self.selected.view = self.grab_point.view
-        self.selected.seed_geom = self.grab_point.seed_geom
-        self.selected.face_index = self.grab_point.face_index
-        
-        
-        for seg in self.selected.segments:
-            seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-            
-        self.grab_point = None
-        
-        return
-
-    def snap_poly_line(self):
-        '''
-        only needed if processing an outside mesh
-        '''
-        locs = []
-        self.face_changes = []
-        self.face_groups = dict()
-
-
-        last_face_ind = None
-        for i, point in enumerate(self.input_net):
-            world_loc = point.world_loc
-            if bversion() < '002.077.000':
-                loc, no, ind, d = self.bvh.find(self.imx * world_loc)
-            else:
-                loc, no, ind, d = self.bvh.find_nearest(self.imx * world_loc)
-
-            self.input_net.get(i).set_face_ind(ind)
-            self.input_net.get(i).set_local_loc(loc)
-
-            if i == 0:
-                last_face_ind = ind
-                group = [i]
-                print('first face group index')
-                print((ind,group))
-
-            if ind != last_face_ind: #we have found a new face
-                self.face_changes.append(i-1)
-
-                if last_face_ind not in self.face_groups: #previous face has not been mapped before
-                    self.face_groups[last_face_ind] = group
-                    last_face_ind = ind
-                    group = [i]
-                else:
-                    print('group already in dictionary')
-                    exising_group = self.face_groups[last_face_ind]
-                    if 0 not in exising_group:
-                        print('LOOKS LIKE WE CLICKED SAME FACE MULTIPLE TIMES')
-                        print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                        #TODO....GENERATE SOME ERROR
-                        #TODO....REMOVE SELF INTERSECTIONS IN ORIGINAL PATH
-
-                    self.face_groups[last_face_ind] = group + exising_group #we have wrapped, add this group to the old
-
-            else:
-                if i != 0:
-                    group += [i]
-            #double check for the last point
-            if i == self.num_points - 1:  #
-                if ind != self.input_net.get(0).face_index:  #we didn't click on the same face we started on
-                    if self.cyclic:
-                        self.face_changes.append(i)
-
-                    if ind not in self.face_groups:
-                        print('final group not added to dictionary yet')
-                        print((ind, group))
-                        self.face_groups[ind] = group
-                    else:
-                        print('group already in dictionary')
-                        exising_group = self.face_groups[ind]
-                        if 0 not in exising_group:
-                            print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
-                            print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                        self.face_groups[ind] = group + exising_group
-                else:
-                    print('group already in dictionary')
-                    exising_group = self.face_groups[ind]
-                    if 0 not in exising_group:
-                        print('LOOKS LIKE WE CROSSED SAME FACE MULTIPLE TIMES')
-                        print('YOUR PROGRAMMER IS NOT SMART ENOUGH FOR THIS')
-                    self.face_groups[ind] = group + exising_group
-
-        #clean up face groups if necessary
-        #TODO, get smarter about not adding in these
-        if not self.cyclic:
-            if self.start_edge:
-                s_ind = self.start_edge.link_faces[0].index
-                if s_ind in self.face_groups:
-                    v_group = self.face_groups[s_ind]
-                    if len(v_group) == 1:
-                        print('remove first face from face groups')
-                        del self.face_groups[s_ind]
-                    elif len(v_group) > 1:
-                        print('remove first vert from first face group')
-                        v_group.pop(0)
-                        self.face_groups[s_ind] = v_group
-            if self.end_edge:
-                e_ind = self.end_edge.link_faces[0].index
-                if e_ind in self.face_groups:
-                    v_group = self.face_groups[e_ind]
-                    if len(v_group) == 1:
-                        print('remove last face from face groups')
-                        del self.face_groups[e_ind]
-                    elif len(v_group) > 1:
-                        print('remove last vert from last face group')
-                        v_group.pop()
-                        self.face_groups[e_ind] = v_group
+## UI
+  
+###
 
     ###########################
     #### cutting algorithm ####
@@ -1385,7 +1170,7 @@ class PolyLineKnife(object): #NetworkCutter
     #################
     #### drawing ####
 
-    def draw(self,context,mouse_loc):
+    def draw(self,context,mouse_loc, grabber):
         '''
         2d drawing
         '''
@@ -1424,9 +1209,9 @@ class PolyLineKnife(object): #NetworkCutter
 
 
         # Grab Location Dot and Lines XXX:This part is gross..
-        if self.grab_point:
+        if grabber.grab_point:
             # Dot
-            common_drawing.draw_3d_points(context,[self.grab_point.world_loc], 5, blue_opaque)
+            common_drawing.draw_3d_points(context,[grabber.grab_point.world_loc], 5, blue_opaque)
             # Lines
 
             point_orig = self.selected  #had to be selected to be grabbed
@@ -1434,7 +1219,7 @@ class PolyLineKnife(object): #NetworkCutter
 
             for pt_3d in other_locs:
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
-                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
+                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, grabber.grab_point.world_loc)
                 if other_loc and grab_loc:
                     common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         ## Hovered Point

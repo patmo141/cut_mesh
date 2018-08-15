@@ -53,7 +53,7 @@ class Polytrim_UI_Draw():
     def draw_postpixel(self):
         context = self.context
         if self.input_net:
-            self.input_net.draw(context, self.actions.mouse)
+            self.input_net.draw(context, self.actions.mouse, self.grabber)
         if self.sketcher.has_locs:
             common_drawing.draw_polyline_from_points(context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
 
