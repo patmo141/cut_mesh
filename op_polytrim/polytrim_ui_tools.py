@@ -58,19 +58,27 @@ class Polytrim_UI_Tools():
 
     def sketch_prepare2(self):
         ''' Prepares the points gathered from sketch for adding to PolyLineKnife '''
-        #sketch_3d = ray_cast_path(self.context, self.plm.current.source_ob, self.sketch)  #get world space locs
-        last_pnt = None
-        for pt in self.sketch[::5]:
-            view_vector, ray_origin, ray_target = get_view_ray_data(self.context, pt)
-            loc, no, face_ind =  ray_cast(self.plm.current.source_ob,self.plm.current.imx, ray_origin, ray_target, None)
-            if loc != None:
-                new_pnt = InputPoint(self.plm.current.mx * loc, loc, view_vector, face_ind)
-                self.plm.current.input_points.add(p=new_pnt)
-                if last_pnt:
-                    self.plm.current.input_points.segments.append(InputSegment(last_pnt,new_pnt))
-                last_pnt = new_pnt
-            
-        print(self.plm.current.num_points)
+        last_hovered_point = self.plm.current.hovered[1]
+        self.hover()
+        new_hovered_point = self.plm.current.hovered[1]
+        prev_point = None
+        for ind in range(0, len(self.sketch) , 5):
+            if not prev_point:
+                if self.plm.current.num_points == 1: new_point = self.plm.current.input_points.get(0)
+                else: new_point = last_hovered_point
+            else:
+                pt_screen_loc = self.sketch[ind]
+                view_vector, ray_origin, ray_target = get_view_ray_data(self.context, pt_screen_loc)
+                loc, no, face_ind =  ray_cast(self.plm.current.source_ob,self.plm.current.imx, ray_origin, ray_target, None)
+                if loc != None:
+                    new_point = InputPoint(self.plm.current.mx * loc, loc, view_vector, face_ind)
+                    self.plm.current.input_points.add(p=new_point)
+            if prev_point:
+                print(prev_point, new_point)
+                self.plm.current.input_points.segments.append(InputSegment(prev_point,new_point))
+            prev_point = new_point
+        if new_hovered_point != -1:
+            self.plm.current.input_points.segments.append(InputSegment(prev_point, new_hovered_point))
 
     def sketch_finish(self, sketch_3d):
         ''' Finalize sketching functionality by '''
@@ -156,22 +164,22 @@ class Polytrim_UI_Tools():
             print(pixel_dist)
             if closest_ip.is_endpoint:
                 polyline.snap_element = closest_ip
-                
+
                 print('This is the close loop scenario')
                 closest_endpoints = polyline.closest_endpoints(polyline.snap_element.world_loc, 2)
-                
+
                 print('these are the 2 closest endpoints, one should be snap element itself')
                 print(closest_endpoints)
                 if closest_endpoints == None:
                     #we are not quite hovered but in snap territory
                     return
-                
+
                 if len(closest_endpoints) != 2:
                     print('len of closest endpoints not 2')
                     return
-                
+
                 polyline.connect_element = closest_endpoints[1]
-                
+
             return
 
 
@@ -191,20 +199,19 @@ class Polytrim_UI_Tools():
 
             distance_map[seg] = close_d
 
-        closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])
+        if polyline.input_points.segments:
+            closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])
 
-        ## ?? And here
-        a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
-        b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
 
-        ## ?? and here, obviously, its stopping and setting hovered to EDGE, but how?
-        if a and b:  #if points are not on the screen, a or b will be None
-            intersect = intersect_point_line(Vector(mouse).to_3d(), a.to_3d(),b.to_3d())
-            dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
-            bound = intersect[1]
-            if (dist < select_radius**2) and (bound < 1) and (bound > 0):
-                polyline.hovered = ['EDGE', closest_seg]
-                return
+            if a and b:  #if points are not on the screen, a or b will be None
+                intersect = intersect_point_line(Vector(mouse).to_3d(), a.to_3d(),b.to_3d())
+                dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
+                bound = intersect[1]
+                if (dist < select_radius**2) and (bound < 1) and (bound > 0):
+                    polyline.hovered = ['EDGE', closest_seg]
+                    return
 
         ## Multiple points, but not hovering over edge or point.
         polyline.hovered = [None, -1]
