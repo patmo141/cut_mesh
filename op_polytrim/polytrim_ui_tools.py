@@ -14,12 +14,12 @@ from mathutils.geometry import intersect_point_line
 
 class Polytrim_UI_Tools():
     '''
-    Functions helpful with user interactions in polytrim
+    Functions/classes helpful with user interactions in polytrim
     '''
 
     class SketchHandler():
         '''
-        Handles sketches made by user.
+        UI tool for handling sketches made by user.
         * Intermediary between polytrim_states and PolyLineKnife
         '''
         def __init__(self, polyline):
@@ -61,7 +61,7 @@ class Polytrim_UI_Tools():
             prev_pnt = None
             for ind in range(0, len(self.sketch) , 5):
                 if not prev_pnt:
-                    if self.polyline.num_points == 1: new_pnt = self.polyline.input_points.get(0)
+                    if self.polyline.num_points == 1: new_pnt = self.polyline.input_net.get(0)
                     else: new_pnt = start_pnt
                 else:
                     pt_screen_loc = self.sketch[ind]
@@ -69,28 +69,151 @@ class Polytrim_UI_Tools():
                     loc, no, face_ind =  ray_cast(self.polyline.source_ob,self.polyline.imx, ray_origin, ray_target, None)
                     if face_ind != -1:
                         new_pnt = InputPoint(self.polyline.mx * loc, loc, view_vector, face_ind)
-                        self.polyline.input_points.add(p=new_pnt)
+                        self.polyline.input_net.add(p=new_pnt)
                 if prev_pnt:
                     seg = InputSegment(prev_pnt,new_pnt)
-                    self.polyline.input_points.segments.append(seg)
+                    self.polyline.input_net.segments.append(seg)
                     seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
                 prev_pnt = new_pnt
             if end_pnt:
                 seg = InputSegment(prev_pnt,end_pnt)
-                self.polyline.input_points.segments.append(seg)
+                self.polyline.input_net.segments.append(seg)
                 seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
+
+   
+    def click_add_point(self, network, context, mouse_loc):
+        '''
+        this will add a point into the trim line
+        close the curve into a cyclic curve
+        
+        #Need to get smarter about closing the loop
+        '''
+        def none_selected(): network.selected = None # TODO: Change this weird function in function shizz
+        
+        view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
+        loc, no, face_ind = ray_cast(network.source_ob, network.imx, ray_origin, ray_target, none_selected)
+        if loc == None: return
+
+        if network.hovered[0] and 'NON_MAN' in network.hovered[0]:
+            bmed, wrld_loc = network.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
+            ip1 = network.closest_endpoint(wrld_loc)
+            
+            
+            network.input_net.add(wrld_loc, network.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
+            network.selected = network.input_net.points[-1]
+            network.selected.seed_geom = bmed
+
+            if ip1:
+                seg = InputSegment(network.selected, ip1)
+                network.input_net.segments.append(seg)
+                seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+        
+        elif (network.hovered[0] == None) and (network.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            closest_endpoint = network.closest_endpoint(network.mx * loc)
+
+            network.input_net.add(network.mx * loc, loc, view_vector, face_ind)
+            network.selected = network.input_net.points[-1]
+
+            if closest_endpoint:
+                seg = InputSegment(closest_endpoint, network.selected)
+                network.input_net.segments.append(seg)
+                seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+
+        elif network.hovered[0] == None and network.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            
+            print('This is the close loop scenario')
+            closest_endpoints = self.closest_endpoints(network.snap_element.world_loc, 2)
+            
+            print('these are the 2 closest endpoints, one should be snap element itself')
+            print(closest_endpoints)
+            if closest_endpoints == None:
+                #we are not quite hovered but in snap territory
+                return
+            
+            if len(closest_endpoints) != 2:
+                print('len of closest endpoints not 2')
+                return
+            
+            
+            seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
+            network.input_net.segments.append(seg)
+            seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+            
+        elif network.hovered[0] == 'POINT':
+            network.selected = network.hovered[1]
+
+        elif network.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
+            
+            #this looks like a TOOLs kind of operation
+            point = InputPoint(network.mx * loc, loc, view_vector, face_ind)
+            old_seg = network.hovered[1]
+            new_seg0, new_seg1 = old_seg.insert_point(point)
+            new_seg0.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+            new_seg1.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+            network.input_net.segments += [new_seg0, new_seg1]
+            network.input_net.points.append(point)
+            network.input_net.segments.remove(old_seg)
+            network.selected = point
+
+    def click_delete_point(self, network, mode = 'mouse'):
+        '''
+        removes point from the trim line
+        '''
+        if mode == 'mouse':
+            if network.hovered[0] != 'POINT': 
+                print('hovered is not a point')
+                print(network.hovered[0])
+                return
+
+            network.input_net.remove(network.hovered[1])
+
+            if not network.hovered[1].is_endpoint:
+                last_seg1, last_seg2 = network.hovered[1].segments
+                ip1 = last_seg1.other_point(network.hovered[1])
+                ip2 = last_seg2.other_point(network.hovered[1])
+                new_seg = InputSegment(ip1, ip2)
+                network.input_net.segments.append(new_seg)
+                new_seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+
+            if network.input_net.is_empty or network.selected == network.hovered[1]:
+                network.selected = None
+
+        else: #hard delete with x key
+            if not network.selected: return
+            network.input_net.remove(network.selected, disconnect= True)
+
+        #if network.ed_cross_map.is_used:
+        #    network.make_cut()
+
+    def closest_endpoints(self, pt3d, n_points):
+        #in our application, at most there will be 100 endpoints?
+        #no need for accel structure here
+        n_points = max(0, n_points)
+        
+        endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint] #TODO self.endpoints?
+        
+        if len(endpoints) == 0: return None
+        n_points = min(n_points, len(endpoints))
+        
+        
+        def dist3d(point):
+            return (point.world_loc - pt3d).length
+        
+        endpoints.sort(key = dist3d)
+        
+        return endpoints[0:n_points+1]
 
     def ui_text_update(self):
         '''
         updates the text at the bottom of the viewport depending on certain conditions
         '''
         context = self.context
-        if self.plm.current.bad_segments:
+        if self.input_net.bad_segments:
             context.area.header_text_set("Fix Bad segments by moving control points.")
-        elif self.plm.current.ed_cross_map.is_used:
+        elif self.input_net.ed_cross_map.is_used:
             context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
-        elif self.plm.current.hovered[0] == 'POINT':
-            if self.plm.current.hovered[1] == 0:
+        elif self.input_net.hovered[0] == 'POINT':
+            if self.input_net.hovered[1] == 0:
                 context.area.header_text_set("For origin point, left click to toggle cyclic")
             else:
                 context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
@@ -109,7 +232,7 @@ class Polytrim_UI_Tools():
         '''
 
         # TODO: update self.hover to use Accel2D?
-        polyline = self.plm.current
+        polyline = self.input_net
         mouse = self.actions.mouse
         context = self.context
 
@@ -122,7 +245,7 @@ class Polytrim_UI_Tools():
         polyline.snap_element = None
         polyline.connect_element = None
         
-        if polyline.input_points.is_empty:
+        if polyline.input_net.is_empty:
             polyline.hovered = [None, -1]
             self.hover_non_man()
             return
@@ -144,8 +267,8 @@ class Polytrim_UI_Tools():
             delt = v3 - polyline.source_ob.matrix_world * loc
             return delt.length
 
-        #closest_3d_loc = min(polyline.input_points.world_locs, key = dist3d)
-        closest_ip = min(polyline.input_points, key = lambda x: dist3d(x.world_loc))
+        #closest_3d_loc = min(polyline.input_net.world_locs, key = dist3d)
+        closest_ip = min(polyline.input_net, key = lambda x: dist3d(x.world_loc))
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
@@ -162,7 +285,7 @@ class Polytrim_UI_Tools():
                 polyline.snap_element = closest_ip
 
                 print('This is the close loop scenario')
-                closest_endpoints = polyline.closest_endpoints(polyline.snap_element.world_loc, 2)
+                closest_endpoints = self.closest_endpoints(polyline.snap_element.world_loc, 2)
 
                 print('these are the 2 closest endpoints, one should be snap element itself')
                 print(closest_endpoints)
@@ -186,7 +309,7 @@ class Polytrim_UI_Tools():
 
         ##Check distance between ray_cast point, and segments
         distance_map = {}
-        for seg in polyline.input_points.segments:  #TODO, may need to decide some better naming and better heirarchy
+        for seg in polyline.input_net.segments:  #TODO, may need to decide some better naming and better heirarchy
 
             close_loc, close_d = seg.closes_point_3d_linear(polyline.source_ob.matrix_world * loc)
             if close_loc  == None:
@@ -195,8 +318,8 @@ class Polytrim_UI_Tools():
 
             distance_map[seg] = close_d
 
-        if polyline.input_points.segments:
-            closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])
+        if polyline.input_net.segments:
+            closest_seg = min(polyline.input_net.segments, key = lambda x: distance_map[x])
 
             a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
@@ -218,7 +341,7 @@ class Polytrim_UI_Tools():
         '''
         finds nonman edges and verts nearby to cursor location
         '''
-        polyline = self.plm.current
+        polyline = self.input_net
         mouse = self.actions.mouse
         context = self.context
 
@@ -273,89 +396,4 @@ class Polytrim_UI_Tools():
                     #    else:
                     #        polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
                     #        return
-
-class PolyLineManager(object):
-    '''
-    Manages having multiple instances of PolyLineKnife on an object at once.
-    Might not need this so much anymore
-    Or perhaps we should use this to manage insertions, strokes etc since InputPointsMap seems to handle things
-    
-    '''
-    def __init__(self):
-        self.polylines = []
-        self.vert_screen_locs = {}
-        self.hovered = None
-        self.current = None
-        self.previous = None
-        self.mode = 'wait' # 'wait'  : mode for editing a single polyline's datastructure
-                           # 'select': mode for selecting, adding, and deleting polylines
-
-    def num_polylines(self): return len(self.polylines)
-    num_polylines = property(num_polylines)
-
-    ######################
-    ## user interaction ##
-
-    def initiate_select_mode(self, context):
-        self.mode = 'select'
-        self.previous = self.current
-        self.current = None
-        self.update_screen_locs(context)
-
-    def hover(self, context, coord):
-        for polyline in self.vert_screen_locs:
-            for loc in self.vert_screen_locs[polyline]:
-                if self.dist(loc, coord) < 20:
-                    self.hovered = polyline
-                    return
-        self.hovered = None
-
-    def select(self, context):
-        self.mode = 'wait'
-        self.current = self.hovered
-        self.hovered = None
-
-    def delete(self, context):
-        if self.previous == self.hovered: self.previous = self.polylines[self.polylines.index(self.hovered) - 1]
-        self.polylines.remove(self.hovered)
-        self.hovered = None
-        self.update_screen_locs(context)
-
-    def start_new_polyline(self, context):
-        self.mode = 'wait'
-        self.hovered = None
-        self.previous = None
-        self.current = PolyLineKnife(context, context.object)
-        self.add(self.current)
-
-    def terminate_select_mode(self):
-        self.mode = 'wait'
-        self.hovered = None
-        self.current = self.previous
-
-    ###########
-    ## other ##
-
-    def add(self, polyline):
-        ''' add a polyline to the plm's polyline list '''
-        self.polylines.append(polyline)
-
-    def update_screen_locs(self, context):
-        ''' fills dictionary: keys -> polylines, values -> vertex screen locations '''
-        self.vert_screen_locs = {}
-        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-        for polyline in self.polylines:
-            self.vert_screen_locs[polyline] = []
-            for loc in polyline.input_points.world_locs:
-                loc2d = loc3d_reg2D(context.region, context.space_data.region_3d, loc)
-                self.vert_screen_locs[polyline].append(loc2d)
-
-    def dist(self, v, screen_loc):
-        ''' finds screen distance between mouse location and specified point '''
-        if v == None:
-            print('v off screen')
-            return 100000000
-        diff = v - Vector(screen_loc)
-        return diff.length
-
-
+                    

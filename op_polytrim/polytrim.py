@@ -14,7 +14,6 @@ from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
 from .polytrim_datastructure import PolyLineKnife
-from .polytrim_ui_tools      import PolyLineManager
 
 
 #ModalOperator
@@ -38,7 +37,6 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'grab': 'G',
         'delete': {'RIGHTMOUSE'},
-        'toggle selection': 'A',
         'preview cut': 'C',
         'up': 'UP_ARROW',
         'down': 'DOWN_ARROW'
@@ -75,11 +73,9 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
         self.action_center   = (0, 0)
         self.is_navigating   = False
 
-        self.plm = PolyLineManager()
-        self.plm.add(PolyLineKnife(self.context, self.context.object))
-        self.plm.current = self.plm.polylines[0]
+        self.input_net = PolyLineKnife(self.context, self.context.object)
 
-        self.sketcher = self.SketchHandler(self.plm.current)
+        self.sketcher = self.SketchHandler(self.input_net)
 
         self.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main()

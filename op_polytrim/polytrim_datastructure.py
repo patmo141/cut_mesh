@@ -33,6 +33,13 @@ from ..common.utils import get_matrices
 from ..common.bezier import CubicBezier, CubicBezierSpline
 from ..common.shaders import circleShader
 
+class NetworkCutter(object):
+    ''' Manages cuts in the InputNetwork '''
+
+    def __init__(self):
+        self.cut = False
+
+
 class PolyLineKnife(object): #NetworkCutter
     '''
     A class which manages user placed points on an object to create a
@@ -46,7 +53,7 @@ class PolyLineKnife(object): #NetworkCutter
         self.bvh = BVHTree.FromBMesh(self.bme)  #Network ??
         self.mx, self.imx = get_matrices(self.source_ob)    #Network
 
-        self.input_points = InputNetwork() # is network
+        self.input_net = InputNetwork() # is network
 
         self.cyclic = False #R
         self.selected = -1  #UI
@@ -97,113 +104,17 @@ class PolyLineKnife(object): #NetworkCutter
         self.inner_faces = []
         self.face_seed = None
 
-    def has_points(self): return self.input_points.num_points > 0
-    def num_points(self): return self.input_points.num_points
+    def has_points(self): return self.input_net.num_points > 0
+    def num_points(self): return self.input_net.num_points
     has_points = property(has_points)
     num_points = property(num_points)
 
-    def toggle_cyclic(self): self.cyclic = self.cyclic == False
-
-    def click_add_point(self,context,mouse_loc):
-        '''
-        this will add a point into the trim line
-        close the curve into a cyclic curve
-        
-        #Need to get smarter about closing the loop
-        '''
-        def none_selected(): self.selected = None # use in self.ray_cast()
-        
-        view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
-        loc, no, face_ind = ray_cast(self.source_ob, self.imx, ray_origin, ray_target, none_selected)
-        if loc == None: return
-
-        if self.hovered[0] and 'NON_MAN' in self.hovered[0]:
-            
-            
-            bmed, wrld_loc = self.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
-            ip1 = self.closest_endpoint(wrld_loc)
-            
-            
-            self.input_points.add(wrld_loc, self.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
-            self.selected = self.input_points.points[-1]
-            self.selected.seed_geom = bmed
-
-            if ip1:
-                seg = InputSegment(self.selected, ip1)
-                self.input_points.segments.append(seg)
-                seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-        
-        elif (self.hovered[0] == None) and (self.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            closest_endpoint = self.closest_endpoint(self.mx * loc)
-
-            self.input_points.add(self.mx * loc, loc, view_vector, face_ind)
-            self.selected = self.input_points.points[-1]
-
-            if closest_endpoint:
-                seg = InputSegment(closest_endpoint, self.selected)
-                self.input_points.segments.append(seg)
-                seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-
-        elif self.hovered[0] == None and self.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            
-            print('This is the close loop scenario')
-            closest_endpoints = self.closest_endpoints(self.snap_element.world_loc, 2)
-            
-            print('these are the 2 closest endpoints, one should be snap element itself')
-            print(closest_endpoints)
-            if closest_endpoints == None:
-                #we are not quite hovered but in snap territory
-                return
-            
-            if len(closest_endpoints) != 2:
-                print('len of closest endpoints not 2')
-                return
-            
-            
-            seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
-            self.input_points.segments.append(seg)
-            seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-            
-        elif self.hovered[0] == 'POINT':
-            self.selected = self.hovered[1]
-
-        elif self.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
-            
-            #this looks like a TOOLs kind of operation
-            point = InputPoint(self.mx * loc, loc, view_vector, face_ind)
-            old_seg = self.hovered[1]
-            new_seg0, new_seg1 = old_seg.insert_point(point)
-            new_seg0.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-            new_seg1.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-            self.input_points.segments += [new_seg0, new_seg1]
-            self.input_points.points.append(point)
-            self.input_points.segments.remove(old_seg)
-            self.selected = point
-
-    def closest_endpoints(self, pt3d, n_points):
-        #in our application, at most there will be 100 endpoints?
-        #no need for accel structure here
-        n_points = max(0, n_points)
-        
-        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint] #TODO self.endpoints?
-        
-        if len(endpoints) == 0: return None
-        n_points = min(n_points, len(endpoints))
-        
-        
-        def dist3d(point):
-            return (point.world_loc - pt3d).length
-        
-        endpoints.sort(key = dist3d)
-        
-        return endpoints[0:n_points+1]
-    
     def closest_endpoint(self, pt3d):
          
         def dist3d(point):
             return (point.world_loc - pt3d).length
         
-        endpoints = [ip for ip in self.input_points.points if ip.is_endpoint] 
+        endpoints = [ip for ip in self.input_net.points if ip.is_endpoint] 
         if len(endpoints) == 0: return None
         
         return min(endpoints, key = dist3d)
@@ -269,24 +180,24 @@ class PolyLineKnife(object): #NetworkCutter
         re_teseselate(ip5, ip2) will not be same as re_tesslate(ip2, ip5)
         
         '''
-        assert ip_start in self.input_points.points
-        assert ip_end in self.input_points.points
+        assert ip_start in self.input_net.points
+        assert ip_end in self.input_net.points
         
-        ind_start = self.input_points.points.index(ip_start)
-        ind_end = self.input_points.points.index(ip_end)
+        ind_start = self.input_net.points.index(ip_start)
+        ind_end = self.input_net.points.index(ip_end)
         
         print('Am I considered cyclic yet?')
         print(self.cyclic)
         print(ind_start, ind_end)
         
         if ind_start > ind_end and self.cyclic:
-            points = self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
+            points = self.input_net.points[ind_start:] + self.input_net.points[:ind_end]
             
         elif ind_start > ind_end and not self.cyclic:
             ind_start, ind_end = ind_end, ind_start
-            points = self.input_points.points[ind_start:ind_end+1]  #need to get the last point
+            points = self.input_net.points[ind_start:ind_end+1]  #need to get the last point
         else:
-            points = self.input_points.points[ind_start:ind_end+1]  #need to get the last point
+            points = self.input_net.points[ind_start:ind_end+1]  #need to get the last point
         
         
         new_points = []
@@ -305,47 +216,16 @@ class PolyLineKnife(object): #NetworkCutter
         
         
         if ind_start > ind_end and self.cyclic:  #crosses over the "start" of the cyclic
-            self.input_points.points = new_points + self.input_points.points[ind_end:ind_start]  #self.input_points.points[ind_start:] + self.input_points.points[:ind_end]
+            self.input_net.points = new_points + self.input_net.points[ind_end:ind_start]  #self.input_net.points[ind_start:] + self.input_net.points[:ind_end]
         
         elif ind_start < ind_end and self.cyclic:
             
-            self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
+            self.input_net.points = self.input_net.points[0:ind_start] + new_points + self.input_net.points[ind_end:]
                 
         else:
-            self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
+            self.input_net.points = self.input_net.points[0:ind_start] + new_points + self.input_net.points[ind_end:]
         
         self.selected = None   
-
-
-    def click_delete_point(self, mode = 'mouse'):
-        '''
-        removes point from the trim line
-        '''
-        if mode == 'mouse':
-            if self.hovered[0] != 'POINT': 
-                print('hovered is not a point')
-                print(self.hovered[0])
-                return
-
-            self.input_points.remove(self.hovered[1])
-
-            if not self.hovered[1].is_endpoint:
-                last_seg1, last_seg2 = self.hovered[1].link_segments
-                ip1 = last_seg1.other_point(self.hovered[1])
-                ip2 = last_seg2.other_point(self.hovered[1])
-                new_seg = InputSegment(ip1, ip2)
-                self.input_points.segments.append(new_seg)
-                new_seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
-
-            if self.input_points.is_empty or self.selected == self.hovered[1]:
-                self.selected = None
-
-        else: #hard delete with x key
-            if not self.selected: return
-            self.input_points.remove(self.selected, disconnect= True)
-
-        #if self.ed_cross_map.is_used:
-        #    self.make_cut()
 
     def grab_initiate(self):
         '''
@@ -441,7 +321,7 @@ class PolyLineKnife(object): #NetworkCutter
         self.selected.face_index = self.grab_point.face_index
         
         
-        for seg in self.selected.link_segments:
+        for seg in self.selected.segments:
             seg.pre_vis_cut(self.bme, self.bvh, self.mx, self.imx)
             
         self.grab_point = None
@@ -458,15 +338,15 @@ class PolyLineKnife(object): #NetworkCutter
 
 
         last_face_ind = None
-        for i, point in enumerate(self.input_points):
+        for i, point in enumerate(self.input_net):
             world_loc = point.world_loc
             if bversion() < '002.077.000':
                 loc, no, ind, d = self.bvh.find(self.imx * world_loc)
             else:
                 loc, no, ind, d = self.bvh.find_nearest(self.imx * world_loc)
 
-            self.input_points.get(i).set_face_ind(ind)
-            self.input_points.get(i).set_local_loc(loc)
+            self.input_net.get(i).set_face_ind(ind)
+            self.input_net.get(i).set_local_loc(loc)
 
             if i == 0:
                 last_face_ind = ind
@@ -497,7 +377,7 @@ class PolyLineKnife(object): #NetworkCutter
                     group += [i]
             #double check for the last point
             if i == self.num_points - 1:  #
-                if ind != self.input_points.get(0).face_index:  #we didn't click on the same face we started on
+                if ind != self.input_net.get(0).face_index:  #we didn't click on the same face we started on
                     if self.cyclic:
                         self.face_changes.append(i)
 
@@ -564,13 +444,13 @@ class PolyLineKnife(object): #NetworkCutter
 
         # iteration for each input point that changes a face
         for m, ind in enumerate(self.face_changes):
-            pnt = self.input_points.points[ind]
+            pnt = self.input_net.points[ind]
             nxt_ind = (ind + 1) % self.num_points
-            nxt_pnt = self.input_points.points[nxt_ind]
+            nxt_pnt = self.input_net.points[nxt_ind]
             ind_p1 = nxt_pnt.face_index #the face in the cut object which the next cut point falls upon
 
             if m == 0 and not self.cyclic:
-                self.ed_cross_map.add(self.start_edge, self.input_points.points[0].local_loc)
+                self.ed_cross_map.add(self.start_edge, self.input_net.points[0].local_loc)
 
             if nxt_ind == 0 and not self.cyclic:
                 print('not cyclic, we are done here')
@@ -603,7 +483,7 @@ class PolyLineKnife(object): #NetworkCutter
             #if no shared edge, need to cut across to the next face
             if not cross_ed:
                 if self.face_changes.index(ind) != 0:
-                    p_face = self.bme.faces[self.input_points.points[ind-1].face_index]  #previous face to try and be smart about the direction we are going to walk
+                    p_face = self.bme.faces[self.input_net.points[ind-1].face_index]  #previous face to try and be smart about the direction we are going to walk
                 else:
                     p_face = None
 
@@ -689,7 +569,7 @@ class PolyLineKnife(object): #NetworkCutter
                     ):
 
                     print('end to the non manifold edge while walking multiple faces')
-                    self.ed_cross_map.add(self.end_edge, self.input_points.points[-1].local_loc)
+                    self.ed_cross_map.add(self.end_edge, self.input_net.points[-1].local_loc)
                     self.new_ed_face_map[self.ed_cross_map.count-2] = f1.index
 
                 continue
@@ -724,7 +604,7 @@ class PolyLineKnife(object): #NetworkCutter
         last_face_ind = None
 
         # Loop through each input point
-        for i, pnt in enumerate(self.input_points):
+        for i, pnt in enumerate(self.input_net):
             v = pnt.world_loc
             # if loop is on first input point
             if i == 0:
@@ -759,7 +639,7 @@ class PolyLineKnife(object): #NetworkCutter
                     group += [i]
             #double check for the last point
             if i == self.num_points - 1:  #
-                if pnt.face_index != self.input_points.points[0].face_index:  #we didn't click on the same face we started on
+                if pnt.face_index != self.input_net.points[0].face_index:  #we didn't click on the same face we started on
                     if self.cyclic:
                         self.face_changes.append(i)
 
@@ -923,7 +803,7 @@ class PolyLineKnife(object): #NetworkCutter
                         print('there are %i user drawn poly points on the face' % len(vert_inds))
 
                     bisect_eds += [edge]
-                    bisect_pts += [self.input_points.points[vert_inds[0]].local_loc]  #TODO, this only allows for a single point per face
+                    bisect_pts += [self.input_net.points[vert_inds[0]].local_loc]  #TODO, this only allows for a single point per face
 
                     #geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
                     #new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
@@ -1068,7 +948,7 @@ class PolyLineKnife(object): #NetworkCutter
 
 
                 #make the new verts corresponding to the user click on bmface
-                inner_vert_cos = [self.input_points.points[i].local_loc for i in self.face_groups[bmface.index]]
+                inner_vert_cos = [self.input_net.points[i].local_loc for i in self.face_groups[bmface.index]]
                 inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
 
                 if ed_list.index(ed0) != 0:
@@ -1115,7 +995,7 @@ class PolyLineKnife(object): #NetworkCutter
                 ed0 = eds_crossed[0]
 
                 #make the new verts corresponding to the user click on bmface
-                inner_vert_cos = [self.input_points.points[i].local_loc for i in self.face_groups[bmface.index]]
+                inner_vert_cos = [self.input_net.points[i].local_loc for i in self.face_groups[bmface.index]]
                 inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
 
                 #A new face made entirely out of new verts
@@ -1468,7 +1348,7 @@ class PolyLineKnife(object): #NetworkCutter
         cut_me = bpy.data.meshes.new('polyknife_stroke')
         cut_ob = bpy.data.objects.new('polyknife_stroke', cut_me)
 
-        bmvs = [cut_bme.verts.new(pnt.local_loc) for pnt in self.input_points]
+        bmvs = [cut_bme.verts.new(pnt.local_loc) for pnt in self.input_net]
         for v0, v1 in zip(bmvs[:-1], bmvs[1:]):
             cut_bme.edges.new((v0,v1))
 
@@ -1527,7 +1407,7 @@ class PolyLineKnife(object): #NetworkCutter
             ed, pt = self.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, green)
 
-        if  self.input_points.is_empty: return
+        if  self.input_net.is_empty: return
         # Bad Segments
         #TODO - This section is very confusing and hard to wrap the mind around. making it more intuitive would be very helpful
         for bad_ind in self.bad_segments:
@@ -1535,8 +1415,8 @@ class PolyLineKnife(object): #NetworkCutter
             next_face_chng_ind = (face_chng_ind + 1) % len(self.face_changes)
             bad_ind_2 = self.face_changes[next_face_chng_ind]
             if bad_ind_2 == 0 and not self.cyclic: bad_ind_2 = self.num_points - 1 # If the bad index 2 is 0 this is an error and needs to be changed to the last point's index
-            print("HEY:", self.input_points.get(bad_ind).world_loc, self.input_points.get(bad_ind_2).world_loc)
-            common_drawing.draw_polyline_from_3dpoints(context, [self.input_points.get(bad_ind).world_loc, self.input_points.get(bad_ind_2).world_loc], red, 4, 'GL_LINE')
+            print("HEY:", self.input_net.get(bad_ind).world_loc, self.input_net.get(bad_ind_2).world_loc)
+            common_drawing.draw_polyline_from_3dpoints(context, [self.input_net.get(bad_ind).world_loc, self.input_net.get(bad_ind_2).world_loc], red, 4, 'GL_LINE')
 
         ## Selected Point
         if self.selected and isinstance(self.selected, InputPoint):
@@ -1550,7 +1430,7 @@ class PolyLineKnife(object): #NetworkCutter
             # Lines
 
             point_orig = self.selected  #had to be selected to be grabbed
-            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
+            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.segments]
 
             for pt_3d in other_locs:
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
@@ -1584,27 +1464,13 @@ class PolyLineKnife(object): #NetworkCutter
             vs = self.face_seed.verts
             common_drawing.draw_3d_points(context,[self.source_ob.matrix_world * v.co for v in vs], 4, yellow)
 
-    def draw3d(self,context,special=None):
+    def draw3d(self,context):
         '''
         3d drawing
          * ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
         '''
         
-        if self.input_points.is_empty: return
-
-        # when polyline select mode is enabled..
-        if special:
-            if special == "lite": color = (1,1,1,.5)
-            elif special == "extra-lite": color = (1,1,1,.2)
-            elif special == "green": color = (.3,1,.3,1)
-
-            #common_drawing.draw3d_points(context, self.input_points.world_locs, color, 2)
-            if self.cyclic:
-                common_drawing.draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]], color, 2,"GL_LINE_STRIP")
-            else:
-                common_drawing.draw3d_polyline(context, self.input_points.world_locs, color, 2,"GL_LINE_STRIP")
-
-            return
+        if self.input_net.is_empty: return
 
         blue = (.1,.1,.8,1)
         blue2 = (.1,.2,1,.8)
@@ -1677,7 +1543,7 @@ class PolyLineKnife(object): #NetworkCutter
         
         # Polylines...InputSegments
         else:
-            for seg in self.input_points.segments:
+            for seg in self.input_net.segments:
                 if seg.is_bad:
                     draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
                 elif len(seg.pre_vis_data) >= 2:
@@ -1686,11 +1552,11 @@ class PolyLineKnife(object): #NetworkCutter
                     draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
      
             #if self.cyclic:
-            #    draw3d_polyline(context, self.input_points.world_locs + [self.input_points.world_locs[0]],  blue2, 2, 'GL_LINE_STRIP' )
+            #    draw3d_polyline(context, self.input_net.world_locs + [self.input_net.world_locs[0]],  blue2, 2, 'GL_LINE_STRIP' )
             #else:
-            #    draw3d_polyline(context, self.input_points.world_locs ,  blue2, 2, 'GL_LINE' )
+            #    draw3d_polyline(context, self.input_net.world_locs ,  blue2, 2, 'GL_LINE' )
         #Points
-        draw3d_points(context, self.input_points.world_locs, blue, 6)
+        draw3d_points(context, self.input_net.world_locs, blue, 6)
 
         bgl.glLineWidth(1)     
                 
@@ -1710,37 +1576,29 @@ class InputPoint(object):  # NetworkNode
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
-        self.link_segments = []
+        self.segments = [] #linked segments
 
-        #SETTING UP FOR MORE COMPLEX MESH CUTTING
+        #SETTING UP FOR MORE COMPLEX MESH CUTTING    ## SHould this exist in InputPoint??
         self.seed_geom = seed_geom #UNUSED, but will be needed if input point exists on an EDGE or VERT in the source mesh
 
     def is_endpoint(self):
-        if self.seed_geom and len(self.link_segments) > 0: return False  #TODO, better system to delinate edge of mesh
-        if len(self.link_segments) < 2: return True # What if self.link_segments == 2 ??
+        if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
+        if self.num_linked_segs < 2: return True # What if self.segments == 2 ??
+    def num_linked_segs(self): return len(self.segments)
     is_endpoint = property(is_endpoint)
+    num_linked_segs = property(num_linked_segs)
 
     def set_world_loc(self, loc): self.world_loc = loc
     def set_local_loc(self, loc): self.local_loc = loc
     def set_view(self, view): self.view = view
     def set_face_ind(self, face_ind): self.face_index = face_ind
 
-    def are_connected(self, point):   
-        '''
-        takes another input point, and returns InputSegment if they are connected
-        returns False if they are not connected
-        '''
-        for seg in self.link_segments:
-            if seg.other_point(self) == point:
-                return seg
-            
-        return False
-
     def set_values(self, world, local, view, face_ind):
         self.world_loc = world
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
+
     #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
 
@@ -1766,32 +1624,30 @@ class InputSegment(object): #NetworkSegment
         self.ip1 = ip1
         self.pre_vis_data = []  #list of 3d points for previsualization
         self.bad_segment = False
-        ip0.link_segments.append(self)
-        ip1.link_segments.append(self)
+        ip0.segments.append(self)
+        ip1.segments.append(self)
 
-    def input_points(self): return [self.ip0, self.ip1]
+    def linked_points(self): return [self.ip0, self.ip1]
     def is_bad(self): return self.bad_segment
-    input_points = property(input_points)
+    linked_points = property(linked_points)
     is_bad = property(is_bad)
 
     def other_point(self, ip):
-        if ip not in self.input_points: return None
+        if ip not in self.linked_points: return None
         return self.ip0 if ip == self.ip1 else self.ip1
     
 
     def insert_point(self, point):
         seg0 = InputSegment(self.ip0, point)
         seg1 = InputSegment(point, self.ip1)
-        
-        
-        self.ip0.link_segments.remove(self)
-        self.ip1.link_segments.remove(self)
+        self.ip0.segments.remove(self)
+        self.ip1.segments.remove(self)
         return seg0, seg1
     
     def detach(self):
         #TODO safety?  Check if in ip0.link_sgements?
-        self.ip0.link_segments.remove(self)
-        self.ip1.link_segments.remove(self)
+        self.ip0.segments.remove(self)
+        self.ip1.segments.remove(self)
         
     def closes_point_3d_linear(self, pt3d):
         '''
@@ -1952,7 +1808,7 @@ class InputNetwork(object): #InputNetwork
         for p in self.points:
             yield p
 
-    def is_empty(self): return len(self.points) == 0
+    def is_empty(self): return (not(self.points or self.segments))
     def num_points(self): return len(self.points)
     is_empty = property(is_empty)
     num_points = property(num_points)
@@ -1965,6 +1821,13 @@ class InputNetwork(object): #InputNetwork
     local_locs = property(local_locs)
     view = property(views)
     face_indices = property(face_indices)
+
+    def are_connected(self, p1, p2):
+        ''' Sees if 2 points are connected, returns connecting segment if True '''
+        for seg in p1.segments:
+            if seg.other_point(p1) == p2:
+                return seg
+        return False
 
     def get(self, start, end=None):
         if end: return self.points[start:end] #end is excluded in slice
@@ -1998,7 +1861,7 @@ class InputNetwork(object): #InputNetwork
         if insert_ind != 0:
             
             point_behind = self.points[insert_ind- 1]
-            old_seg = point_behind.are_connected(point_ahead)
+            old_seg = self.are_connected(point_behind, point_ahead)
             if old_seg:
                 self.segments.remove(old_seg)
                 
@@ -2016,9 +1879,9 @@ class InputNetwork(object): #InputNetwork
             old_p = ind
         else:
             old_p = self.points[ind]
-        other_points = [seg.other_point(old_p) for seg in old_p.link_segments]
+        other_points = [seg.other_point(old_p) for seg in old_p.segments]
 
-        for seg in old_p.link_segments:
+        for seg in old_p.segments:
             if seg in self.segments:
                 self.segments.remove(seg)
 
@@ -2036,13 +1899,13 @@ class InputNetwork(object): #InputNetwork
 
     def pop(self, ind=-1):
         point = self.points[ind]
-        connected_points = [seg.other_point(point) for seg in point.link_segments]
+        connected_points = [seg.other_point(point) for seg in point.segments]
 
         if len(connected_points) == 2: #maintain connectivity
             new_segment = InputSegment(connected_points[0], connected_points[1])
             self.segments.append(new_segment)
 
-        for seg in point.link_segments:
+        for seg in point.segments:
             self.segments.remove(seg)
 
         self.points.remove(point)
@@ -2050,15 +1913,15 @@ class InputNetwork(object): #InputNetwork
     def remove(self, point, disconnect = True):
         if point not in self.points: return False
 
-        connected_points = [seg.other_point(point) for seg in point.link_segments]
+        connected_points = [seg.other_point(point) for seg in point.segments]
 
         if len(connected_points) == 2 and not disconnect: #maintain connectivity
             new_segment = InputSegment(connected_points[0], connected_points[1])
             self.segments.append(new_segment)
 
-        for seg in point.link_segments:
+        for seg in point.segments:
             self.segments.remove(seg)
-            seg.other_point(point).link_segments.remove(seg)
+            seg.other_point(point).segments.remove(seg)
 
         self.points.remove(point)
         return True

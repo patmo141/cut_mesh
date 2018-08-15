@@ -21,8 +21,8 @@ class Polytrim_UI_ModalWait():
 
         #after navigation filter, these are relevant events in this state
         if eventd['press'] == 'G':
-            if self.plm.current.grab_initiate():
-                self.plm.current.grab_mouse_move(context,self.mouse)
+            if self.input_net.grab_initiate():
+                self.input_net.grab_mouse_move(context,self.mouse)
                 context.area.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
                 return 'grab'
             return 'main'
@@ -34,22 +34,22 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
         if  eventd['press'] == 'LEFTMOUSE':
-            self.plm.current.click_add_point(context, self.mouse)  #Send the 2D coordinates to Knife Class
-            if (self.plm.current.ui_type == 'DENSE_POLY' and self.plm.current.hovered[0] == 'POINT') or self.plm.current.num_points == 1:
+            self.input_net.click_add_point(context, self.mouse)  #Send the 2D coordinates to Knife Class
+            if (self.input_net.ui_type == 'DENSE_POLY' and self.input_net.hovered[0] == 'POINT') or self.input_net.num_points == 1:
                 self.sketch = [self.mouse]
                 return 'sketch'
             return 'main'
 
         if eventd['press'] == 'RIGHTMOUSE':
-            if self.plm.current.start_edge and self.plm.current.hovered[1] == 0 and self.plm.current.num_points > 1:
+            if self.input_net.start_edge and self.input_net.hovered[1] == 0 and self.input_net.num_points > 1:
                 show_error_message('Can not delete the first point for this kind of cut.', "Don't do this!")
                 return 'main'
-            self.plm.current.click_delete_point(mode = 'mouse')
+            self.input_net.click_delete_point(mode = 'mouse')
             self.hover() ## this fixed index out range error in draw function after deleteing last point.
             return 'main'
 
         if eventd['press'] == 'A':
-            if self.plm.current.num_points > 1:
+            if self.input_net.num_points > 1:
                 context.window.cursor_modal_set('DEFAULT')
                 context.area.header_text_set("LEFT-CLICK: select, RIGHT-CLICK: delete, PRESS-N: new, ESC: cancel")
                 self.plm.initiate_select_mode(context)
@@ -58,66 +58,66 @@ class Polytrim_UI_ModalWait():
             return 'main'
 
         if eventd['press'] == 'C':
-            if self.plm.current.start_edge != None and self.plm.current.end_edge == None:
+            if self.input_net.start_edge != None and self.input_net.end_edge == None:
                 show_error_message('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
-            elif self.plm.current.start_edge == None and not self.plm.current.cyclic:
+            elif self.input_net.start_edge == None and not self.input_net.cyclic:
                 show_error_message('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
             else:
-                self.plm.current.make_cut()
+                self.input_net.make_cut()
                 context.area.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
 
             return 'main'
 
         if eventd['press'] == 'K':
-            if self.plm.current.split and self.plm.current.face_seed and self.plm.current.ed_cross_map.is_used:
-                self.plm.current.split_geometry(eventd['context'], mode = 'KNIFE')
-                self.plm.polylines.pop(self.plm.polylines.index(self.plm.current))
+            if self.input_net.split and self.input_net.face_seed and self.input_net.ed_cross_map.is_used:
+                self.input_net.split_geometry(eventd['context'], mode = 'KNIFE')
+                self.plm.polylines.pop(self.plm.polylines.index(self.input_net))
                 if len(self.plm.polylines):
-                    self.plm.current = self.plm.polylines[-1]
+                    self.input_net = self.plm.polylines[-1]
                     return 'main'
                 return 'finish'
 
         if eventd['press'] == 'P':
-            if self.plm.current.split and self.plm.current.face_seed and self.plm.current.ed_cross_map.is_used:
-                self.plm.current.split_geometry(eventd['context'], mode = 'SEPARATE')
-                self.plm.polylines.pop(self.plm.polylines.index(self.plm.current))
+            if self.input_net.split and self.input_net.face_seed and self.input_net.ed_cross_map.is_used:
+                self.input_net.split_geometry(eventd['context'], mode = 'SEPARATE')
+                self.plm.polylines.pop(self.plm.polylines.index(self.input_net))
                 if len(self.plm.polylines):
-                    self.plm.current = self.plm.polylines[-1]
+                    self.input_net = self.plm.polylines[-1]
                     return 'main'
                 return 'finish'
 
         if eventd['press'] == 'X':
-            if self.plm.current.split and self.plm.current.face_seed and self.plm.current.ed_cross_map.is_used:
-                self.plm.current.split_geometry(eventd['context'], mode = 'DELETE')
-                self.plm.polylines.pop(self.plm.polylines.index(self.plm.current))
+            if self.input_net.split and self.input_net.face_seed and self.input_net.ed_cross_map.is_used:
+                self.input_net.split_geometry(eventd['context'], mode = 'DELETE')
+                self.plm.polylines.pop(self.plm.polylines.index(self.input_net))
                 if len(self.plm.polylines):
-                    self.plm.current = self.plm.polylines[-1]
+                    self.input_net = self.plm.polylines[-1]
                     return 'main'
                 return 'finish'
 
         if eventd['press'] == 'SHIFT+D':
-            if self.plm.current.split and self.plm.current.face_seed and self.plm.current.ed_cross_map.is_used:
-                self.plm.current.split_geometry(eventd['context'], mode = 'DUPLICATE')
-                self.plm.polylines.pop(self.plm.polylines.index(self.plm.current))
+            if self.input_net.split and self.input_net.face_seed and self.input_net.ed_cross_map.is_used:
+                self.input_net.split_geometry(eventd['context'], mode = 'DUPLICATE')
+                self.plm.polylines.pop(self.plm.polylines.index(self.input_net))
                 if len(self.plm.polylines):
-                    self.plm.current = self.plm.polylines[-1]
+                    self.input_net = self.plm.polylines[-1]
                     return 'main'
                 return 'finish'
 
         if eventd['press'] == 'S':
-            if len(self.plm.current.bad_segments) != 0:
+            if len(self.input_net.bad_segments) != 0:
                 show_error_message('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
                 return 'main'
 
-            if self.plm.current.start_edge == None and not self.plm.current.cyclic:
+            if self.input_net.start_edge == None and not self.input_net.cyclic:
                 show_error_message('Finish closing cut boundary loop')
                 return 'main'
 
-            elif self.plm.current.start_edge != None and self.plm.current.end_edge == None:
+            elif self.input_net.start_edge != None and self.input_net.end_edge == None:
                 show_error_message('Finish cutting to another non-manifold boundary/edge of the object')
                 return 'main'
 
-            elif not self.plm.current.ed_cross_map.is_used:
+            elif not self.input_net.ed_cross_map.is_used:
                 show_error_message('Press "C" to preview the cut success before setting the seed')
                 return 'main'
 
@@ -126,7 +126,7 @@ class Polytrim_UI_ModalWait():
             return 'inner'
 
         if eventd['press'] == 'RET' :
-            self.plm.current.confirm_cut_to_mesh()
+            self.input_net.confirm_cut_to_mesh()
             return 'finish'
 
         elif eventd['press'] == 'ESC':
@@ -139,22 +139,22 @@ class Polytrim_UI_ModalWait():
 
         if eventd['press'] == 'LEFTMOUSE':
             #confirm location
-            self.plm.current.grab_confirm(context)
-            if self.plm.current.ed_cross_map.is_used:
-                self.plm.current.make_cut()
+            self.input_net.grab_confirm(context)
+            if self.input_net.ed_cross_map.is_used:
+                self.input_net.make_cut()
             self.ui_text_update()
             return 'main'
 
         elif eventd['press'] in {'RIGHTMOUSE', 'ESC'}:
             #put it back!
-            self.plm.current.grab_cancel()
+            self.input_net.grab_cancel()
             self.ui_text_update()
             return 'main'
 
         elif eventd['type'] == 'MOUSEMOVE':
             #update the b_pt location
             self.mouse = eventd['mouse']
-            self.plm.current.grab_mouse_move(context, self.mouse)
+            self.input_net.grab_mouse_move(context, self.mouse)
             return 'grab'
 
     def modal_sketch(self,context,eventd):
@@ -170,8 +170,8 @@ class Polytrim_UI_ModalWait():
 
         elif eventd['release'] == 'LEFTMOUSE':
             is_sketch = self.sketch_confirm()
-            if self.plm.current.ed_cross_map.is_used and is_sketch:
-                self.plm.current.make_cut()
+            if self.input_net.ed_cross_map.is_used and is_sketch:
+                self.input_net.make_cut()
             self.ui_text_update()
             self.sketch = []
             return 'main'
@@ -213,12 +213,12 @@ class Polytrim_UI_ModalWait():
         if eventd['press'] == 'LEFTMOUSE':
             self.mouse = eventd['mouse']
 
-            result = self.plm.current.click_seed_select(context, self.mouse)
+            result = self.input_net.click_seed_select(context, self.mouse)
             # found a good face
             if result == 1:
                 context.window.cursor_modal_set('CROSSHAIR')
-                if self.plm.current.ed_cross_map.is_used and not self.plm.current.bad_segments and not self.plm.current.split:
-                    self.plm.current.confirm_cut_to_mesh_no_ops()
+                if self.input_net.ed_cross_map.is_used and not self.input_net.bad_segments and not self.input_net.split:
+                    self.input_net.confirm_cut_to_mesh_no_ops()
                     context.area.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife")
                 return 'main'
             # found a bad face

@@ -11,7 +11,6 @@ from mathutils import Matrix, Vector
 
 
 from .polytrim_datastructure import PolyLineKnife
-from .polytrim_ui_tools import PolyLineManager
 from .cache import polytrim_undo_cache
 
 class Polytrim_UI:
@@ -34,7 +33,7 @@ class Polytrim_UI:
 
         self.plm = PolyLineManager()
         self.plm.add(PolyLineKnife(context,context.object))
-        self.plm.current = self.plm.polylines[0]
+        self.input_net = self.plm.polylines[0]
 
         context.window.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main()
