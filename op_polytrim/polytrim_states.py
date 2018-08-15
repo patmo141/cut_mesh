@@ -202,24 +202,26 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
-        x,y = self.actions.mouse  #gather the 2D coordinates of the mouse click
-        self.sketch = [(x,y)]
+        x,y = self.actions.mouse
+        self.sketch_handler.add_loc(x,y)
 
     @CookieCutter.FSM_State('sketch')
     def modal_sketch(self):
         if self.actions.mousemove:
             x,y = self.actions.mouse
-            if not len(self.sketch): return 'main' #XXX: Delete this??
-            self.sketch_smart_append(x,y)
+            if not len(self.sketch_handler.sketch): return 'main' #XXX: Delete this??
+            self.sketch_handler.smart_add_loc(x,y)
             return
 
         if self.actions.released('sketch'):
-            is_sketch = self.sketch_confirm()
+            is_sketch = self.sketch_handler.is_good()
             if is_sketch:
-                sketch_3d = self.sketch_prepare2()   
-                #self.sketch_finish(sketch_3d)   #Create input point for each sketch
+                last_hovered_point = self.plm.current.hovered[1]
+                self.hover()
+                new_hovered_point = self.plm.current.hovered[1]
+                self.sketch_handler.finalize(self.context, last_hovered_point, new_hovered_point)
             self.ui_text_update()
-            self.sketch = []
+            self.sketch_handler.reset()
             return 'main'
 
     ######################################################

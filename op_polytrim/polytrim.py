@@ -69,19 +69,17 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
 
         #self.drawing = Drawing.get_instance()
         self.drawing.set_region(bpy.context.region, bpy.context.space_data.region_3d, bpy.context.window)
-        
-        self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)
         self.mode_radius     = 0
         self.action_center   = (0, 0)
         self.is_navigating   = False
-        self.sketch_curpos   = (0, 0)
-        self.sketch          = []
 
         self.plm = PolyLineManager()
         self.plm.add(PolyLineKnife(self.context, self.context.object))
         self.plm.current = self.plm.polylines[0]
+
+        self.sketch_handler = self.SketchHandler(self.plm.current)
 
         self.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main()

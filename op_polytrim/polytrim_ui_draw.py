@@ -62,6 +62,6 @@ class Polytrim_UI_Draw():
         context = self.context
         if self.plm.current:
             self.plm.current.draw(context, self.actions.mouse)
-        if self.sketch:
-            common_drawing.draw_polyline_from_points(context, self.sketch, (.8,.3,.3,.8), 2, "GL_LINE_SMOOTH")
+        if self.sketch_handler.sketch:
+            common_drawing.draw_polyline_from_points(context, self.sketch_handler.sketch, (.8,.3,.3,.8), 2, "GL_LINE_SMOOTH")
 

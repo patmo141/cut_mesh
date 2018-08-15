@@ -16,73 +16,58 @@ class Polytrim_UI_Tools():
     '''
     Functions helpful with user interactions in polytrim
     '''
-    def sketch_smart_append(self, x, y):
-        ''' Add's a screen location to the sketch list based on smart stuff '''
-        (lx, ly) = self.sketch[-1]
-        ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
-        self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
+    ###TODO: Make sketch functions their own class: SketchHandler
+        # * make click functions ClickHandler
 
-    def sketch_confirm(self):
+    class SketchHandler():
         '''
-        Returns whether the sketch attempt should/shouldn't be added to the PolyLineKnife
+        Handles sketches made by user.
+        * Intermediary between polytrim_states and PolyLineKnife
         '''
-        # checking to see if sketch functionality shouldn't happen
-        if len(self.sketch) < 5 and self.plm.current.ui_type == 'DENSE_POLY':
-            print('A sketch was not detected..')
-            if self.plm.current.hovered== ['POINT', 0] and not self.plm.current.start_edge and self.plm.current.num_points > 2:
-                self.plm.current.toggle_cyclic()  #self.plm.current.cyclic = self.plm.current.cyclic == False  #toggle behavior?
-            return False
-        return True
+        def __init__(self, polyline):
+            self.sketch = []
+            self.polyline = polyline
+            self.stroke_smoothing = 0.75  # 0: no smoothing. 1: no change
+            self.sketch_curpos = (0, 0)
 
-    def sketch_prepare1(self):
-        ''' Prepares the points gathered from sketch for adding to PolyLineKnife '''
-        # Get user view ray
-        context = self.context
-        region = context.region
-        rv3d = context.region_data
-        mouse = self.actions.mouse
-        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, mouse)  #get the direction under the mouse given the user 3DView perspective matrix
+        def reset(self): self.sketch = []
 
-        ## Preparing sketch information
-        hovered_start = self.plm.current.hovered # need to know what hovered was at the beginning of the sketch
-        self.hover()  #rehover to see where sketch ends
-        sketch_3d = ray_cast_path(context, self.plm.current.source_ob, self.sketch)  #at this moment we are going into 3D space, this returns world space locations
-        sketch_locs = sketch_3d[0::5] # getting every fifth point's location
-        sketch_views = [view_vector]*len(sketch_locs)
-        sketch_points = InputPointMap()
-        sketch_points.add_multiple(sketch_locs, [None]*len(sketch_locs), sketch_views, [None]*len(sketch_locs))
+        def add_loc(self, x, y):
+            ''' Add's a screen location to the sketch list '''
+            self.sketch.append((x,y))
 
-        # Add the sketch in
-        self.plm.current.add_sketch_points(hovered_start, sketch_points, view_vector)
-        self.plm.current.snap_poly_line()  #why do this again?
+        def smart_add_loc(self, x, y):
+            ''' Add's a screen location to the sketch list based on smart stuff '''
+            (lx, ly) = self.sketch[-1]
+            ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
+            self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
 
-    def sketch_prepare2(self):
-        ''' Prepares the points gathered from sketch for adding to PolyLineKnife '''
-        last_hovered_point = self.plm.current.hovered[1]
-        self.hover()
-        new_hovered_point = self.plm.current.hovered[1]
-        prev_point = None
-        for ind in range(0, len(self.sketch) , 5):
-            if not prev_point:
-                if self.plm.current.num_points == 1: new_point = self.plm.current.input_points.get(0)
-                else: new_point = last_hovered_point
-            else:
-                pt_screen_loc = self.sketch[ind]
-                view_vector, ray_origin, ray_target = get_view_ray_data(self.context, pt_screen_loc)
-                loc, no, face_ind =  ray_cast(self.plm.current.source_ob,self.plm.current.imx, ray_origin, ray_target, None)
-                if loc != None:
-                    new_point = InputPoint(self.plm.current.mx * loc, loc, view_vector, face_ind)
-                    self.plm.current.input_points.add(p=new_point)
-            if prev_point:
-                print(prev_point, new_point)
-                self.plm.current.input_points.segments.append(InputSegment(prev_point,new_point))
-            prev_point = new_point
-        if new_hovered_point != -1:
-            self.plm.current.input_points.segments.append(InputSegment(prev_point, new_hovered_point))
+        def is_good(self):
+            ''' Returns whether the sketch attempt should/shouldn't be added to the PolyLineKnife '''
+            # checking to see if sketch functionality shouldn't happen
+            if len(self.sketch) < 5 and self.polyline.ui_type == 'DENSE_POLY': return False
+            return True
 
-    def sketch_finish(self, sketch_3d):
-        ''' Finalize sketching functionality by '''
-
+        def finalize(self, context, last_hovered_point, new_hovered_point):
+            ''' takes sketch data and adds it into the datastructures '''
+            prev_point = None
+            for ind in range(0, len(self.sketch) , 5):
+                if not prev_point:
+                    if self.polyline.num_points == 1: new_point = self.polyline.input_points.get(0)
+                    else: new_point = last_hovered_point
+                else:
+                    pt_screen_loc = self.sketch[ind]
+                    view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)
+                    loc, no, face_ind =  ray_cast(self.polyline.source_ob,self.polyline.imx, ray_origin, ray_target, None)
+                    if loc != None:
+                        new_point = InputPoint(self.polyline.mx * loc, loc, view_vector, face_ind)
+                        self.polyline.input_points.add(p=new_point)
+                if prev_point:
+                    print(prev_point, new_point)
+                    self.polyline.input_points.segments.append(InputSegment(prev_point,new_point))
+                prev_point = new_point
+            if new_hovered_point != -1:
+                self.polyline.input_points.segments.append(InputSegment(prev_point, new_hovered_point))
 
     def ui_text_update(self):
         '''

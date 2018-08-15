@@ -19,17 +19,17 @@ class Polytrim_UI:
     def start_ui(self, context):
         #self.drawing = Drawing.get_instance()
         #self.drawing.set_region(context.region, context.space_data.region_3d, bpy.context.window)
-        
-        print('did we get self.drawing.r3d?')
-        print(self.drawing.r3d)
-        self.stroke_smoothing = 0.75          # 0: no smoothing. 1: no change
+        print("THIS IS HAPPENING")
+        print("THIS IS HAPPENING")
+        print("THIS IS HAPPENING")
+        print("THIS IS HAPPENING")
+        print("THIS IS HAPPENING")
         self.mode_pos        = (0, 0)
         self.cur_pos         = (0, 0)
         self.mode_radius     = 0
         self.action_center   = (0, 0)
         self.is_navigating   = False
         self.sketch_curpos   = (0, 0)
-        self.sketch          = []
         self.mouse = None
 
         self.plm = PolyLineManager()
