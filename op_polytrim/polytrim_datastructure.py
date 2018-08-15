@@ -46,7 +46,7 @@ class PolyLineKnife(object): #NetworkCutter
         self.bvh = BVHTree.FromBMesh(self.bme)  #Network ??
         self.mx, self.imx = get_matrices(self.source_ob)    #Network
 
-        self.input_points = InputPointMap() # is network
+        self.input_points = InputNetwork() # is network
 
         self.cyclic = False #R
         self.selected = -1  #UI
@@ -101,34 +101,6 @@ class PolyLineKnife(object): #NetworkCutter
     def num_points(self): return self.input_points.num_points
     has_points = property(has_points)
     num_points = property(num_points)
-
-    #################################
-    #### polyline data structure ####
-
-    def reset_vars(self):
-        '''
-        Resets variables..
-        TODOD, parallel workflow will make this obsolete
-        '''
-        self.cyclic = False  #for cuts entirely within the mesh
-        self.start_edge = None #for cuts ending on non man edges
-        self.end_edge = None  #for cuts ending on non man edges
-
-        self.input_points = InputPointMap()
-
-        self.face_changes = []
-        self.ed_cross_map = EdgeIntersectionMap()
-
-        self.face_chain = set()  #all faces crossed by the cut curve
-
-        self.selected = None
-        self.hovered = [None, -1]
-
-        self.grab_undo_loc = None
-
-        #keep up with these to show user
-        self.bad_segments = []
-        self.face_seed = None
 
     def toggle_cyclic(self): self.cyclic = self.cyclic == False
 
@@ -1545,6 +1517,9 @@ class PolyLineKnife(object): #NetworkCutter
         navy_opaque = (0,.2,.2,.5)
         blue_opaque = (0,0,1,.2)
 
+        preview_line_clr = (0,1,0,.4)
+        preview_line_wdth = 2
+
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
         ## Hovered Non-manifold Edge or Vert
@@ -1563,12 +1538,9 @@ class PolyLineKnife(object): #NetworkCutter
             print("HEY:", self.input_points.get(bad_ind).world_loc, self.input_points.get(bad_ind_2).world_loc)
             common_drawing.draw_polyline_from_3dpoints(context, [self.input_points.get(bad_ind).world_loc, self.input_points.get(bad_ind_2).world_loc], red, 4, 'GL_LINE')
 
-        ## Origin Point
-        common_drawing.draw_3d_points(context,[self.input_points.get(0).world_loc], 8, orange)
-
         ## Selected Point
         if self.selected and isinstance(self.selected, InputPoint):
-            common_drawing.draw_3d_points(context,[self.selected.world_loc], 8, cyan)
+            common_drawing.draw_3d_points(context,[self.selected.world_loc], 8, orange)
 
 
         # Grab Location Dot and Lines XXX:This part is gross..
@@ -1584,7 +1556,7 @@ class PolyLineKnife(object): #NetworkCutter
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
                 grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
                 if other_loc and grab_loc:
-                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], blue_opaque, 4,"GL_LINE_STRIP")
+                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         ## Hovered Point
         elif self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.hovered[1].world_loc], 8, color = (0,1,0,1))
@@ -1594,17 +1566,17 @@ class PolyLineKnife(object): #NetworkCutter
             a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
             if a and b:
-                common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], blue_opaque, 4,"GL_LINE_STRIP")
+                common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         # Insertion Lines (for adding closing loop)
         elif self.snap_element != None and self.connect_element != None:
             a = loc3d_reg2D(context.region, context.space_data.region_3d, self.connect_element.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, self.snap_element.world_loc)
             if a and b:
-                common_drawing.draw_polyline_from_points(context, [a, b], blue_opaque, 4,"GL_LINE_STRIP")
+                common_drawing.draw_polyline_from_points(context, [a, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         # Endpoint to Cursor Line
         elif self.closest_ep:
             ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.closest_ep.world_loc)
-            common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], blue_opaque, 4,"GL_LINE_STRIP")
+            common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
 
         # Face Seed Vertices
         if self.face_seed:
@@ -1718,9 +1690,7 @@ class PolyLineKnife(object): #NetworkCutter
             #else:
             #    draw3d_polyline(context, self.input_points.world_locs ,  blue2, 2, 'GL_LINE' )
         #Points
-        #draw3d_points(context, [self.input_points.world_locs[0]], orange, 10)
-        if self.num_points > 1:
-            draw3d_points(context, self.input_points.world_locs[1:], blue, 6)
+        draw3d_points(context, self.input_points.world_locs, blue, 6)
 
         bgl.glLineWidth(1)     
                 
@@ -1963,7 +1933,7 @@ class InputSegment(object): #NetworkSegment
                 self.pre_vis_data = [self.ip0.world_loc, self.ip1.world_loc]
                 print('cut failure!!!')
 
-class InputPointMap(object): #InputNetwork
+class InputNetwork(object): #InputNetwork
     '''
     Data structure that stores a set of InputPoints that are
     connected with InputSegments.
@@ -2094,7 +2064,7 @@ class InputPointMap(object): #InputNetwork
         return True
 
     def duplicate(self):
-        new = InputPointMap()
+        new = InputNetwork()
         new.points = self.points
         new.segments = self.segments
         return new

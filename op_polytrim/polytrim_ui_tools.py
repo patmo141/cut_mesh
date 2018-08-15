@@ -5,7 +5,7 @@ Created on Oct 10, 2015
 '''
 from ..common.utils import get_matrices
 from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
-from .polytrim_datastructure import InputPointMap, PolyLineKnife, InputPoint, InputSegment
+from .polytrim_datastructure import InputNetwork, PolyLineKnife, InputPoint, InputSegment
 from bpy_extras import view3d_utils
 from mathutils import Vector
 from mathutils.geometry import intersect_point_line
@@ -16,8 +16,6 @@ class Polytrim_UI_Tools():
     '''
     Functions helpful with user interactions in polytrim
     '''
-    ###TODO: Make sketch functions their own class: SketchHandler
-        # * make click functions ClickHandler
 
     class SketchHandler():
         '''
@@ -29,6 +27,11 @@ class Polytrim_UI_Tools():
             self.polyline = polyline
             self.stroke_smoothing = 0.75  # 0: no smoothing. 1: no change
             self.sketch_curpos = (0, 0)
+
+        def has_locs(self): return len(self.sketch) > 0
+        has_locs = property(has_locs)
+
+        def get_locs(self): return self.sketch
 
         def reset(self): self.sketch = []
 
@@ -48,26 +51,34 @@ class Polytrim_UI_Tools():
             if len(self.sketch) < 5 and self.polyline.ui_type == 'DENSE_POLY': return False
             return True
 
-        def finalize(self, context, last_hovered_point, new_hovered_point):
+        def finalize(self, context, start_pnt, end_pnt=None):
             ''' takes sketch data and adds it into the datastructures '''
-            prev_point = None
+            if not isinstance(end_pnt, InputPoint): end_pnt = None
+
+            print("Start:",start_pnt)
+            print("End:",end_pnt)
+
+            prev_pnt = None
             for ind in range(0, len(self.sketch) , 5):
-                if not prev_point:
-                    if self.polyline.num_points == 1: new_point = self.polyline.input_points.get(0)
-                    else: new_point = last_hovered_point
+                if not prev_pnt:
+                    if self.polyline.num_points == 1: new_pnt = self.polyline.input_points.get(0)
+                    else: new_pnt = start_pnt
                 else:
                     pt_screen_loc = self.sketch[ind]
                     view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)
                     loc, no, face_ind =  ray_cast(self.polyline.source_ob,self.polyline.imx, ray_origin, ray_target, None)
-                    if loc != None:
-                        new_point = InputPoint(self.polyline.mx * loc, loc, view_vector, face_ind)
-                        self.polyline.input_points.add(p=new_point)
-                if prev_point:
-                    print(prev_point, new_point)
-                    self.polyline.input_points.segments.append(InputSegment(prev_point,new_point))
-                prev_point = new_point
-            if new_hovered_point != -1:
-                self.polyline.input_points.segments.append(InputSegment(prev_point, new_hovered_point))
+                    if face_ind != -1:
+                        new_pnt = InputPoint(self.polyline.mx * loc, loc, view_vector, face_ind)
+                        self.polyline.input_points.add(p=new_pnt)
+                if prev_pnt:
+                    seg = InputSegment(prev_pnt,new_pnt)
+                    self.polyline.input_points.segments.append(seg)
+                    seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
+                prev_pnt = new_pnt
+            if end_pnt:
+                seg = InputSegment(prev_pnt,end_pnt)
+                self.polyline.input_points.segments.append(seg)
+                seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
 
     def ui_text_update(self):
         '''

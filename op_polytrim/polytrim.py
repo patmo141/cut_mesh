@@ -79,7 +79,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
         self.plm.add(PolyLineKnife(self.context, self.context.object))
         self.plm.current = self.plm.polylines[0]
 
-        self.sketch_handler = self.SketchHandler(self.plm.current)
+        self.sketcher = self.SketchHandler(self.plm.current)
 
         self.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main()
