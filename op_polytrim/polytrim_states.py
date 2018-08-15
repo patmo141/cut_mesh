@@ -209,17 +209,15 @@ class Polytrim_States():
     def modal_sketch(self):
         if self.actions.mousemove:
             x,y = self.actions.mouse
-            if not len(self.sketch): return 'main'
-            ## Manipulating sketch data
-            (lx, ly) = self.sketch[-1]
-            ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
-            self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
+            if not len(self.sketch): return 'main' #XXX: Delete this??
+            self.sketch_smart_append(x,y)
             return
 
         if self.actions.released('sketch'):
             is_sketch = self.sketch_confirm()
-            if self.plm.current.ed_cross_map.is_used and is_sketch:
-                self.plm.current.make_cut()
+            if is_sketch:
+                sketch_3d = self.sketch_prepare2()   
+                #self.sketch_finish(sketch_3d)   #Create input point for each sketch
             self.ui_text_update()
             self.sketch = []
             return 'main'

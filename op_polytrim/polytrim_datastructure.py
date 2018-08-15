@@ -33,39 +33,41 @@ from ..common.utils import get_matrices
 from ..common.bezier import CubicBezier, CubicBezierSpline
 from ..common.shaders import circleShader
 
-class PolyLineKnife(object):
+class PolyLineKnife(object): #NetworkCutter
     '''
     A class which manages user placed points on an object to create a
     poly_line, adapted to the objects surface.
     '''
     def __init__(self,context, cut_object, ui_type = 'DENSE_POLY'):
-        self.source_ob = cut_object
-        self.bme = bmesh.new()
+        self.source_ob = cut_object             #Network
+        self.bme = bmesh.new()                  #Network
         self.bme.from_mesh(cut_object.data)
         ensure_lookup(self.bme)
-        self.bvh = BVHTree.FromBMesh(self.bme)
-        self.mx, self.imx = get_matrices(self.source_ob)
+        self.bvh = BVHTree.FromBMesh(self.bme)  #Network ??
+        self.mx, self.imx = get_matrices(self.source_ob)    #Network
 
-        self.input_points = InputPointMap()
+        self.input_points = InputPointMap() # is network
 
-        self.cyclic = False
-        self.selected = -1
+        self.cyclic = False #R
+        self.selected = -1  #UI
         self.hovered = [None, -1]
-        self.closest_ep = None
-        self.snap_element = None
-        self.start_edge = None
-        self.connect_element = None
-        self.end_edge = None
-        self.face_changes = []
-        self.face_groups = dict()
-        self.face_chain = set()
-
+        self.closest_ep = None   #UI  closest free input point (< 2 segs)
+        self.snap_element = None    #UI
+        self.connect_element = None #UI
+        self.start_edge = None #R
+        self.end_edge = None    #R
+         #TODO: (Cutting with new method, very hard) 
+        self.face_changes = []     
+        self.face_groups = dict()   
+        self.face_chain = set()     
         self.new_ed_face_map = dict()  #maps face index in bmesh to new edges created by bisecting
         self.ed_cross_map = EdgeIntersectionMap()
-        self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
-        self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
-        self.non_man_points = []
-        self.non_man_bmverts = []
+
+        self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold] #UI? (Network,cutting...)
+        self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds) #UI? (Network,cutting...)
+
+        self.non_man_points = []        #UI
+        self.non_man_bmverts = []       #UI
         for loop in self.non_man_ed_loops:
             self.non_man_points += [self.source_ob.matrix_world * self.bme.verts[ind].co for ind in loop]
             self.non_man_bmverts += [self.bme.verts[ind].index for ind in loop]
@@ -89,8 +91,8 @@ class PolyLineKnife(object):
         self.end_edge_undo = None
 
         #keep up with these to show user
-        self.bad_segments = []
-        self.split = False
+        self.bad_segments = []      #cutting/ui
+        self.split = False          #r
         self.perimeter_edges = []
         self.inner_faces = []
         self.face_seed = None
@@ -206,7 +208,6 @@ class PolyLineKnife(object):
             self.input_points.segments.remove(old_seg)
             self.selected = point
 
-    
     def closest_endpoints(self, pt3d, n_points):
         #in our application, at most there will be 100 endpoints?
         #no need for accel structure here
@@ -234,8 +235,8 @@ class PolyLineKnife(object):
         if len(endpoints) == 0: return None
         
         return min(endpoints, key = dist3d)
-    
-    
+
+
     def interpolate_input_point_pair(self, p0, p1, factor):
         '''
         will return a linear interpolation of this point with other
@@ -261,8 +262,8 @@ class PolyLineKnife(object):
         new_pt.set_world_loc(self.mx * loc)
     
         return new_pt
-        
-        
+
+
     def re_tesselate_segment(self, ip_start, ip_end, tesselation_mode = 'LINEAR', clamp_existings = True):
         '''
         High level function which allows re-tesselation of segments with various options
@@ -271,7 +272,7 @@ class PolyLineKnife(object):
         '''
         
         return None
-    
+
     def linear_re_tesselate_segment(self, ip_start, ip_end, res):
         '''
         ip_start - InputPoint
@@ -342,8 +343,8 @@ class PolyLineKnife(object):
             self.input_points.points = self.input_points.points[0:ind_start] + new_points + self.input_points.points[ind_end:]
         
         self.selected = None   
-          
-        
+
+
     def click_delete_point(self, mode = 'mouse'):
         '''
         removes point from the trim line
@@ -447,7 +448,7 @@ class PolyLineKnife(object):
             self.grab_point.seed_geom = ed
         else:
             self.grab_point.set_values(self.mx * loc, loc, view_vector, face_ind)
-            
+
     def grab_cancel(self):
         '''
         returns variables to their status before grab was initiated
@@ -1673,8 +1674,23 @@ class PolyLineKnife(object):
         if self.selected and isinstance(self.selected, InputPoint):
             common_drawing.draw_3d_points(context,[self.selected.world_loc], 8, cyan)
 
+
+        # Grab Location Dot and Lines XXX:This part is gross..
+        if self.grab_point:
+            # Dot
+            common_drawing.draw_3d_points(context,[self.grab_point.world_loc], 5, blue_opaque)
+            # Lines
+
+            point_orig = self.selected  #had to be selected to be grabbed
+            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
+
+            for pt_3d in other_locs:
+                other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
+                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
+                if other_loc and grab_loc:
+                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], blue_opaque, 4,"GL_LINE_STRIP")
         ## Hovered Point
-        if self.hovered[0] == 'POINT':
+        elif self.hovered[0] == 'POINT':
             common_drawing.draw_3d_points(context,[self.hovered[1].world_loc], 8, color = (0,1,0,1))
         # Insertion Lines (for adding in a point to edge)
         elif self.hovered[0] == 'EDGE':
@@ -1682,34 +1698,15 @@ class PolyLineKnife(object):
             a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
             if a and b:
-                common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], navy_opaque, 2,"GL_LINE_STRIP")
-
+                common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], blue_opaque, 4,"GL_LINE_STRIP")
         # Insertion Lines (for adding closing loop)
         elif self.snap_element != None and self.connect_element != None:
             a = loc3d_reg2D(context.region, context.space_data.region_3d, self.connect_element.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, self.snap_element.world_loc)
             if a and b:
-                common_drawing.draw_polyline_from_points(context, [a, b], navy_opaque, 2,"GL_LINE_STRIP")
-                
-                
-        # Grab Location Dot and Lines XXX:This part is gross..
-        if self.grab_point:
-            # Dot
-            common_drawing.draw_3d_points(context,[self.grab_point.world_loc], 5, blue_opaque)
-            # Lines
-            
-            point_orig = self.selected  #had to be selected to be grabbed
-            
-            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
-            
-            for pt_3d in other_locs:
-                other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
-                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grab_point.world_loc)
-                if other_loc and grab_loc:
-                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], blue_opaque, 4,"GL_LINE_STRIP")             
+                common_drawing.draw_polyline_from_points(context, [a, b], blue_opaque, 4,"GL_LINE_STRIP")
         # Endpoint to Cursor Line
         elif self.closest_ep:
-            print(self.closest_ep)
             ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.closest_ep.world_loc)
             common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], blue_opaque, 4,"GL_LINE_STRIP")
 
@@ -1838,7 +1835,7 @@ class PolyLineKnife(object):
 
 
 
-class InputPoint(object):
+class InputPoint(object):  # NetworkNode
     '''
     Representation of an input point
     '''
@@ -1893,13 +1890,12 @@ class InputPoint(object):
 #TODO - method to clean segments with unused Input Points
 
 ##########################################
-class InputSegment(object):
+class InputSegment(object): #NetworkSegment
     '''
     Representation of a cut between 2 input points
     Equivalent to an "edge" in a mesh connecting to verts
     '''
     def __init__(self, ip0, ip1):
-        
         self.ip0 = ip0
         self.ip1 = ip1
         self.pre_vis_data = []  #list of 3d points for previsualization
@@ -1911,7 +1907,7 @@ class InputSegment(object):
     def is_bad(self): return self.bad_segment
     input_points = property(input_points)
     is_bad = property(is_bad)
-        
+
     def other_point(self, ip):
         if ip not in self.input_points: return None
         return self.ip0 if ip == self.ip1 else self.ip1
@@ -1971,6 +1967,8 @@ class InputSegment(object):
         return (None, None)
 
     def pre_vis_cut(self, bme, bvh, mx, imx):
+        #TODO: Separate this into NetworkCutter.
+        # * return either bad segment or other important data.
         f0 = bme.faces[self.ip0.face_index]  #<<--- Current BMFace
         f1 = bme.faces[self.ip1.face_index] #<<--- Next BMFace
 
@@ -2069,7 +2067,7 @@ class InputSegment(object):
                 self.pre_vis_data = [self.ip0.world_loc, self.ip1.world_loc]
                 print('cut failure!!!')
 
-class InputPointMap(object):
+class InputPointMap(object): #InputNetwork
     '''
     Data structure that stores a set of InputPoints that are
     connected with InputSegments.

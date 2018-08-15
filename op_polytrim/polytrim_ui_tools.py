@@ -5,7 +5,7 @@ Created on Oct 10, 2015
 '''
 from ..common.utils import get_matrices
 from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
-from .polytrim_datastructure import InputPointMap, PolyLineKnife
+from .polytrim_datastructure import InputPointMap, PolyLineKnife, InputPoint, InputSegment
 from bpy_extras import view3d_utils
 from mathutils import Vector
 from mathutils.geometry import intersect_point_line
@@ -16,10 +16,15 @@ class Polytrim_UI_Tools():
     '''
     Functions helpful with user interactions in polytrim
     '''
+    def sketch_smart_append(self, x, y):
+        ''' Add's a screen location to the sketch list based on smart stuff '''
+        (lx, ly) = self.sketch[-1]
+        ss0,ss1 = self.stroke_smoothing ,1-self.stroke_smoothing  #First data manipulation
+        self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
 
     def sketch_confirm(self):
         '''
-        prepares the points gathered from sketch for adding to PolyLineKnife 
+        Returns whether the sketch attempt should/shouldn't be added to the PolyLineKnife
         '''
         # checking to see if sketch functionality shouldn't happen
         if len(self.sketch) < 5 and self.plm.current.ui_type == 'DENSE_POLY':
@@ -27,7 +32,10 @@ class Polytrim_UI_Tools():
             if self.plm.current.hovered== ['POINT', 0] and not self.plm.current.start_edge and self.plm.current.num_points > 2:
                 self.plm.current.toggle_cyclic()  #self.plm.current.cyclic = self.plm.current.cyclic == False  #toggle behavior?
             return False
+        return True
 
+    def sketch_prepare1(self):
+        ''' Prepares the points gathered from sketch for adding to PolyLineKnife '''
         # Get user view ray
         context = self.context
         region = context.region
@@ -48,7 +56,25 @@ class Polytrim_UI_Tools():
         self.plm.current.add_sketch_points(hovered_start, sketch_points, view_vector)
         self.plm.current.snap_poly_line()  #why do this again?
 
-        return True
+    def sketch_prepare2(self):
+        ''' Prepares the points gathered from sketch for adding to PolyLineKnife '''
+        #sketch_3d = ray_cast_path(self.context, self.plm.current.source_ob, self.sketch)  #get world space locs
+        last_pnt = None
+        for pt in self.sketch[::5]:
+            view_vector, ray_origin, ray_target = get_view_ray_data(self.context, pt)
+            loc, no, face_ind =  ray_cast(self.plm.current.source_ob,self.plm.current.imx, ray_origin, ray_target, None)
+            if loc != None:
+                new_pnt = InputPoint(self.plm.current.mx * loc, loc, view_vector, face_ind)
+                self.plm.current.input_points.add(p=new_pnt)
+                if last_pnt:
+                    self.plm.current.input_points.segments.append(InputSegment(last_pnt,new_pnt))
+                last_pnt = new_pnt
+            
+        print(self.plm.current.num_points)
+
+    def sketch_finish(self, sketch_3d):
+        ''' Finalize sketching functionality by '''
+
 
     def ui_text_update(self):
         '''
@@ -274,7 +300,6 @@ class PolyLineManager(object):
         self.update_screen_locs(context)
 
     def hover(self, context, coord):
-        print(self.num_polylines)
         for polyline in self.vert_screen_locs:
             for loc in self.vert_screen_locs[polyline]:
                 if self.dist(loc, coord) < 20:
