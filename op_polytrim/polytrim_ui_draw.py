@@ -45,9 +45,6 @@ class Polytrim_UI_Draw():
         #     bgl.glDepthFunc(bgl.GL_LEQUAL)
         #     bgl.glDepthRange(0.0, 1.0)
         #     bgl.glDepthMask(bgl.GL_TRUE)
-        
-        
-
 
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):

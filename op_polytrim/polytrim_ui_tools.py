@@ -17,9 +17,9 @@ class Polytrim_UI_Tools():
     Functions/classes helpful with user interactions in polytrim
     '''
 
-    class SketchHandler():
+    class SketchManager():
         '''
-        UI tool for handling sketches made by user.
+        UI tool for managing sketches made by user.
         * Intermediary between polytrim_states and PolyLineKnife
         '''
         def __init__(self, polyline):
@@ -77,9 +77,9 @@ class Polytrim_UI_Tools():
                 self.polyline.input_net.segments.append(seg)
                 seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
 
-    class GrabHandler():
+    class GrabManager():
         '''
-        UI tool for handling input point grabbing/moving made by user.
+        UI tool for managing input point grabbing/moving made by user.
         * Intermediary between polytrim_states and PolyLineKnife
         '''
         def __init__(self, network):
@@ -99,7 +99,6 @@ class Polytrim_UI_Tools():
             loc, no, face_ind = ray_cast(self.network.source_ob, self.network.imx, ray_origin, ray_target, None)
             if face_ind == -1: return
 
-            # check to see if the start_edge or end_edge points are selected
             #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
             if isinstance(self.network.selected, InputPoint) and self.network.selected.seed_geom != None:
 
@@ -179,19 +178,32 @@ class Polytrim_UI_Tools():
         * Intermediary between polytrim_states and PolyLineKnife
         '''
         def __init__(self, input_net):
-            self.mouse = None
+            self.mouse_loc = None
             self.input_net = input_net
 
-            self.hovered = self.Hovered()
-            self.near = self.Near()
+            self.hovered = self.Hovered(self)
+            self.near = self.Near(self)
+            self.nearest = self.Nearest(self)
 
-        def update(self, x, y):
-            self.set_loc(x,y)
+        def loc(self): return self.mouse_loc
+        loc = property(loc)
+
+        def update(self, context, screen_loc):
+            self.set_loc(screen_loc)
             view_vector, ray_origin, ray_target= get_view_ray_data(context, self.mouse)
-            loc, no, face_ind = ray_cast(self.network.source_ob, self.network.imx, ray_origin, ray_target, None)
+            loc, no, face_ind = ray_cast(self.input_net.source_ob, self.input_net.imx, ray_origin, ray_target, None)
             self.hovered.set_ray_cast_data(loc,no,face_ind)
 
-        def set_loc(self, x, y): self.mouse = (x,y)
+        def set_loc(self, screen_loc): self.mouse = screen_loc
+
+        def nearest_endpoint(self, mouse_3d_loc):
+            def dist3d(ip):
+                return (ip.world_loc - mouse_3d_loc).length
+
+            endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint]
+            if len(endpoints) == 0: return None
+
+            return min(endpoints, key = dist3d)
 
         class Near():
             ''' Data about what the mouse is near'''
@@ -205,7 +217,14 @@ class Polytrim_UI_Tools():
                 self.endpoint = self.nearest_endpoint()
 
             def nearest_endpoint(self):
-                return None
+                def dist3d(point):
+                    return (point.world_loc - pt3d).length
+
+                endpoints = [ip for ip in self.handler.input_net.input_net.points if ip.is_endpoint] 
+                if len(endpoints) == 0: return None
+
+                return min(endpoints, key = dist3d)
+   
 
         class Hovered():
             ''' Data about what the mouse is directly hovering over'''
@@ -321,9 +340,6 @@ class Polytrim_UI_Tools():
             if not network.selected: return
             network.input_net.remove(network.selected, disconnect= True)
 
-        #if network.ed_cross_map.is_used:
-        #    network.make_cut()
-
     def closest_endpoint(self, pt3d):
         def dist3d(point):
             return (point.world_loc - pt3d).length
@@ -358,8 +374,6 @@ class Polytrim_UI_Tools():
         context = self.context
         if self.input_net.bad_segments:
             context.area.header_text_set("Fix Bad segments by moving control points.")
-        elif self.input_net.ed_cross_map.is_used:
-            context.area.header_text_set("When cut is satisfactory, press 'S' then 'LeftMouse' in region to cut")
         elif self.input_net.hovered[0] == 'POINT':
             if self.input_net.hovered[1] == 0:
                 context.area.header_text_set("For origin point, left click to toggle cyclic")
@@ -392,7 +406,7 @@ class Polytrim_UI_Tools():
 
         polyline.snap_element = None
         polyline.connect_element = None
-        
+
         if polyline.input_net.is_empty:
             polyline.hovered = [None, -1]
             self.hover_non_man()

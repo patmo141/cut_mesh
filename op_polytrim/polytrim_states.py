@@ -69,22 +69,8 @@ class Polytrim_States():
             self.input_net.linear_re_tesselate_segment(self.input_net.input_net.points[4],
                                                          self.input_net.input_net.points[2],
                                                          res = 3.0)
-            
-             
-        if self.actions.pressed('preview cut'):
-            if self.input_net.start_edge != None and self.input_net.end_edge == None:
-                show_error_message('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')
-            elif self.input_net.start_edge == None and not self.input_net.cyclic:
-                show_error_message('Cut starts within mesh.  Cut must be closed loop.  Click the first point to close the loop')
-            else:
-                self.input_net.make_cut()
-                self.header_text_set("Red segments have cut failures, modify polyline to fix.  When ready press 'S' to set seed point")
-            return
-
-        if self.actions.pressed('S'): return 'inner'
 
         if self.actions.pressed('RET'):
-            self.input_net.confirm_cut_to_mesh()
             self.done()
             return
             #return 'finish'
@@ -110,18 +96,15 @@ class Polytrim_States():
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
         # no navigation in grab mode
-        context = self.context
         self.cursor_modal_set('HAND')
 
         if self.actions.pressed('LEFTMOUSE'):
             #confirm location
             x,y = self.actions.mouse
-            self.grabber.finalize(context)
+            self.grabber.finalize(self.context)
 
             if self.input_net.selected not in self.input_net.input_net.points:
                 self.input_net.selected = -1
-            if self.input_net.ed_cross_map.is_used:
-                self.input_net.make_cut()
             self.ui_text_update()
             return 'main'
 
@@ -135,7 +118,7 @@ class Polytrim_States():
             return
         if self.actions.mousemove_prev:
             #update the b_pt location
-            self.grabber.move_grab_point(context, self.actions.mouse)
+            self.grabber.move_grab_point(self.context, self.actions.mouse)
 
     ######################################################
     # sketch state
@@ -173,52 +156,3 @@ class Polytrim_States():
             self.sketcher.reset()
             return 'main'
 
-    ######################################################
-    # inner state
-
-    @CookieCutter.FSM_State('inner', 'can enter')
-    def inner_can_enter(self):
-        print('testing if we can enter inner mode')
-        if len(self.input_net.bad_segments) != 0:
-            show_error_message('Cut has failed segments shown in red.  Move the red segment slightly or add cut nodes to avoid bad part of mesh')
-            return False
-        if self.input_net.start_edge == None and not self.input_net.cyclic:
-            show_error_message('Finish closing cut boundary loop')
-            return False
-        if self.input_net.start_edge != None and self.input_net.end_edge == None:
-            show_error_message('Finish cutting to another non-manifold boundary/edge of the object')
-            return False
-        if not self.input_net.ed_cross_map.is_used:
-            show_error_message('Press "C" to preview the cut success before setting the seed')
-            return False
-
-    @CookieCutter.FSM_State('inner', 'enter')
-    def inner_enter(self):
-        self.header_text_set("Left Click Region to select area to cut")
-
-    @CookieCutter.FSM_State('inner')
-    def modal_inner(self):
-        self.cursor_modal_set('EYEDROPPER')
-
-        if self.actions.pressed('LEFTMOUSE'):
-            x,y = self.actions.mouse
-
-            result = self.input_net.click_seed_select(self.context, self.mouse)
-            # found a good face
-            if result == 1:
-                self.cursor_modal_set('CROSSHAIR')
-                if self.input_net.ed_cross_map.is_used and not self.input_net.bad_segments and not self.input_net.split:
-                    self.input_net.confirm_cut_to_mesh_no_ops()
-                    self.header_text_set("X:delete, P:separate, SHIFT+D:duplicate, K:knife, Y:split")
-                return 'main'
-            # found a bad face
-            elif result == -1:
-                show_error_message('Seed is too close to cut boundary, try again more interior to the cut')
-                return 'inner'
-            # face not found
-            else:
-                show_error_message('Seed not found, try again')
-                return 'inner'
-
-        if self.actions.pressed({'RET','ESC'}):
-            return 'main'
