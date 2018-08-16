@@ -38,36 +38,36 @@ class Polytrim_States():
         if self.actions.pressed('delete'):
             print('delete pressed')
             x,y = self.actions.mouse
-            self.click_delete_point(self.input_net, mode='mouse')
+            self.click_delete_point(self.plk, mode='mouse')
             self.hover()
             return
 
         # if self.actions.pressed('up'):
         #     x,y = self.actions.mouse
         #     view = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, (x,y))
-        #     self.input_net.double_points(view)
+        #     self.plk.double_points(view)
 
         # if self.actions.pressed('down'):
-        #     self.input_net.halve_points()
+        #     self.plk.halve_points()
 
         #re-tesselate at 3mm resolution
         if self.actions.pressed('T'):
-            n_pts = self.input_net.num_points
-            self.input_net.linear_re_tesselate_segment(self.input_net.input_net.points[0],
-                                                         self.input_net.input_net.points[n_pts-1],
+            n_pts = self.plk.num_points
+            self.linear_re_tesselate_segment(self.input_net.points[0],
+                                                         self.input_net.points[n_pts-1],
                                                          res = 3.0)
         
         
         if self.actions.pressed('F1'):
-            n_pts = self.input_net.num_points
-            self.input_net.linear_re_tesselate_segment(self.input_net.input_net.points[2],
-                                                         self.input_net.input_net.points[4],
+            n_pts = self.plk.num_points
+            self.linear_re_tesselate_segment(self.input_net.points[2],
+                                                         self.input_net.points[4],
                                                          res = 3.0)
             
         if self.actions.pressed('F2'):
-            n_pts = self.input_net.num_points
-            self.input_net.linear_re_tesselate_segment(self.input_net.input_net.points[4],
-                                                         self.input_net.input_net.points[2],
+            n_pts = self.plk.num_points
+            self.linear_re_tesselate_segment(self.input_net.points[4],
+                                                         self.input_net.points[2],
                                                          res = 3.0)
 
         if self.actions.pressed('RET'):
@@ -85,7 +85,7 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return (self.input_net.selected and isinstance(self.input_net.selected, InputPoint))
+        return (self.plk.selected and isinstance(self.plk.selected, InputPoint))
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
@@ -103,8 +103,8 @@ class Polytrim_States():
             x,y = self.actions.mouse
             self.grabber.finalize(self.context)
 
-            if self.input_net.selected not in self.input_net.input_net.points:
-                self.input_net.selected = -1
+            if self.plk.selected not in self.input_net.points:
+                self.plk.selected = -1
             self.ui_text_update()
             return 'main'
 
@@ -127,8 +127,8 @@ class Polytrim_States():
     def sketch_can_enter(self):
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
-        self.click_add_point(self.input_net, context, mouse)  #Send the 2D coordinates to Knife Class
-        return (self.input_net.ui_type == 'DENSE_POLY' and self.input_net.hovered[0] == 'POINT') or self.input_net.num_points == 1
+        self.click_add_point(self.plk, context, mouse)  #Send the 2D coordinates to Knife Class
+        return (self.input_net.ui_type == 'DENSE_POLY' and self.plk.hovered[0] == 'POINT') or self.plk.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
@@ -146,11 +146,11 @@ class Polytrim_States():
         if self.actions.released('sketch'):
             is_sketch = self.sketcher.is_good()
             if is_sketch:
-                last_hovered_point = self.input_net.hovered[1]
-                print("LAST:",self.input_net.hovered)
+                last_hovered_point = self.plk.hovered[1]
+                print("LAST:",self.plk.hovered)
                 self.hover()
-                new_hovered_point = self.input_net.hovered[1]   
-                print("NEW:",self.input_net.hovered)
+                new_hovered_point = self.plk.hovered[1]   
+                print("NEW:",self.plk.hovered)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
             self.ui_text_update()
             self.sketcher.reset()

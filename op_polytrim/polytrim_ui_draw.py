@@ -12,9 +12,9 @@ import bgl
 class Polytrim_UI_Draw():
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
-        self.input_net.draw3d(self.context)
+        self.draw3d(self.context)
 
-        # if self.input_net.snap_element != None:
+        # if self.plk.snap_element != None:
         #     bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
         #     bgl.glEnable(bgl.GL_BLEND)
         #     bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
@@ -36,7 +36,7 @@ class Polytrim_UI_Draw():
         #     a = 1
         #     circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
         #     circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*a)
-        #     p1 = self.input_net.snap_element.world_loc
+        #     p1 = self.plk.snap_element.world_loc
         #     bgl.glVertex3f(*p1)
             
         #     bgl.glEnd()
@@ -48,9 +48,162 @@ class Polytrim_UI_Draw():
 
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
-        context = self.context
         if self.input_net:
-            self.input_net.draw(context, self.actions.mouse, self.grabber)
+            self.draw( self.actions.mouse, self.grabber)
         if self.sketcher.has_locs:
-            common_drawing.draw_polyline_from_points(context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
+            common_drawing.draw_polyline_from_points(self.context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
 
+
+    def draw(self, mouse_loc, grabber):
+        '''
+        2d drawing
+        '''
+        context = self.context
+
+        green  = (.3,1,.3,1)
+        red = (1,.1,.1,1)
+        orange = (1,.8,.2,1)
+        yellow = (1,1,.1,1)
+        cyan = (0,1,1,1)
+        navy_opaque = (0,.2,.2,.5)
+        blue_opaque = (0,0,1,.2)
+
+        preview_line_clr = (0,1,0,.4)
+        preview_line_wdth = 2
+
+        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+
+        ## Hovered Non-manifold Edge or Vert
+        if self.mouse.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+            ed, pt = self.mouse.hovered[1]
+            common_drawing.draw_3d_points(context,[pt], 6, green)
+
+        if  self.input_net.is_empty: return
+   
+        ## Selected Point
+        if self.mouse.selected and isinstance(self.mouse.selected, InputPoint):
+            common_drawing.draw_3d_points(context,[self.mouse.selected.world_loc], 8, orange)
+
+
+        # Grab Location Dot and Lines XXX:This part is gross..
+        if grabber.grab_point:
+            # Dot
+            common_drawing.draw_3d_points(context,[grabber.grab_point.world_loc], 5, blue_opaque)
+            # Lines
+
+            point_orig = self.mouse.selected  #had to be selected to be grabbed
+            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.linked_segs]
+
+            for pt_3d in other_locs:
+                other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
+                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, grabber.grab_point.world_loc)
+                if other_loc and grab_loc:
+                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+        ## Hovered Point
+        elif self.mouse.hovered[0] == 'POINT':
+            common_drawing.draw_3d_points(context,[self.mouse.hovered[1].world_loc], 8, color = (0,1,0,1))
+        # Insertion Lines (for adding in a point to edge)
+        elif self.mouse.hovered[0] == 'EDGE':
+            seg = self.mouse.hovered[1]
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
+            if a and b:
+                common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+        # Insertion Lines (for adding closing loop)
+        elif self.mouse.snap_element != None and self.mouse.connect_element != None:
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.mouse.connect_element.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.mouse.snap_element.world_loc)
+            if a and b:
+                common_drawing.draw_polyline_from_points(context, [a, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+        # Endpoint to Cursor Line
+        elif self.mouse.closest_ep:
+            ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.mouse.closest_ep.world_loc)
+            common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+
+
+    def draw3d(self,context):
+        '''
+        3d drawing
+         * ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
+        '''
+        
+        if self.input_net.is_empty: return
+
+        blue = (.1,.1,.8,1)
+        blue2 = (.1,.2,1,.8)
+        green = (.2,.5,.2,1)
+        orange = (1,.8,.2,1)
+
+        region,r3d = context.region,context.space_data.region_3d
+        view_dir = r3d.view_rotation * Vector((0,0,-1))
+        view_loc = r3d.view_location - view_dir * r3d.view_distance
+        if r3d.view_perspective == 'ORTHO': view_loc -= view_dir * 1000.0
+
+        bgl.glEnable(bgl.GL_POINT_SMOOTH)
+        bgl.glDepthRange(0.0, 1.0)
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
+
+        def set_depthrange(near=0.0, far=1.0, points=None):
+            if points and len(points) and view_loc:
+                d2 = min((view_loc-p).length_squared for p in points)
+                d = math.sqrt(d2)
+                d2 /= 10.0
+                near = near / d2
+                far = 1.0 - ((1.0 - far) / d2)
+            if r3d.view_perspective == 'ORTHO':
+                far *= 0.9999
+            near = max(0.0, min(1.0, near))
+            far = max(near, min(1.0, far))
+            bgl.glDepthRange(near, far)
+            #bgl.glDepthRange(0.0, 0.5)
+
+        # draws points
+        def draw3d_points(context, points, color, size):
+            if len(points) == 0: return
+            bgl.glColor4f(*color)
+            bgl.glPointSize(size)
+            set_depthrange(0.0, 0.997, points)
+            bgl.glBegin(bgl.GL_POINTS)
+            for coord in points: bgl.glVertex3f(*coord)
+            bgl.glEnd()
+            bgl.glPointSize(1.0)
+
+        # draws polylines.
+        def draw3d_polyline(context, points, color, thickness, LINE_TYPE, zfar=0.997):
+            if len(points) == 0: return
+            if LINE_TYPE == "GL_LINE_STIPPLE":
+                bgl.glLineStipple(4, 0x5555)  #play with this later
+                bgl.glEnable(bgl.GL_LINE_STIPPLE)
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*color)
+            bgl.glLineWidth(thickness)
+            set_depthrange(0.0, zfar, points)
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for coord in points: bgl.glVertex3f(*coord)
+            bgl.glEnd()
+            bgl.glLineWidth(1)
+            if LINE_TYPE == "GL_LINE_STIPPLE":
+                bgl.glDisable(bgl.GL_LINE_STIPPLE)
+                bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
+
+        bgl.glLineWidth(1)  # Why are these two lines down here?
+        bgl.glDepthRange(0.0, 1.0)
+
+        # Polylines...InputSegments
+ 
+        for seg in self.input_net.segments:
+            if seg.is_bad:
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
+            elif len(seg.path) >= 2:
+                draw3d_polyline(context, seg.path,  blue, 2, 'GL_LINE_STRIP' )
+            else:
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
+    
+        draw3d_points(context, self.input_net.point_world_locs, blue, 6)
+
+        bgl.glLineWidth(1)     
+                
+        
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthRange(0.0, 1.0)
+        bgl.glDepthMask(bgl.GL_TRUE)

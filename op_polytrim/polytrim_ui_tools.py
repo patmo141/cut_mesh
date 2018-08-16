@@ -22,9 +22,9 @@ class Polytrim_UI_Tools():
         UI tool for managing sketches made by user.
         * Intermediary between polytrim_states and PolyLineKnife
         '''
-        def __init__(self, polyline):
+        def __init__(self, input_net):
             self.sketch = []
-            self.polyline = polyline
+            self.input_net = input_net
             self.stroke_smoothing = 0.75  # 0: no smoothing. 1: no change
             self.sketch_curpos = (0, 0)
 
@@ -46,9 +46,9 @@ class Polytrim_UI_Tools():
             self.sketch += [(lx*ss0+x*ss1, ly*ss0+y*ss1)]
 
         def is_good(self):
-            ''' Returns whether the sketch attempt should/shouldn't be added to the PolyLineKnife '''
+            ''' Returns whether the sketch attempt should/shouldn't be added to the InputNetwork '''
             # checking to see if sketch functionality shouldn't happen
-            if len(self.sketch) < 5 and self.polyline.ui_type == 'DENSE_POLY': return False
+            if len(self.sketch) < 5 and self.input_net.ui_type == 'DENSE_POLY': return False
             return True
 
         def finalize(self, context, start_pnt, end_pnt=None):
@@ -58,35 +58,34 @@ class Polytrim_UI_Tools():
             prev_pnt = None
             for ind in range(0, len(self.sketch) , 5):
                 if not prev_pnt:
-                    if self.polyline.num_points == 1: new_pnt = self.polyline.input_net.get(0)
+                    if self.input_net.num_points == 1: new_pnt = self.input_net.points[0]
                     else: new_pnt = start_pnt
                 else:
                     pt_screen_loc = self.sketch[ind]
                     view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)
-                    loc, no, face_ind =  ray_cast(self.polyline.source_ob,self.polyline.imx, ray_origin, ray_target, None)
+                    loc, no, face_ind =  ray_cast(self.input_net.source_ob,self.input_net.imx, ray_origin, ray_target, None)
                     if face_ind != -1:
-                        new_pnt = InputPoint(self.polyline.mx * loc, loc, view_vector, face_ind)
-                        self.polyline.input_net.add(p=new_pnt)
+                        new_pnt = self.input_net.create_point(self.input_net.mx * loc, loc, view_vector, face_ind)
                 if prev_pnt:
                     seg = InputSegment(prev_pnt,new_pnt)
-                    self.polyline.input_net.segments.append(seg)
-                    seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
+                    self.input_net.segments.append(seg)
+                    seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
                 prev_pnt = new_pnt
             if end_pnt:
                 seg = InputSegment(prev_pnt,end_pnt)
-                self.polyline.input_net.segments.append(seg)
-                seg.pre_vis_cut(self.polyline.bme, self.polyline.bvh, self.polyline.mx, self.polyline.imx)
+                self.input_net.segments.append(seg)
+                seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
     class GrabManager():
         '''
         UI tool for managing input point grabbing/moving made by user.
         * Intermediary between polytrim_states and PolyLineKnife
         '''
-        def __init__(self, network):
-            self.network = network
+        def __init__(self, input_net):
+            self.input_net = input_net
             self.grab_point = None
 
-        def initiate_grab_point(self): self.grab_point = self.network.selected.duplicate()
+        def initiate_grab_point(self): self.grab_point = self.input_net.selected.duplicate()
 
         def move_grab_point(self,context,mouse_loc):
             '''
@@ -96,17 +95,17 @@ class Polytrim_UI_Tools():
             rv3d = context.region_data
             # ray tracing
             view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
-            loc, no, face_ind = ray_cast(self.network.source_ob, self.network.imx, ray_origin, ray_target, None)
+            loc, no, face_ind = ray_cast(self.input_net.source_ob, self.input_net.imx, ray_origin, ray_target, None)
             if face_ind == -1: return
 
             #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
-            if isinstance(self.network.selected, InputPoint) and self.network.selected.seed_geom != None:
+            if isinstance(self.input_net.selected, InputPoint) and self.input_net.selected.seed_geom != None:
 
                 #check the 3d mouse location vs non manifold verts
-                co3d, index, dist = self.network.kd.find(self.network.mx * loc)
+                co3d, index, dist = self.input_net.kd.find(self.input_net.mx * loc)
 
                 #get the actual non man vert from original list
-                close_bmvert = self.network.bme.verts[self.network.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
+                close_bmvert = self.input_net.bme.verts[self.input_net.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
                 close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
                 loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
@@ -122,9 +121,9 @@ class Polytrim_UI_Tools():
                 inter_0, d0 = intersect_point_line(loc, a0, b)
                 inter_1, d1 = intersect_point_line(loc, a1, b)
 
-                screen_0 = loc3d_reg2D(region, rv3d, self.network.mx * inter_0)
-                screen_1 = loc3d_reg2D(region, rv3d, self.network.mx * inter_1)
-                screen_v = loc3d_reg2D(region, rv3d, self.network.mx * b)
+                screen_0 = loc3d_reg2D(region, rv3d, self.input_net.mx * inter_0)
+                screen_1 = loc3d_reg2D(region, rv3d, self.input_net.mx * inter_1)
+                screen_v = loc3d_reg2D(region, rv3d, self.input_net.mx * b)
 
                 screen_d0 = (Vector((mouse_loc)) - screen_0).length
                 screen_d1 = (Vector((mouse_loc)) - screen_1).length
@@ -142,10 +141,10 @@ class Polytrim_UI_Tools():
                 else:
                     return
 
-                self.grab_point.set_values(self.network.mx * pt, pt, view_vector, ed.link_faces[0].index)
+                self.grab_point.set_values(self.input_net.mx * pt, pt, view_vector, ed.link_faces[0].index)
                 self.grab_point.seed_geom = ed
             else:
-                self.grab_point.set_values(self.network.mx * loc, loc, view_vector, face_ind)
+                self.grab_point.set_values(self.input_net.mx * loc, loc, view_vector, face_ind)
 
         def grab_cancel(self):
             '''
@@ -159,14 +158,14 @@ class Polytrim_UI_Tools():
             '''
             sets new variables based on new location
             '''
-            self.network.selected.world_loc = self.grab_point.world_loc
-            self.network.selected.local_loc = self.grab_point.local_loc
-            self.network.selected.view = self.grab_point.view
-            self.network.selected.seed_geom = self.grab_point.seed_geom
-            self.network.selected.face_index = self.grab_point.face_index
+            self.input_net.selected.world_loc = self.grab_point.world_loc
+            self.input_net.selected.local_loc = self.grab_point.local_loc
+            self.input_net.selected.view = self.grab_point.view
+            self.input_net.selected.seed_geom = self.grab_point.seed_geom
+            self.input_net.selected.face_index = self.grab_point.face_index
 
-            for seg in self.network.selected.segments:
-                seg.pre_vis_cut(self.network.bme, self.network.bvh, self.network.mx, self.network.imx)
+            for seg in self.input_net.selected.linked_segs:
+                seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
             self.grab_point = None
 
@@ -180,8 +179,11 @@ class Polytrim_UI_Tools():
         def __init__(self, input_net):
             self.mouse_loc = None
             self.input_net = input_net
+            self.selected = -1  #UI
+            self.snap_element = None    #UI
+            self.connect_element = None #UI
 
-            self.hovered = self.Hovered(self)
+            self.hovered = [None, -1]
             self.near = self.Near(self)
             self.nearest = self.Nearest(self)
 
@@ -200,7 +202,7 @@ class Polytrim_UI_Tools():
             def dist3d(ip):
                 return (ip.world_loc - mouse_3d_loc).length
 
-            endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint]
+            endpoints = [ip for ip in self.input_net.points if ip.is_endpoint]
             if len(endpoints) == 0: return None
 
             return min(endpoints, key = dist3d)
@@ -220,7 +222,7 @@ class Polytrim_UI_Tools():
                 def dist3d(point):
                     return (point.world_loc - pt3d).length
 
-                endpoints = [ip for ip in self.handler.input_net.input_net.points if ip.is_endpoint] 
+                endpoints = [ip for ip in self.handler.input_net.points if ip.is_endpoint] 
                 if len(endpoints) == 0: return None
 
                 return min(endpoints, key = dist3d)
@@ -249,89 +251,70 @@ class Polytrim_UI_Tools():
         def none_selected(): network.selected = None # TODO: Change this weird function in function shizz
         
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
-        loc, no, face_ind = ray_cast(network.source_ob, network.imx, ray_origin, ray_target, none_selected)
+        loc, no, face_ind = ray_cast(network.input_net.source_ob, network.input_net.imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
         if network.hovered[0] and 'NON_MAN' in network.hovered[0]:
             bmed, wrld_loc = network.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
             ip1 = self.closest_endpoint(wrld_loc)
-            
-            
-            network.input_net.add(wrld_loc, network.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
-            network.selected = network.input_net.points[-1]
+
+            network.selected = network.input_net.create_point(wrld_loc, network.input_net.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
             network.selected.seed_geom = bmed
 
             if ip1:
                 seg = InputSegment(network.selected, ip1)
                 network.input_net.segments.append(seg)
-                seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+                seg.make_path(network.bme, network.input_net.bvh, network.input_net.mx, network.input_net.imx)
         
         elif (network.hovered[0] == None) and (network.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            closest_endpoint = self.closest_endpoint(network.mx * loc)
-
-            network.input_net.add(network.mx * loc, loc, view_vector, face_ind)
-            network.selected = network.input_net.points[-1]
-
+            closest_endpoint = self.closest_endpoint(network.input_net.mx * loc)
+            network.selected = network.input_net.create_point(network.input_net.mx * loc, loc, view_vector, face_ind)
             if closest_endpoint:
-                seg = InputSegment(closest_endpoint, network.selected)
-                network.input_net.segments.append(seg)
-                seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+                network.input_net.connect_points(network.selected, closest_endpoint)
 
         elif network.hovered[0] == None and network.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            
-            print('This is the close loop scenario')
+
             closest_endpoints = self.closest_endpoints(network.snap_element.world_loc, 2)
-            
-            print('these are the 2 closest endpoints, one should be snap element itself')
-            print(closest_endpoints)
+
             if closest_endpoints == None:
                 #we are not quite hovered but in snap territory
                 return
-            
+
             if len(closest_endpoints) != 2:
                 print('len of closest endpoints not 2')
                 return
-            
-            
+
             seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
             network.input_net.segments.append(seg)
-            seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
-            
+            seg.make_path(network.bme, network.input_net.bvh, network.input_net.mx, network.input_net.imx)
+
         elif network.hovered[0] == 'POINT':
             network.selected = network.hovered[1]
 
         elif network.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
-            
-            #this looks like a TOOLs kind of operation
-            point = InputPoint(network.mx * loc, loc, view_vector, face_ind)
+            point = network.input_net.create_point(network.input_net.mx * loc, loc, view_vector, face_ind)
             old_seg = network.hovered[1]
-            new_seg0, new_seg1 = old_seg.insert_point(point)
-            new_seg0.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
-            new_seg1.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
-            network.input_net.segments += [new_seg0, new_seg1]
-            network.input_net.points.append(point)
-            network.input_net.segments.remove(old_seg)
+            network.input_net.insert_point(point, old_seg)
             network.selected = point
+
 
     def click_delete_point(self, network, mode = 'mouse'):
         '''
         removes point from the trim line
         '''
         if mode == 'mouse':
-            if network.hovered[0] != 'POINT': 
-                print('hovered is not a point')
-                print(network.hovered[0])
+            if network.hovered[0] != 'POINT':
                 return
 
-            network.input_net.remove(network.hovered[1])
+            network.input_net.remove_point(network.hovered[1])
 
             if not network.hovered[1].is_endpoint:
-                last_seg1, last_seg2 = network.hovered[1].segments
+                last_seg1, last_seg2 = network.hovered[1].linked_segs
                 ip1 = last_seg1.other_point(network.hovered[1])
                 ip2 = last_seg2.other_point(network.hovered[1])
                 new_seg = InputSegment(ip1, ip2)
                 network.input_net.segments.append(new_seg)
-                new_seg.pre_vis_cut(network.bme, network.bvh, network.mx, network.imx)
+                new_seg.make_path(network.input_net.bme, network.input_net.bvh, network.input_net.mx, network.input_net.imx)
 
             if network.input_net.is_empty or network.selected == network.hovered[1]:
                 network.selected = None
@@ -367,14 +350,51 @@ class Polytrim_UI_Tools():
 
         return endpoints[0:n_points+1]
 
+    def closest_point_3d_linear(self, seg, pt3d):
+        '''
+        will return the closest point on a straigh line segment
+        drawn between the two input points
+       
+        If the 3D point is not within the infinite cylinder defined
+        by 2 infinite disks placed at each input point and orthogonal
+        to the vector between them, will return None
+       
+       
+       
+        A_pt3d              B_pt3d
+          .                    .
+          |                    |              
+          |                    |              
+          |                    |               
+          |       ip0._________x_________.ip1   
+         
+         
+         A_pt3d will return None, None.  B_pt3d will return 3d location at orthogonal intersection and the distance
+         
+         else, will return a tupple (location of intersection, %along line from ip0 to ip1
+         
+         happens in the world coordinates
+       
+        '''
+
+
+        intersect3d = intersect_point_line(pt3d, seg.ip0.world_loc, seg.ip1.world_loc)
+
+        if intersect3d == None: return (None, None)
+
+        dist3d = (intersect3d[0] - pt3d).length
+
+        if  (intersect3d[1] < 1) and (intersect3d[1] > 0):
+            return (intersect3d[0], dist3d)
+
+        return (None, None)
+
     def ui_text_update(self):
         '''
         updates the text at the bottom of the viewport depending on certain conditions
         '''
         context = self.context
-        if self.input_net.bad_segments:
-            context.area.header_text_set("Fix Bad segments by moving control points.")
-        elif self.input_net.hovered[0] == 'POINT':
+        if self.input_net.hovered[0] == 'POINT':
             if self.input_net.hovered[1] == 0:
                 context.area.header_text_set("For origin point, left click to toggle cyclic")
             else:
@@ -398,16 +418,16 @@ class Polytrim_UI_Tools():
         mouse = self.actions.mouse
         context = self.context
 
-        mx, imx = get_matrices(polyline.source_ob)
+        mx, imx = get_matrices(input_net.source_ob)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray tracing
         view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
-        loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(input_net.source_ob, imx, ray_origin, ray_target, None)
 
         polyline.snap_element = None
         polyline.connect_element = None
 
-        if polyline.input_net.is_empty:
+        if input_net.is_empty:
             polyline.hovered = [None, -1]
             self.hover_non_man()
             return
@@ -426,11 +446,11 @@ class Polytrim_UI_Tools():
         def dist3d(v3):
             if v3 == None:
                 return 100000000
-            delt = v3 - polyline.source_ob.matrix_world * loc
+            delt = v3 - input_net.source_ob.matrix_world * loc
             return delt.length
 
-        #closest_3d_loc = min(polyline.input_net.world_locs, key = dist3d)
-        closest_ip = min(polyline.input_net, key = lambda x: dist3d(x.world_loc))
+        #closest_3d_loc = min(input_net.world_locs, key = dist3d)
+        closest_ip = min(input_net.points, key = lambda x: dist3d(x.world_loc))
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
@@ -471,17 +491,17 @@ class Polytrim_UI_Tools():
 
         ##Check distance between ray_cast point, and segments
         distance_map = {}
-        for seg in polyline.input_net.segments:  #TODO, may need to decide some better naming and better heirarchy
-
-            close_loc, close_d = seg.closes_point_3d_linear(polyline.source_ob.matrix_world * loc)
+        for seg in input_net.segments:  #TODO, may need to decide some better naming and better heirarchy
+  
+            close_loc, close_d = self.closest_point_3d_linear(seg, input_net.source_ob.matrix_world * loc)
             if close_loc  == None:
                 distance_map[seg] = 10000000
                 continue
 
             distance_map[seg] = close_d
 
-        if polyline.input_net.segments:
-            closest_seg = min(polyline.input_net.segments, key = lambda x: distance_map[x])
+        if input_net.segments:
+            closest_seg = min(input_net.segments, key = lambda x: distance_map[x])
 
             a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
@@ -503,16 +523,15 @@ class Polytrim_UI_Tools():
         '''
         finds nonman edges and verts nearby to cursor location
         '''
-        polyline = self.input_net
         mouse = self.actions.mouse
         context = self.context
 
         region = context.region
         rv3d = context.region_data
-        mx, imx = get_matrices(polyline.source_ob)
+        mx, imx = get_matrices(input_net.source_ob)
         # ray casting
         view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse)
-        loc, no, face_ind = ray_cast(polyline.source_ob, imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(input_net.source_ob, imx, ray_origin, ray_target, None)
 
         mouse = Vector(mouse)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
@@ -520,7 +539,7 @@ class Polytrim_UI_Tools():
             co3d, index, dist = polyline.kd.find(mx * loc)
 
             #get the actual non man vert from original list
-            close_bmvert = polyline.bme.verts[polyline.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
+            close_bmvert = input_net.bme.verts[polyline.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
             close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
             if len(close_eds) == 2:
                 bm0 = close_eds[0].other_vert(close_bmvert)
@@ -558,3 +577,97 @@ class Polytrim_UI_Tools():
                     #    else:
                     #        polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
                     #        return
+
+    ### XXX: Puth these in their own class maybe?
+    def interpolate_input_point_pair(self, p0, p1, factor):
+        '''
+        will return a linear interpolation of this point with other
+        needs to be at this level, because snapping to the source object is critical
+        
+        '''
+        assert factor >= 0.0
+        assert factor <= 1.0
+        
+        new_pt = p0.duplicate()
+        
+        new_pt.set_world_loc(factor * p0.world_loc + (1-factor)*p1.world_loc)
+        new_pt.set_local_loc(factor * p0.local_loc + (1-factor)*p1.local_loc)
+        new_pt.view = factor * p0.view + (1-factor) * p1.view
+        new_pt.view.normalize()
+        
+        #need to snap it and find face index
+        loc, no, ind, d = self.input_net.bvh.find_nearest(new_pt.local_loc)
+        
+        #view stays the same
+        new_pt.set_face_ind(ind)
+        new_pt.set_local_loc(loc)
+        new_pt.set_world_loc(self.input_net.mx * loc)
+    
+        return new_pt
+
+    def linear_re_tesselate_segment(self, ip_start, ip_end, res):
+        '''
+        ip_start - InputPoint
+        ip_end = InputPoint
+        res - Float (target distance step between points)
+        
+        
+        re tesesselates all segments between ip_start and ip_end
+        
+        will preserve the original input points, and only add new input points
+        between them as necessary
+        
+        It is important that ip_start to ip_end indicates the direction desired
+        for the segment to be re_tesselated.
+        
+        for example if ip_start is at index 5 and ip_end is at index 2.
+        Input points 5,6,7...N, 0,1 2. will be retesselated
+        
+        However if ip_start is at index 2 and ip_end is at index 5
+        InputPoints 2,3,4,5 will be re_tesslated
+        
+        re_teseselate(ip5, ip2) will not be same as re_tesslate(ip2, ip5)
+        
+        '''
+        assert ip_start in self.input_net.points
+        assert ip_end in self.input_net.points
+        
+        ind_start = self.input_net.points.index(ip_start)
+        ind_end = self.input_net.points.index(ip_end)
+
+        if ind_start > ind_end:
+            points = self.input_net.points[ind_start:] + self.input_net.points[:ind_end]
+
+        elif ind_start > ind_end:
+            ind_start, ind_end = ind_end, ind_start
+            points = self.input_net.points[ind_start:ind_end+1]  #need to get the last point
+        else:
+            points = self.input_net.points[ind_start:ind_end+1]  #need to get the last point
+        
+        
+        new_points = []
+        for i in range(0, len(points) - 1):
+            L = (points[i+1].world_loc - points[i].world_loc).length
+            n_steps = math.floor(L/res)
+            
+            if n_steps == 0: #don't loose points at closer resolution
+                new_points += [points[i].duplicate()]
+                
+            for n in range(n_steps):
+                factor = n/n_steps
+                new_points += [self.interpolate_input_point_pair(points[i+1], points[i], factor)]
+                
+        new_points += [points[-1]]  #get the final point on there
+        
+        
+        if ind_start > ind_end:  
+            self.input_net.points = new_points + self.input_net.points[ind_end:ind_start]  #self.input_net.points[ind_start:] + self.input_net.points[:ind_end]
+        
+        elif ind_start < ind_end:
+            
+            self.input_net.points = self.input_net.points[0:ind_start] + new_points + self.input_net.points[ind_end:]
+                
+        else:
+            self.input_net.points = self.input_net.points[0:ind_start] + new_points + self.input_net.points[ind_end:]
+        
+        self.mouse.selected = None   

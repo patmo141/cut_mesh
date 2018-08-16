@@ -13,7 +13,7 @@ from .polytrim_ui            import Polytrim_UI
 from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
-from .polytrim_datastructure import PolyLineKnife
+from .polytrim_datastructure import PolyLineKnife, InputNetwork
 
 
 #ModalOperator
@@ -73,7 +73,9 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
         self.action_center   = (0, 0)
         self.is_navigating   = False
 
-        self.input_net = PolyLineKnife(self.context, self.context.object)
+        self.input_net = InputNetwork(self.context.object)
+        self.plk = PolyLineKnife(self.input_net, self.context, self.context.object)
+        
 
         self.sketcher = self.SketchManager(self.input_net)
         self.grabber = self.GrabManager(self.input_net)
