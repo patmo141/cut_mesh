@@ -3,16 +3,24 @@ Created on Oct 8, 2015
 
 @author: Patrick
 '''
+import math
+import bgl
+
+from bpy_extras import view3d_utils
+from mathutils import Vector, Matrix, Color
 
 from .. import common_drawing
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.shaders import circleShader
-import bgl
+
+from .polytrim_datastructure import InputPoint
+
+
 
 class Polytrim_UI_Draw():
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
-        self.draw3d(self.context)
+        self.draw_stuff_3d()
 
         # if self.plk.snap_element != None:
         #     bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
@@ -49,16 +57,17 @@ class Polytrim_UI_Draw():
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
         if self.input_net:
-            self.draw( self.actions.mouse, self.grabber)
+            self.draw_stuff(self.context)
         if self.sketcher.has_locs:
             common_drawing.draw_polyline_from_points(self.context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
 
 
-    def draw(self, mouse_loc, grabber):
+    def draw_stuff(self, context):
         '''
         2d drawing
         '''
         context = self.context
+        mouse_loc = self.actions.mouse
 
         green  = (.3,1,.3,1)
         red = (1,.1,.1,1)
@@ -86,9 +95,9 @@ class Polytrim_UI_Draw():
 
 
         # Grab Location Dot and Lines XXX:This part is gross..
-        if grabber.grab_point:
+        if self.grabber.grab_point:
             # Dot
-            common_drawing.draw_3d_points(context,[grabber.grab_point.world_loc], 5, blue_opaque)
+            common_drawing.draw_3d_points(context,[self.grabber.grab_point.world_loc], 5, blue_opaque)
             # Lines
 
             point_orig = self.mouse.selected  #had to be selected to be grabbed
@@ -96,7 +105,7 @@ class Polytrim_UI_Draw():
 
             for pt_3d in other_locs:
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
-                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, grabber.grab_point.world_loc)
+                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grabber.grab_point.world_loc)
                 if other_loc and grab_loc:
                     common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         ## Hovered Point
@@ -121,12 +130,12 @@ class Polytrim_UI_Draw():
             common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
 
 
-    def draw3d(self,context):
+    def draw_stuff_3d(self):
         '''
         3d drawing
          * ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
         '''
-        
+        context = self.context
         if self.input_net.is_empty: return
 
         blue = (.1,.1,.8,1)

@@ -38,17 +38,9 @@ class Polytrim_States():
         if self.actions.pressed('delete'):
             print('delete pressed')
             x,y = self.actions.mouse
-            self.click_delete_point(self.plk, mode='mouse')
+            self.click_delete_point(mode='mouse')
             self.hover()
             return
-
-        # if self.actions.pressed('up'):
-        #     x,y = self.actions.mouse
-        #     view = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, (x,y))
-        #     self.plk.double_points(view)
-
-        # if self.actions.pressed('down'):
-        #     self.plk.halve_points()
 
         #re-tesselate at 3mm resolution
         if self.actions.pressed('T'):
@@ -85,7 +77,7 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return (self.plk.selected and isinstance(self.plk.selected, InputPoint))
+        return (self.mouse.selected and isinstance(self.mouse.selected, InputPoint))
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
@@ -103,8 +95,8 @@ class Polytrim_States():
             x,y = self.actions.mouse
             self.grabber.finalize(self.context)
 
-            if self.plk.selected not in self.input_net.points:
-                self.plk.selected = -1
+            if self.mouse.selected not in self.input_net.points:
+                self.mouse.selected = -1
             self.ui_text_update()
             return 'main'
 
@@ -127,8 +119,8 @@ class Polytrim_States():
     def sketch_can_enter(self):
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
-        self.click_add_point(self.plk, context, mouse)  #Send the 2D coordinates to Knife Class
-        return (self.input_net.ui_type == 'DENSE_POLY' and self.plk.hovered[0] == 'POINT') or self.plk.num_points == 1
+        self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
+        return (self.input_net.ui_type == 'DENSE_POLY' and self.mouse.hovered[0] == 'POINT') or self.plk.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
@@ -146,11 +138,11 @@ class Polytrim_States():
         if self.actions.released('sketch'):
             is_sketch = self.sketcher.is_good()
             if is_sketch:
-                last_hovered_point = self.plk.hovered[1]
-                print("LAST:",self.plk.hovered)
+                last_hovered_point = self.mouse.hovered[1]
+                print("LAST:",self.mouse.hovered)
                 self.hover()
-                new_hovered_point = self.plk.hovered[1]   
-                print("NEW:",self.plk.hovered)
+                new_hovered_point = self.mouse.hovered[1]   
+                print("NEW:",self.mouse.hovered)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
             self.ui_text_update()
             self.sketcher.reset()

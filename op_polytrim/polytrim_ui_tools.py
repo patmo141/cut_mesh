@@ -182,6 +182,7 @@ class Polytrim_UI_Tools():
             self.selected = -1  #UI
             self.snap_element = None    #UI
             self.connect_element = None #UI
+            self.closest_ep = None
 
             self.hovered = [None, -1]
             self.near = self.Near(self)
@@ -241,40 +242,40 @@ class Polytrim_UI_Tools():
                 self.face_normal = normal
                 self.face_ind = face_ind
 
-    def click_add_point(self, network, context, mouse_loc):
+    def click_add_point(self, context, mouse_loc):
         '''
         this will add a point into the trim line
         close the curve into a cyclic curve
         
         #Need to get smarter about closing the loop
         '''
-        def none_selected(): network.selected = None # TODO: Change this weird function in function shizz
+        def none_selected(): self.mouse.selected = None # TODO: Change this weird function in function shizz
         
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
-        loc, no, face_ind = ray_cast(network.input_net.source_ob, network.input_net.imx, ray_origin, ray_target, none_selected)
+        loc, no, face_ind = ray_cast(self.input_net.source_ob, self.input_net.imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
-        if network.hovered[0] and 'NON_MAN' in network.hovered[0]:
-            bmed, wrld_loc = network.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
+        if self.mouse.hovered[0] and 'NON_MAN' in self.mouse.hovered[0]:
+            bmed, wrld_loc = self.mouse.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
             ip1 = self.closest_endpoint(wrld_loc)
 
-            network.selected = network.input_net.create_point(wrld_loc, network.input_net.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
-            network.selected.seed_geom = bmed
+            self.mouse.selected = self.input_net.create_point(wrld_loc, self.input_net.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
+            self.mouse.selected.seed_geom = bmed
 
             if ip1:
-                seg = InputSegment(network.selected, ip1)
-                network.input_net.segments.append(seg)
-                seg.make_path(network.bme, network.input_net.bvh, network.input_net.mx, network.input_net.imx)
+                seg = InputSegment(self.mouse.selected, ip1)
+                self.input_net.segments.append(seg)
+                seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
         
-        elif (network.hovered[0] == None) and (network.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-            closest_endpoint = self.closest_endpoint(network.input_net.mx * loc)
-            network.selected = network.input_net.create_point(network.input_net.mx * loc, loc, view_vector, face_ind)
+        elif (self.mouse.hovered[0] == None) and (self.mouse.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            closest_endpoint = self.closest_endpoint(self.input_net.mx * loc)
+            self.mouse.selected = self.input_net.create_point(self.input_net.mx * loc, loc, view_vector, face_ind)
             if closest_endpoint:
-                network.input_net.connect_points(network.selected, closest_endpoint)
+                self.input_net.connect_points(self.mouse.selected, closest_endpoint)
 
-        elif network.hovered[0] == None and network.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+        elif self.mouse.hovered[0] == None and self.mouse.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
 
-            closest_endpoints = self.closest_endpoints(network.snap_element.world_loc, 2)
+            closest_endpoints = self.closest_endpoints(self.mouse.snap_element.world_loc, 2)
 
             if closest_endpoints == None:
                 #we are not quite hovered but in snap territory
@@ -285,49 +286,49 @@ class Polytrim_UI_Tools():
                 return
 
             seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
-            network.input_net.segments.append(seg)
-            seg.make_path(network.bme, network.input_net.bvh, network.input_net.mx, network.input_net.imx)
+            self.input_net.segments.append(seg)
+            seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
-        elif network.hovered[0] == 'POINT':
-            network.selected = network.hovered[1]
+        elif self.mouse.hovered[0] == 'POINT':
+            self.mouse.selected = self.mouse.hovered[1]
 
-        elif network.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
-            point = network.input_net.create_point(network.input_net.mx * loc, loc, view_vector, face_ind)
-            old_seg = network.hovered[1]
-            network.input_net.insert_point(point, old_seg)
-            network.selected = point
+        elif self.mouse.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
+            point = self.input_net.create_point(self.input_net.mx * loc, loc, view_vector, face_ind)
+            old_seg = self.mouse.hovered[1]
+            self.input_net.insert_point(point, old_seg)
+            self.mouse.selected = point
 
 
-    def click_delete_point(self, network, mode = 'mouse'):
+    def click_delete_point(self, mode = 'mouse'):
         '''
         removes point from the trim line
         '''
         if mode == 'mouse':
-            if network.hovered[0] != 'POINT':
+            if self.mouse.hovered[0] != 'POINT':
                 return
 
-            network.input_net.remove_point(network.hovered[1])
+            self.input_net.remove_point(self.mouse.hovered[1])
 
-            if not network.hovered[1].is_endpoint:
-                last_seg1, last_seg2 = network.hovered[1].linked_segs
-                ip1 = last_seg1.other_point(network.hovered[1])
-                ip2 = last_seg2.other_point(network.hovered[1])
+            if not self.mouse.hovered[1].is_endpoint:
+                last_seg1, last_seg2 = self.mouse.hovered[1].linked_segs
+                ip1 = last_seg1.other_point(self.mouse.hovered[1])
+                ip2 = last_seg2.other_point(self.mouse.hovered[1])
                 new_seg = InputSegment(ip1, ip2)
-                network.input_net.segments.append(new_seg)
-                new_seg.make_path(network.input_net.bme, network.input_net.bvh, network.input_net.mx, network.input_net.imx)
+                self.input_net.segments.append(new_seg)
+                new_seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
-            if network.input_net.is_empty or network.selected == network.hovered[1]:
-                network.selected = None
+            if self.input_net.is_empty or self.mouse.selected == self.mouse.hovered[1]:
+                self.mouse.selected = None
 
         else: #hard delete with x key
-            if not network.selected: return
-            network.input_net.remove(network.selected, disconnect= True)
+            if not self.mouse.selected: return
+            self.input_net.remove(self.mouse.selected, disconnect= True)
 
     def closest_endpoint(self, pt3d):
         def dist3d(point):
             return (point.world_loc - pt3d).length
 
-        endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint] 
+        endpoints = [ip for ip in self.input_net.points if ip.is_endpoint]
         if len(endpoints) == 0: return None
 
         return min(endpoints, key = dist3d)
@@ -337,7 +338,7 @@ class Polytrim_UI_Tools():
         #no need for accel structure here
         n_points = max(0, n_points)
 
-        endpoints = [ip for ip in self.input_net.input_net.points if ip.is_endpoint] #TODO self.endpoints?
+        endpoints = [ip for ip in self.input_net.points if ip.is_endpoint] #TODO self.endpoints?
 
         if len(endpoints) == 0: return None
         n_points = min(n_points, len(endpoints))
@@ -394,8 +395,8 @@ class Polytrim_UI_Tools():
         updates the text at the bottom of the viewport depending on certain conditions
         '''
         context = self.context
-        if self.input_net.hovered[0] == 'POINT':
-            if self.input_net.hovered[1] == 0:
+        if self.mouse.hovered[0] == 'POINT':
+            if self.mouse.hovered[1] == 0:
                 context.area.header_text_set("For origin point, left click to toggle cyclic")
             else:
                 context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
@@ -414,25 +415,24 @@ class Polytrim_UI_Tools():
         '''
 
         # TODO: update self.hover to use Accel2D?
-        polyline = self.input_net
         mouse = self.actions.mouse
         context = self.context
 
-        mx, imx = get_matrices(input_net.source_ob)
+        mx, imx = get_matrices(self.input_net.source_ob)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray tracing
         view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
-        loc, no, face_ind = ray_cast(input_net.source_ob, imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(self.input_net.source_ob, imx, ray_origin, ray_target, None)
 
-        polyline.snap_element = None
-        polyline.connect_element = None
+        self.mouse.snap_element = None
+        self.mouse.connect_element = None
 
-        if input_net.is_empty:
-            polyline.hovered = [None, -1]
+        if self.input_net.is_empty:
+            self.mouse.hovered = [None, -1]
             self.hover_non_man()
             return
-        if face_ind == -1: polyline.closest_ep = None
-        else: polyline.closest_ep = self.closest_endpoint(mx * loc)
+        if face_ind == -1: self.mouse.closest_ep = None
+        else: self.mouse.closest_ep = self.closest_endpoint(mx * loc)
 
         #find length between vertex and mouse
         def dist(v):
@@ -446,28 +446,28 @@ class Polytrim_UI_Tools():
         def dist3d(v3):
             if v3 == None:
                 return 100000000
-            delt = v3 - input_net.source_ob.matrix_world * loc
+            delt = v3 - self.input_net.source_ob.matrix_world * loc
             return delt.length
 
-        #closest_3d_loc = min(input_net.world_locs, key = dist3d)
-        closest_ip = min(input_net.points, key = lambda x: dist3d(x.world_loc))
+        #closest_3d_loc = min(self.input_net.world_locs, key = dist3d)
+        closest_ip = min(self.input_net.points, key = lambda x: dist3d(x.world_loc))
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
             print('point is hovered')
             print(pixel_dist)
-            polyline.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
-            polyline.snap_element = None
+            self.mouse.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
+            self.mouse.snap_element = None
             return
 
         elif pixel_dist >= select_radius and pixel_dist < snap_radius:
             print('point is within snap radius')
             print(pixel_dist)
             if closest_ip.is_endpoint:
-                polyline.snap_element = closest_ip
+                self.mouse.snap_element = closest_ip
 
                 print('This is the close loop scenario')
-                closest_endpoints = self.closest_endpoints(polyline.snap_element.world_loc, 2)
+                closest_endpoints = self.closest_endpoints(self.mouse.snap_element.world_loc, 2)
 
                 print('these are the 2 closest endpoints, one should be snap element itself')
                 print(closest_endpoints)
@@ -479,29 +479,29 @@ class Polytrim_UI_Tools():
                     print('len of closest endpoints not 2')
                     return
 
-                polyline.connect_element = closest_endpoints[1]
+                self.mouse.connect_element = closest_endpoints[1]
 
             return
 
 
-        if polyline.num_points == 1:  #why did we do this? Oh because there are no segments.
-            polyline.hovered = [None, -1]
-            polyline.snap_element = None
+        if self.input_net.num_points == 1:  #why did we do this? Oh because there are no segments.
+            self.mouse.hovered = [None, -1]
+            self.mouse.snap_element = None
             return
 
         ##Check distance between ray_cast point, and segments
         distance_map = {}
-        for seg in input_net.segments:  #TODO, may need to decide some better naming and better heirarchy
+        for seg in self.input_net.segments:  #TODO, may need to decide some better naming and better heirarchy
   
-            close_loc, close_d = self.closest_point_3d_linear(seg, input_net.source_ob.matrix_world * loc)
+            close_loc, close_d = self.closest_point_3d_linear(seg, self.input_net.source_ob.matrix_world * loc)
             if close_loc  == None:
                 distance_map[seg] = 10000000
                 continue
 
             distance_map[seg] = close_d
 
-        if input_net.segments:
-            closest_seg = min(input_net.segments, key = lambda x: distance_map[x])
+        if self.input_net.segments:
+            closest_seg = min(self.input_net.segments, key = lambda x: distance_map[x])
 
             a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
@@ -511,11 +511,11 @@ class Polytrim_UI_Tools():
                 dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
                 bound = intersect[1]
                 if (dist < select_radius**2) and (bound < 1) and (bound > 0):
-                    polyline.hovered = ['EDGE', closest_seg]
+                    self.mouse.hovered = ['EDGE', closest_seg]
                     return
 
         ## Multiple points, but not hovering over edge or point.
-        polyline.hovered = [None, -1]
+        self.mouse.hovered = [None, -1]
 
         self.hover_non_man()  #todo, optimize because double ray cast per mouse move!
 
@@ -528,18 +528,18 @@ class Polytrim_UI_Tools():
 
         region = context.region
         rv3d = context.region_data
-        mx, imx = get_matrices(input_net.source_ob)
+        mx, imx = get_matrices(self.input_net.source_ob)
         # ray casting
         view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse)
-        loc, no, face_ind = ray_cast(input_net.source_ob, imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast(self.input_net.source_ob, imx, ray_origin, ray_target, None)
 
         mouse = Vector(mouse)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-        if len(polyline.non_man_points):
-            co3d, index, dist = polyline.kd.find(mx * loc)
+        if len(self.plk.non_man_points):
+            co3d, index, dist = self.plk.kd.find(mx * loc)
 
             #get the actual non man vert from original list
-            close_bmvert = input_net.bme.verts[polyline.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
+            close_bmvert = self.input_net.bme.verts[self.plk.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
             close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
             if len(close_eds) == 2:
                 bm0 = close_eds[0].other_vert(close_bmvert)
@@ -563,20 +563,12 @@ class Polytrim_UI_Tools():
 
                     #TODO, decid how to handle when very very close to vertcies
                     if 0 < d0 <= 1 and screen_d0 < 20:
-                        polyline.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
+                        self.mouse.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
                         return
                     elif 0 < d1 <= 1 and screen_d1 < 20:
-                        polyline.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
+                        self.mouse.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
                         return
-                    
-                    #For now, not able to split a vert on the edge of the mesh, only edges
-                    #elif screen_dv < 20:
-                    #    if abs(d0) < abs(d1):
-                    #        polyline.hovered = ['NON_MAN_VERT', (close_eds[0], mx*b)]
-                    #        return
-                    #    else:
-                    #        polyline.hovered = ['NON_MAN_VERT', (close_eds[1], mx*b)]
-                    #        return
+
 
     ### XXX: Puth these in their own class maybe?
     def interpolate_input_point_pair(self, p0, p1, factor):

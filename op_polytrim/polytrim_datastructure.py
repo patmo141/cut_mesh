@@ -47,12 +47,7 @@ class PolyLineKnife(object): #NetworkCutter
     '''
     def __init__(self,input_net,context, source_ob, ui_type = 'DENSE_POLY'):
         self.input_net = input_net # is network
-
-        self.cyclic = False #R
-        
-        self.closest_ep = None   #UI  closest free input point (< 2 segs)
-        self.snap_element = None    #UI
-        self.connect_element = None #UI
+                
 
          #TODO: (Cutting with new method, very hard)
         self.face_chain = set()
