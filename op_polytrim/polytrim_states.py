@@ -81,7 +81,11 @@ class Polytrim_States():
             
         if self.actions.pressed('F2'):
             self.plm.current.preview_bad_segments_geodesic()
-  
+            
+        
+        if self.actions.pressed('F1'):
+            self.plm.current.input_points.find_network_cycles()
+        
         if self.actions.pressed('preview cut'):
             if self.plm.current.start_edge != None and self.plm.current.end_edge == None:
                 show_error_message('Cut starts on non manifold boundary of mesh and must end on non manifold boundary')

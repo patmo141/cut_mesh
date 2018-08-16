@@ -117,23 +117,17 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
-            print('point is hovered')
-            print(pixel_dist)
             polyline.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             polyline.snap_element = None
             return
 
         elif pixel_dist >= select_radius and pixel_dist < snap_radius:
-            print('point is within snap radius')
-            print(pixel_dist)
             if closest_ip.is_endpoint:
                 polyline.snap_element = closest_ip
                 
-                print('This is the close loop scenario')
+                
                 closest_endpoints = polyline.closest_endpoints(polyline.snap_element.world_loc, 2)
                 
-                print('these are the 2 closest endpoints, one should be snap element itself')
-                print(closest_endpoints)
                 if closest_endpoints == None:
                     #we are not quite hovered but in snap territory
                     return
@@ -163,6 +157,7 @@ class Polytrim_UI_Tools():
             
             distance_map[seg] = close_d
     
+        
         closest_seg = min(polyline.input_points.segments, key = lambda x: distance_map[x])    
 
         ## ?? And here

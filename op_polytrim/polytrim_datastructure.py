@@ -968,7 +968,7 @@ class PolyLineKnife(object):
             self.face_seed = None
             print('face not selected')
             return 0
-
+        
     def confirm_cut_to_mesh(self):
         if len(self.bad_segments): return  #can't do this with bad segments!!
 
@@ -1094,8 +1094,6 @@ class PolyLineKnife(object):
 
         for ed in newer_edges:
             ed.select_set(True)
-
-
 
         face_boundary = set()
         for ed in new_edges:
@@ -2233,6 +2231,114 @@ class InputPointMap(object):
         new.segments = self.segments
         return new
 
+
+    def get_endpoints(self):
+        #maybe later...be smart and carefully add/remove endpoints
+        #as they are inserted/created/removed etc
+        #probably not necessary
+        endpoints = [ip for ip in self.points if ip.is_endpoint] #TODO self.endpoints?
+        
+        return endpoints
+        
+    def find_network_cycles(self):  #TODO
+        #this is the equivalent of "edge_loops"
+        #TODO, mirror the get_cycle method from polystrips
+        #right now ther eare no T or X junctions, only cuts across mesh or loops within mesh
+        #will need to implement "IputNode.get_segment_to_right(InputSegment) to take care this
+        
+        
+        ip_set = set(self.points)
+        endpoints = set(self.get_endpoints())
+        
+        print('There are %i endpoints' % len(endpoints))
+        print('there are %i input points' % len(ip_set))
+        
+        unclosed_ip_cycles = []
+        unclosed_seg_cycles = []
+        
+        def next_segment(ip, current_seg): #TODO Code golf this
+            if len(ip.link_segments) != 2: return None  #TODO, the the segment to right
+            return [seg for seg in ip.link_segments if seg != current_seg][0]
+              
+        while len(endpoints):
+            current_ip = endpoints.pop()
+            ip_start = current_ip
+            ip_set.remove(current_ip)
+            
+            node_cycle = [current_ip]
+            if len(current_ip.link_segments) == 0: continue #Lonely Input Point, ingore it
+            
+            current_seg = current_ip.link_segments[0]
+            seg_cycle = [current_seg]
+            
+            while current_seg:
+                next_ip = current_seg.other_point(current_ip)  #always true
+                
+                if next_ip == ip_start: break  #we have found the end, no need to get the next segment
+                
+                #take care of sets
+                if next_ip in ip_set: ip_set.remove(next_ip)
+                if next_ip in endpoints: endpoints.remove(next_ip)
+                node_cycle += [next_ip]
+                
+                #find next segment
+                next_seg = next_segment(next_ip, current_seg)
+                if not next_seg:  break  #we have found an endpoint
+                seg_cycle += [next_seg]
+               
+                #reset variable for next iteration
+                current_ip = next_ip
+                current_seg = next_seg
+                
+            unclosed_ip_cycles += [node_cycle] 
+            unclosed_seg_cycles += [seg_cycle] 
+         
+            
+        print('there are %i unclosed cycles' % len(unclosed_ip_cycles))
+        print('there are %i ip points in ip set' % len(ip_set))
+        for i, cyc in enumerate(unclosed_ip_cycles):
+            print('There are %i nodes in %i unclosed cycle' % (len(cyc), i))
+        
+        ip_cycles = []
+        seg_cycles = []   #<<this basicaly becomes a PolyLineKine
+        while len(ip_set):
+            current_ip = ip_set.pop()
+            ip_start = current_ip
+                
+            node_cycle = [current_ip]
+            if len(current_ip.link_segments) == 0: continue #Lonely Input Point, ingore it
+            
+            current_seg = current_ip.link_segments[0]
+            seg_cycle = [current_seg]
+            
+            while current_seg:
+                next_ip = current_seg.other_point(current_ip)  #always true
+                
+                if next_ip == ip_start: break  #we have found the end, no need to get the next segment
+                
+                #take care of sets
+                if next_ip in ip_set: ip_set.remove(next_ip)  #<-- i what circumstance would this not be true?
+                node_cycle += [next_ip]
+                
+                #find next segment
+                next_seg = next_segment(next_ip, current_seg)
+                if not next_seg:  break  #we have found an endpoint
+                seg_cycle += [next_seg]
+               
+                #reset variable for next iteration
+                current_ip = next_ip
+                current_seg = next_seg
+                
+            ip_cycles += [node_cycle] 
+            seg_cycles += [seg_cycle] 
+        
+        
+        print('there are %i closed seg cycles' % len(seg_cycle))
+        for i, cyc in enumerate(ip_cycles):
+            print('There are %i nodes in %i closed cycle' % (len(cyc), i))
+        
+        return
+        
 class EdgeIntersectionMap(object):
     '''
     Map of edge crossings by trim line and necessary methods
