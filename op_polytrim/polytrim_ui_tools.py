@@ -176,33 +176,41 @@ class Polytrim_UI_Tools():
             return
 
     ## TODO: Right now it's only storing UI elements,
-    class MouseMove():
+    class NetworkUIManager():
         '''
         UI tool for storing data depending on where mouse is located
         * Intermediary between polytrim_states and PolyLineKnife
         '''
-        def __init__(self, input_net):
-            self.mouse_loc = None
+        def __init__(self, ob, bme, bvh, mx, imx, context, input_net):
+            self.context = context
+            self.ob = ob
+            self.bme = bme
+            self.bvh = bvh
+            self.mx = mx
+            self.imx = imx
+
             self.input_net = input_net
-            self.selected = -1  #UI
-            self.snap_element = None    #UI
-            self.connect_element = None #UI
+
+            self.hovered2 = None
+            self.selected = -1
+            self.snap_element = None
+            self.connect_element = None
             self.closest_ep = None
             self.hovered = [None, -1]
-            
-            self.near = self.Near(self)
-            self.nearest = self.Nearest(self)
 
-        def loc(self): return self.mouse_loc
-        loc = property(loc)
 
-        def update(self, context, screen_loc):
-            self.set_loc(screen_loc)
-            view_vector, ray_origin, ray_target= get_view_ray_data(context, self.mouse)
-            loc, no, face_ind = ray_cast(self.input_net.source_ob, self.input_net.imx, ray_origin, ray_target, None)
-            self.hovered.set_ray_cast_data(loc,no,face_ind)
+        def update(self, context, mouse_loc):
+            self.ray_cast_mouse(mouse_loc)
 
-        def set_loc(self, screen_loc): self.mouse = screen_loc
+        def ray_cast_mouse(self, mouse_loc):
+            view_vector, ray_origin, ray_target= get_view_ray_data(self.context, mouse_loc)
+            loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
+            if face_ind == -1: self.hovered = None
+            else: self.hovered2 = {
+                    "local_loc": loc,
+                    "normal": no,
+                    "face_ind", face_ind
+                }
 
         def nearest_endpoint(self, mouse_3d_loc):
             def dist3d(ip):
@@ -212,40 +220,6 @@ class Polytrim_UI_Tools():
             if len(endpoints) == 0: return None
 
             return min(endpoints, key = dist3d)
-
-        class Near():
-            ''' Data about what the mouse is near'''
-            def __init__(self, handler):
-                self.handler = handler
-
-        class Nearest():
-            ''' Data values that are closest to the mouse '''
-            def __init__(self, handler):
-                self.handler = handler
-                self.endpoint = self.nearest_endpoint()
-
-            def nearest_endpoint(self):
-                def dist3d(point):
-                    return (point.world_loc - pt3d).length
-
-                endpoints = [ip for ip in self.handler.input_net.points if ip.is_endpoint] 
-                if len(endpoints) == 0: return None
-
-                return min(endpoints, key = dist3d)
-   
-
-        class Hovered():
-            ''' Data about what the mouse is directly hovering over'''
-            def __init__(self, handler):
-                self.handler = handler
-                self.face_local_loc = None
-                self.face_normal = None
-                self.face_ind = None
-            
-            def set_ray_cast_data(self, local_loc, normal, face_ind):
-                self.face_local_loc = local_loc
-                self.face_normal = normal
-                self.face_ind = face_ind
 
     # TODO: Clean this up
     def click_add_point(self, context, mouse_loc):
@@ -330,7 +304,7 @@ class Polytrim_UI_Tools():
             if not self.mouse.selected: return
             self.input_net.remove(self.mouse.selected, disconnect= True)
 
-    # TODO: Make this a MouseMove function
+    # TODO: Make this a NetworkUIManager function
     def closest_endpoint(self, pt3d):
         def dist3d(point):
             return (point.world_loc - pt3d).length
@@ -340,7 +314,7 @@ class Polytrim_UI_Tools():
 
         return min(endpoints, key = dist3d)
 
-    # TODO: Also MouseMove function
+    # TODO: Also NetworkUIManager function
     def closest_endpoints(self, pt3d, n_points):
         #in our application, at most there will be 100 endpoints?
         #no need for accel structure here
@@ -359,7 +333,7 @@ class Polytrim_UI_Tools():
 
         return endpoints[0:n_points+1]
 
-    # TODO: MouseMove??
+    # TODO: NetworkUIManager??
     def closest_point_3d_linear(self, seg, pt3d):
         '''
         will return the closest point on a straigh line segment
@@ -419,7 +393,7 @@ class Polytrim_UI_Tools():
         self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
         #self.context.area.header_text_set()
 
-    # XXX: MouseMove
+    # XXX: NetworkUIManager
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse
@@ -531,7 +505,7 @@ class Polytrim_UI_Tools():
 
         self.hover_non_man()  #todo, optimize because double ray cast per mouse move!
 
-    # XXX: MouseMove
+    # XXX: NetworkUIManager
     def hover_non_man(self):
         '''
         finds nonman edges and verts nearby to cursor location
