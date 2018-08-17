@@ -67,7 +67,7 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return (self.mouse.selected and isinstance(self.mouse.selected, InputPoint))
+        return (self.net_ui_manager.selected and isinstance(self.net_ui_manager.selected, InputPoint))
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
@@ -85,8 +85,8 @@ class Polytrim_States():
             x,y = self.actions.mouse
             self.grabber.finalize(self.context)
 
-            if self.mouse.selected not in self.input_net.points:
-                self.mouse.selected = -1
+            if self.net_ui_manager.selected not in self.input_net.points:
+                self.net_ui_manager.selected = -1
             self.ui_text_update()
             return 'main'
 
@@ -110,7 +110,7 @@ class Polytrim_States():
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
         self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
-        return (self.input_net.ui_type == 'DENSE_POLY' and self.mouse.hovered[0] == 'POINT') or self.plk.num_points == 1
+        return (self.input_net.ui_type == 'DENSE_POLY' and self.net_ui_manager.hovered[0] == 'POINT') or self.plk.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
@@ -128,11 +128,11 @@ class Polytrim_States():
         if self.actions.released('sketch'):
             is_sketch = self.sketcher.is_good()
             if is_sketch:
-                last_hovered_point = self.mouse.hovered[1]
-                print("LAST:",self.mouse.hovered)
+                last_hovered_point = self.net_ui_manager.hovered[1]
+                print("LAST:",self.net_ui_manager.hovered)
                 self.hover()
-                new_hovered_point = self.mouse.hovered[1]   
-                print("NEW:",self.mouse.hovered)
+                new_hovered_point = self.net_ui_manager.hovered[1]   
+                print("NEW:",self.net_ui_manager.hovered)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
             self.ui_text_update()
             self.sketcher.reset()
