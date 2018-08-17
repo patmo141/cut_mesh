@@ -703,6 +703,150 @@ def path_between_2_points(bme, bvh, pt_a, pt_b,
         print('Error 1: ' + error1)
         return([], [], [], [], error)
     
+
+
+def path_between_2_points_clean(bme, loc_a, ind_a,
+                                loc_b, ind_b,
+                                max_tests = 10000, 
+                                debug = True, 
+                                prev_face = None, 
+                                use_limit = True,
+                                epsilon = 0.00001):
+    '''
+    Takes a bmesh and associated 
+    world matrix of the object 
+    
+    returns list of locations and edges
+        
+    Args:
+        bme: Blender BMesh
+        bvh:  BVH from Bmesh.  mathutils.bvhtree.BVHTree
+        
+        mx:   World matrix (type Mathutils.Matrix)
+        pt_A: any point close to the  bmesh surface
+        pt_b:  any point close to the bmesh surface
+        
+    '''
+    times = [time.time()]
+
+
+    no_a = bme.faces[ind_a].normal
+    no_b = bme.faces[ind_a].normal
+    
+    if prev_face and (prev_face.index == ind_a or prev_face.index == ind_b):
+        print('dumb rule!')
+        prev_face = None
+        
+    if use_limit:
+        #grow selection from A to B and from B to A this way we get good connectivity
+        faces_a = grow_selection_to_find_face(bme, bme.faces[ind_a], bme.faces[ind_b])
+        faces_b = grow_selection_to_find_face(bme, bme.faces[ind_b], bme.faces[ind_a])
+        faces_set = faces_a & faces_b
+        times.append(time.time())
+        step = times[-1] - times[-2]
+        #print('did connectivity growing in %f' % step) 
+    else:
+        faces_set = None
+    
+
+    verts = {}
+    
+    vec = loc_b - loc_a
+    loc_tip = loc_a
+    loc_tail = loc_b
+    cut_no_a = no_a.cross(vec)
+    cut_no_b = no_b.cross(vec)
+    
+    # find intersections of edges and cutting plane
+    bmface = bme.faces[ind_a]
+    bmedges = bmface.edges
+    ei_init = find_bmedges_crossing_plane(loc_a, cut_no_a, bmedges, epsilon)
+    
+    if len(ei_init) < 2:
+        print('warning: it should not reach here! len(ei_init) = %d' % len(ei_init))
+        print('lengths = ' + str([(edge.verts[0].co-edge.verts[1].co).length for edge in bmedges]))
+        return ([],[],[], False, 'NO_INTITIAL_CROSSES')
+    elif len(ei_init) == 2:
+        # simple case
+        ei0_max, ei1_max = ei_init
+    else:
+        #complex case, no difference except we need to pull out the first 2
+        ei0_max, ei1_max = ei_init[0], ei_init[1]
+        
+    # start walking one way around bmesh
+    if (prev_face and prev_face not in ei0_max[0].link_faces) or not prev_face:
+        verts0, crossed_eds0, crossed_faces0, looped0, found0, error0 = cross_section_walker_dynamic_endpoints(bme, ind_a, ei0_max[0].index, ei0_max[1], ind_b, loc_b, epsilon, limit_set = faces_set)
+    else:
+        print('prev face prevented walking in the Verts0 direction')
+        verts0, crossed_eds0, crossed_faces0, looped0, found0, error0 = [], [], [], False, False, 'PREV_FACE'
+        
+    if (prev_face and prev_face not in ei1_max[0].link_faces) or not prev_face:
+        verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = cross_section_walker_dynamic_endpoints(bme, ind_a, ei1_max[0].index, ei1_max[1], ind_b, loc_b, epsilon, limit_set = faces_set)
+    else:
+        print('prev face prevented walking in the Verts1 direction')
+        verts1, crossed_eds1, crossed_faces1, looped1, found1, error1 = [], [], [], False, False, 'PREV_FACE'
+        
+    if found0 and found1:
+        print('Found target both directions')
+        print('Len of path0:   %i' % len(verts0))
+        print('Len of path1:   %i' % len(verts0))
+        #great!  return the shortest path (TODO  shortest by path length)
+        if len(verts0) < len(verts1):
+            nv = len(verts0)
+            edges = [(i,i+1) for i in range(nv-1)]
+            return (verts0, edges, crossed_eds0, crossed_faces0, 'BOTH_DIR')
+        else:
+            nv = len(verts1)
+            edges = [(i,i+1) for i in range(nv-1)]
+            return (verts1, edges, crossed_eds1, crossed_faces1, 'BOTH_DIR')
+            
+    elif found0 and not found1:
+        #print('found other face only one direction verts0')
+        nv = len(verts0)
+        edges = [(i,i+1) for i in range(nv-1)]
+        return (verts0, edges, crossed_eds0, crossed_faces0, None)
+    
+    
+    elif found1 and not found0:
+        #print('found other face only one direction verts1')
+        nv = len(verts1)
+        edges = [(i,i+1) for i in range(nv-1)]
+        return (verts1, edges, crossed_eds1, crossed_faces1, None)
+    
+    else:
+        if len(verts0) and error0 == 'P_LOOP':
+            'P_LOOP usualy means poorly behaved mesh'
+            nv = len(verts0)
+            edges = [(i,i+1) for i in range(nv-1)]
+            return ([], [], [], [], 'P_LOOP')
+        
+        elif len(verts1) and error1 == 'P_LOOP':
+            'P_LOOP usualy means poorly behaved mesh'
+            nv = len(verts1)
+            edges = [(i,i+1) for i in range(nv-1)]
+            return ([], [], [], [], 'P_LOOP')
+        
+        elif len(verts0) and len(verts1) and (error0 == 'LIMIT_SET' and error1 == 'LIMIT_SET'):
+            if len(verts0) >= len(verts1):
+                nv = len(verts0)
+                edges = [(i,i+1) for i in range(nv-1)]
+                return (verts0, edges, crossed_eds0, crossed_faces0, 'LIMIT_SET')
+            else:
+                nv = len(verts1)
+                edges = [(i,i+1) for i in range(nv-1)]
+                return (verts1, edges, crossed_eds1, crossed_faces1, 'LIMIT_SET')
+        
+        if error0 == 'EPSILON' or error1 == 'EPSILON':
+            error = 'EPSILON'
+        else:
+            error = 'TOTAL'
+            
+        print('unable to walk at all')
+        print('Error 0: ' + error0)
+        print('Error 1: ' + error1)
+        return([], [], [], [], error)
+    
+    
     
 def cross_section_2seeds_ver1(bme, point, normal, 
                        seed_index0, co_0,

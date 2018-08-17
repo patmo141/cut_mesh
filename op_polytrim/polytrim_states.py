@@ -133,6 +133,7 @@ class Polytrim_States():
                 self.hover()
                 new_hovered_point = self.mouse.hovered[1]   
                 print("NEW:",self.mouse.hovered)
+                print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
             self.ui_text_update()
             self.sketcher.reset()

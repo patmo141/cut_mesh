@@ -14,6 +14,7 @@ from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
 from .polytrim_datastructure import PolyLineKnife, InputNetwork
+from .polytrim_datastructure import NetworkCutter
 
 
 #ModalOperator
@@ -75,7 +76,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
 
         self.input_net = InputNetwork(self.context.object)
         self.plk = PolyLineKnife(self.input_net, self.context, self.context.object)
-
+        self.network_cutter = NetworkCutter(self.input_net)
         self.mouse = self.MouseMove(self.input_net)
         self.sketcher = self.SketchManager(self.input_net)
         self.grabber = self.GrabManager(self.input_net, self.mouse)
