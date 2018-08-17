@@ -201,14 +201,14 @@ class Polytrim_UI_Tools():
             self.hovered = [None, -1]
 
 
-        def update(self, context, mouse_loc):
+        def update(self, mouse_loc):
             self.mouse_loc = mouse_loc
-            self.ray_cast_mouse(mouse_loc)
+            self.ray_cast_mouse()
 
-            self.nearest_non_man_loc()
+            #self.nearest_non_man_loc()
 
-        def ray_cast_mouse(self, mouse_loc):
-            view_vector, ray_origin, ray_target= get_view_ray_data(self.context, mouse_loc)
+        def ray_cast_mouse(self):
+            view_vector, ray_origin, ray_target= get_view_ray_data(self.context, self.mouse_loc)
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
             if face_ind == -1: self.hovered = {}
             else:
@@ -216,11 +216,11 @@ class Polytrim_UI_Tools():
                 self.hovered2["normal"] = no
                 self.hovered2["face_ind"] = face_ind
 
-        def nearest_non_man_loc(self, mouse_loc):
+        def nearest_non_man_loc(self):
             '''
             finds nonman edges and verts nearby to cursor location
             '''
-            mouse = mouse_loc
+            mouse = self.mouse_loc
             context = self.context
             mx = self.mx
             imx = self.imx
@@ -228,7 +228,7 @@ class Polytrim_UI_Tools():
             region = context.region
             rv3d = context.region_data
             # ray casting
-            self.ray_cast_mouse(mouse)
+            self.ray_cast_mouse()
 
             mouse = Vector(mouse)
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
@@ -471,7 +471,7 @@ class Polytrim_UI_Tools():
 
         if self.input_net.is_empty:
             self.net_ui_context.hovered = [None, -1]
-            self.net_ui_context.nearest_non_man_loc(mouse)
+            self.net_ui_context.nearest_non_man_loc()
             return
         if face_ind == -1: self.net_ui_context.closest_ep = None
         else: self.net_ui_context.closest_ep = self.closest_endpoint(mx * loc)
@@ -559,7 +559,7 @@ class Polytrim_UI_Tools():
         ## Multiple points, but not hovering over edge or point.
         self.net_ui_context.hovered = [None, -1]
 
-        self.net_ui_context.nearest_non_man_loc(mouse)  #todo, optimize because double ray cast per mouse move!
+        self.net_ui_context.nearest_non_man_loc()  #todo, optimize because double ray cast per mouse move!
 
 
     ### XXX: Puth these in their own class maybe?

@@ -27,6 +27,7 @@ class Polytrim_States():
             return
         if self.actions.mousemove_prev:
             # TODO: update self.hover to use Accel2D?
+            self.net_ui_context.update(self.actions.mouse)
             self.hover()
             self.ui_text_update()
 
@@ -37,8 +38,8 @@ class Polytrim_States():
 
         if self.actions.pressed('delete'):
             print('delete pressed')
-            x,y = self.actions.mouse
             self.click_delete_point(mode='mouse')
+            self.net_ui_context.update(self.actions.mouse)
             self.hover()
             return
 
@@ -130,6 +131,7 @@ class Polytrim_States():
             if is_sketch:
                 last_hovered_point = self.net_ui_context.hovered[1]
                 print("LAST:",self.net_ui_context.hovered)
+                self.net_ui_context.update(self.actions.mouse)
                 self.hover()
                 new_hovered_point = self.net_ui_context.hovered[1]   
                 print("NEW:",self.net_ui_context.hovered)
