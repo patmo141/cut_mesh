@@ -188,8 +188,8 @@ class Polytrim_UI_Tools():
             self.snap_element = None    #UI
             self.connect_element = None #UI
             self.closest_ep = None
-
             self.hovered = [None, -1]
+            
             self.near = self.Near(self)
             self.nearest = self.Nearest(self)
 

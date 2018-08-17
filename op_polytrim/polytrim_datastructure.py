@@ -77,19 +77,6 @@ class PolyLineKnife(object): #NetworkCutter
     def num_points(self): return self.input_net.num_points
     num_points = property(num_points)
 
-
-####
-
-## UI
-
-###
-
-    #################
-    #### drawing ####
-
-    
-
-
 class InputPoint(object):  # NetworkNode
     '''
     Representation of an input point
@@ -99,7 +86,7 @@ class InputPoint(object):  # NetworkNode
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
-        self.segments = []
+        self.segments = []  ## TODO: self. link_segments
 
         #SETTING UP FOR MORE COMPLEX MESH CUTTING    ## SHould this exist in InputPoint??
         self.seed_geom = seed_geom #UNUSED, but will be needed if input point exists on an EDGE or VERT in the source mesh
@@ -147,7 +134,7 @@ class InputSegment(object): #NetworkSegment
     def __init__(self, ip0, ip1):
         self.ip0 = ip0
         self.ip1 = ip1
-        self.path = []  #list of 3d points for previsualization
+        self.path = []  #list of 3d points for previsualization 
         self.bad_segment = False
         ip0.linked_segs.append(self)
         ip1.linked_segs.append(self)
@@ -168,7 +155,7 @@ class InputSegment(object): #NetworkSegment
         self.ip0.linked_segs.remove(self)
         self.ip1.linked_segs.remove(self)
 
-    def make_path(self, bme, bvh, mx, imx):
+    def make_path(self, bme, bvh, mx, imx): 
         #TODO  shuld only take bmesh, input faces and locations.  Should not take BVH ro matrix as inputs
         self.face_chain = []
         #TODO: Separate this into NetworkCutter.
@@ -329,7 +316,7 @@ class InputNetwork(object): #InputNetwork
             p1.linked_segs.remove(seg)
             p2.linked_segs.remove(seg)
 
-    def are_connected(self, p1, p2):
+    def are_connected(self, p1, p2): #TODO: Needs to be in InputPoint 
         ''' Sees if 2 points are connected, returns connecting segment if True '''
         for seg in p1.linked_segs:
             if seg.other_point(p1) == p2:
