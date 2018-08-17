@@ -61,9 +61,9 @@ class Polytrim_UI_Tools():
                     if self.input_net.num_points == 1: new_pnt = self.input_net.points[0]
                     else: new_pnt = start_pnt
                 else:
-                    pt_screen_loc = self.sketch[ind]
-                    view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)
-                    loc, no, face_ind =  ray_cast(self.input_net.source_ob,self.input_net.imx, ray_origin, ray_target, None)
+                    pt_screen_loc = self.sketch[ind]  #in screen space
+                    view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
+                    loc, no, face_ind =  ray_cast(self.input_net.source_ob,self.input_net.imx, ray_origin, ray_target, None)  #intersects that ray with the geometry
                     if face_ind != -1:
                         new_pnt = self.input_net.create_point(self.input_net.mx * loc, loc, view_vector, face_ind)
                 if prev_pnt:

@@ -151,6 +151,8 @@ class InputSegment(object): #NetworkSegment
         self.bad_segment = False
         ip0.linked_segs.append(self)
         ip1.linked_segs.append(self)
+        
+        self.face_chain = []   #TODO, get a better structure within Netork Cutter
 
     def linked_points(self): return [self.ip0, self.ip1]
     def is_bad(self): return self.bad_segment
@@ -167,6 +169,8 @@ class InputSegment(object): #NetworkSegment
         self.ip1.linked_segs.remove(self)
 
     def make_path(self, bme, bvh, mx, imx):
+        #TODO  shuld only take bmesh, input faces and locations.  Should not take BVH ro matrix as inputs
+        self.face_chain = []
         #TODO: Separate this into NetworkCutter.
         # * return either bad segment or other important data.
         f0 = bme.faces[self.ip0.face_index]  #<<--- Current BMFace
