@@ -17,7 +17,7 @@ from .polytrim_datastructure import PolyLineKnife, InputNetwork
 
 
 #ModalOperator
-class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_Tools, Polytrim_UI_Draw):
+class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytrim_UI_Draw):
     ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
 
