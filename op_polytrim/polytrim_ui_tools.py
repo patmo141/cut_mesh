@@ -20,7 +20,7 @@ class Polytrim_UI_Tools():
     class SketchManager():
         '''
         UI tool for managing sketches made by user.
-        * Intermediary between polytrim_states and PolyLineKnife
+        * Intermediary between polytrim_states and Network
         '''
         def __init__(self, input_net):
             self.sketch = []
@@ -76,20 +76,24 @@ class Polytrim_UI_Tools():
                 self.input_net.segments.append(seg)
                 seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
+    ## TODO: Hovering functions are happening in here, bring them out.
     class GrabManager():
         '''
         UI tool for managing input point grabbing/moving made by user.
-        * Intermediary between polytrim_states and PolyLineKnife
+        * Intermediary between polytrim_states and Network
         '''
-        def __init__(self, input_net):
+        def __init__(self, input_net, mouse):
+            self.mouse = mouse
             self.input_net = input_net
             self.grab_point = None
 
-        def initiate_grab_point(self): self.grab_point = self.input_net.selected.duplicate()
+        def initiate_grab_point(self):
+            self.grab_point = self.mouse.selected.duplicate()
+            print("GRAB",self.grab_point)
 
         def move_grab_point(self,context,mouse_loc):
             '''
-            finds what is near 
+            finds what is near
             '''
             region = context.region
             rv3d = context.region_data
@@ -99,7 +103,7 @@ class Polytrim_UI_Tools():
             if face_ind == -1: return
 
             #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
-            if isinstance(self.input_net.selected, InputPoint) and self.input_net.selected.seed_geom != None:
+            if isinstance(self.mouse.selected, InputPoint) and self.mouse.selected.seed_geom != None:
 
                 #check the 3d mouse location vs non manifold verts
                 co3d, index, dist = self.input_net.kd.find(self.input_net.mx * loc)
@@ -158,19 +162,20 @@ class Polytrim_UI_Tools():
             '''
             sets new variables based on new location
             '''
-            self.input_net.selected.world_loc = self.grab_point.world_loc
-            self.input_net.selected.local_loc = self.grab_point.local_loc
-            self.input_net.selected.view = self.grab_point.view
-            self.input_net.selected.seed_geom = self.grab_point.seed_geom
-            self.input_net.selected.face_index = self.grab_point.face_index
+            self.mouse.selected.world_loc = self.grab_point.world_loc
+            self.mouse.selected.local_loc = self.grab_point.local_loc
+            self.mouse.selected.view = self.grab_point.view
+            self.mouse.selected.seed_geom = self.grab_point.seed_geom
+            self.mouse.selected.face_index = self.grab_point.face_index
 
-            for seg in self.input_net.selected.linked_segs:
+            for seg in self.mouse.selected.linked_segs:
                 seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
             self.grab_point = None
 
             return
 
+    ## TODO: Right now it's only storing UI elements,
     class MouseMove():
         '''
         UI tool for storing data depending on where mouse is located
@@ -242,6 +247,7 @@ class Polytrim_UI_Tools():
                 self.face_normal = normal
                 self.face_ind = face_ind
 
+    # TODO: Clean this up
     def click_add_point(self, context, mouse_loc):
         '''
         this will add a point into the trim line
@@ -298,7 +304,7 @@ class Polytrim_UI_Tools():
             self.input_net.insert_point(point, old_seg)
             self.mouse.selected = point
 
-
+    # TODO: Clean this up
     def click_delete_point(self, mode = 'mouse'):
         '''
         removes point from the trim line
@@ -324,6 +330,7 @@ class Polytrim_UI_Tools():
             if not self.mouse.selected: return
             self.input_net.remove(self.mouse.selected, disconnect= True)
 
+    # TODO: Make this a MouseMove function
     def closest_endpoint(self, pt3d):
         def dist3d(point):
             return (point.world_loc - pt3d).length
@@ -333,6 +340,7 @@ class Polytrim_UI_Tools():
 
         return min(endpoints, key = dist3d)
 
+    # TODO: Also MouseMove function
     def closest_endpoints(self, pt3d, n_points):
         #in our application, at most there will be 100 endpoints?
         #no need for accel structure here
@@ -351,6 +359,7 @@ class Polytrim_UI_Tools():
 
         return endpoints[0:n_points+1]
 
+    # TODO: MouseMove??
     def closest_point_3d_linear(self, seg, pt3d):
         '''
         will return the closest point on a straigh line segment
@@ -390,6 +399,7 @@ class Polytrim_UI_Tools():
 
         return (None, None)
 
+    # XXX: Fine for now, but will likely be irrelevant in future
     def ui_text_update(self):
         '''
         updates the text at the bottom of the viewport depending on certain conditions
@@ -403,11 +413,13 @@ class Polytrim_UI_Tools():
         else:
             self.set_ui_text_main()
 
+    # XXX: Fine for now, but will likely be irrelevant in future
     def set_ui_text_main(self):
         ''' sets the viewports text during general creation of line '''
         self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
         #self.context.area.header_text_set()
 
+    # XXX: MouseMove
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse
@@ -519,6 +531,7 @@ class Polytrim_UI_Tools():
 
         self.hover_non_man()  #todo, optimize because double ray cast per mouse move!
 
+    # XXX: MouseMove
     def hover_non_man(self):
         '''
         finds nonman edges and verts nearby to cursor location

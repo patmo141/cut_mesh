@@ -75,11 +75,10 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_UI, Polytrim_States, Polytrim_UI_T
 
         self.input_net = InputNetwork(self.context.object)
         self.plk = PolyLineKnife(self.input_net, self.context, self.context.object)
-        
 
-        self.sketcher = self.SketchManager(self.input_net)
-        self.grabber = self.GrabManager(self.input_net)
         self.mouse = self.MouseMove(self.input_net)
+        self.sketcher = self.SketchManager(self.input_net)
+        self.grabber = self.GrabManager(self.input_net, self.mouse)
 
         self.cursor_modal_set('CROSSHAIR')
         self.set_ui_text_main()
