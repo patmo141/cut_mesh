@@ -86,7 +86,7 @@ class InputPoint(object):  # NetworkNode
         self.local_loc = local
         self.view = view
         self.face_index = face_ind
-        self.segments = []  ## TODO: self. link_segments
+        self.link_segments = []
 
         #SETTING UP FOR MORE COMPLEX MESH CUTTING    ## SHould this exist in InputPoint??
         self.seed_geom = seed_geom #UNUSED, but will be needed if input point exists on an EDGE or VERT in the source mesh
@@ -94,10 +94,11 @@ class InputPoint(object):  # NetworkNode
     def is_endpoint(self):
         if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
         if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
-    def linked_segs(self): return self.segments
-    def num_linked_segs(self): return len(self.segments)
+        
+    def num_linked_segs(self): return len(self.link_segments)
+    
     is_endpoint = property(is_endpoint)
-    linked_segs = property(linked_segs)
+    
     num_linked_segs = property(num_linked_segs)
 
     def set_world_loc(self, loc): self.world_loc = loc
@@ -114,6 +115,18 @@ class InputPoint(object):  # NetworkNode
     #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
 
+    def are_connected(self, point):   
+        '''
+        takes another input point, and returns InputSegment if they are connected
+        returns False if they are not connected
+        '''
+        for seg in self.link_segments:
+            if seg.other_point(self) == point:
+                return seg
+            
+        return False
+    
+    
     def print_data(self): # for debugging
         print('\n', "POINT DATA", '\n')
         print("world location:", self.world_loc, '\n')
@@ -136,8 +149,8 @@ class InputSegment(object): #NetworkSegment
         self.ip1 = ip1
         self.path = []  #list of 3d points for previsualization 
         self.bad_segment = False
-        ip0.linked_segs.append(self)
-        ip1.linked_segs.append(self)
+        ip0.link_segments.append(self)
+        ip1.link_segments.append(self)
         
         self.face_chain = []   #TODO, get a better structure within Netork Cutter
 
@@ -152,8 +165,8 @@ class InputSegment(object): #NetworkSegment
 
     def detach(self):
         #TODO safety?  Check if in ip0.link_sgements?
-        self.ip0.linked_segs.remove(self)
-        self.ip1.linked_segs.remove(self)
+        self.ip0.link_segments.remove(self)
+        self.ip1.link_segments.remove(self)
 
     def make_path(self, bme, bvh, mx, imx): 
         #TODO  shuld only take bmesh, input faces and locations.  Should not take BVH ro matrix as inputs
@@ -270,11 +283,11 @@ class InputNetwork(object): #InputNetwork
     '''
     def __init__(self, source_ob, ui_type="DENSE_POLY"):
         self.source_ob = source_ob
-        self.bme = bmesh.new()
+        self.bme = bmesh.new()  #This I think should remain at this level
         self.bme.from_mesh(self.source_ob.data)
         ensure_lookup(self.bme)
-        self.bvh = BVHTree.FromBMesh(self.bme)
-        self.mx, self.imx = get_matrices(self.source_ob)
+        self.bvh = BVHTree.FromBMesh(self.bme)  #TODO headed to context
+        self.mx, self.imx = get_matrices(self.source_ob)  #TODO headed to context
         if ui_type not in {'SPARSE_POLY','DENSE_POLY', 'BEZIER'}:
             self.ui_type = 'SPARSE_POLY'
         else:
@@ -313,18 +326,18 @@ class InputNetwork(object): #InputNetwork
         seg = self.are_connected(p1, p2)
         if seg:
             self.segments.remove(seg)
-            p1.linked_segs.remove(seg)
-            p2.linked_segs.remove(seg)
+            p1.link_segments.remove(seg)
+            p2.link_segments.remove(seg)
 
     def are_connected(self, p1, p2): #TODO: Needs to be in InputPoint 
         ''' Sees if 2 points are connected, returns connecting segment if True '''
-        for seg in p1.linked_segs:
+        for seg in p1.link_segments:
             if seg.other_point(p1) == p2:
                 return seg
         return False
 
     def connected_points(self, p):
-        return [seg.other_point(p) for seg in p.linked_segs]
+        return [seg.other_point(p) for seg in p.link_segments]
 
     def insert_point(self, new_p, seg):
         p1 = seg.ip0
@@ -348,3 +361,110 @@ class InputNetwork(object): #InputNetwork
         new.points = self.points
         new.segments = self.segments
         return new
+
+    def get_endpoints(self):
+        #maybe later...be smart and carefully add/remove endpoints
+        #as they are inserted/created/removed etc
+        #probably not necessary
+        endpoints = [ip for ip in self.points if ip.is_endpoint] #TODO self.endpoints?
+        
+        return endpoints
+        
+    def find_network_cycles(self):  #TODO
+        #this is the equivalent of "edge_loops"
+        #TODO, mirror the get_cycle method from polystrips
+        #right now ther eare no T or X junctions, only cuts across mesh or loops within mesh
+        #will need to implement "IputNode.get_segment_to_right(InputSegment) to take care this
+        
+        
+        ip_set = set(self.points)
+        endpoints = set(self.get_endpoints())
+        
+        print('There are %i endpoints' % len(endpoints))
+        print('there are %i input points' % len(ip_set))
+        
+        unclosed_ip_cycles = []
+        unclosed_seg_cycles = []
+        
+        def next_segment(ip, current_seg): #TODO Code golf this
+            if len(ip.link_segments) != 2: return None  #TODO, the the segment to right
+            return [seg for seg in ip.link_segments if seg != current_seg][0]
+              
+        while len(endpoints):
+            current_ip = endpoints.pop()
+            ip_start = current_ip
+            ip_set.remove(current_ip)
+            
+            node_cycle = [current_ip]
+            if len(current_ip.link_segments) == 0: continue #Lonely Input Point, ingore it
+            
+            current_seg = current_ip.link_segments[0]
+            seg_cycle = [current_seg]
+            
+            while current_seg:
+                next_ip = current_seg.other_point(current_ip)  #always true
+                
+                if next_ip == ip_start: break  #we have found the end, no need to get the next segment
+                
+                #take care of sets
+                if next_ip in ip_set: ip_set.remove(next_ip)
+                if next_ip in endpoints: endpoints.remove(next_ip)
+                node_cycle += [next_ip]
+                
+                #find next segment
+                next_seg = next_segment(next_ip, current_seg)
+                if not next_seg:  break  #we have found an endpoint
+                seg_cycle += [next_seg]
+               
+                #reset variable for next iteration
+                current_ip = next_ip
+                current_seg = next_seg
+                
+            unclosed_ip_cycles += [node_cycle] 
+            unclosed_seg_cycles += [seg_cycle] 
+         
+            
+        print('there are %i unclosed cycles' % len(unclosed_ip_cycles))
+        print('there are %i ip points in ip set' % len(ip_set))
+        for i, cyc in enumerate(unclosed_ip_cycles):
+            print('There are %i nodes in %i unclosed cycle' % (len(cyc), i))
+        
+        ip_cycles = []
+        seg_cycles = []   #<<this basicaly becomes a PolyLineKine
+        while len(ip_set):
+            current_ip = ip_set.pop()
+            ip_start = current_ip
+                
+            node_cycle = [current_ip]
+            if len(current_ip.link_segments) == 0: continue #Lonely Input Point, ingore it
+            
+            current_seg = current_ip.link_segments[0]
+            seg_cycle = [current_seg]
+            
+            while current_seg:
+                next_ip = current_seg.other_point(current_ip)  #always true
+                
+                if next_ip == ip_start: break  #we have found the end, no need to get the next segment
+                
+                #take care of sets
+                if next_ip in ip_set: ip_set.remove(next_ip)  #<-- i what circumstance would this not be true?
+                node_cycle += [next_ip]
+                
+                #find next segment
+                next_seg = next_segment(next_ip, current_seg)
+                if not next_seg:  break  #we have found an endpoint
+                seg_cycle += [next_seg]
+               
+                #reset variable for next iteration
+                current_ip = next_ip
+                current_seg = next_seg
+                
+            ip_cycles += [node_cycle] 
+            seg_cycles += [seg_cycle] 
+        
+        
+        print('there are %i closed seg cycles' % len(seg_cycle))
+        for i, cyc in enumerate(ip_cycles):
+            print('There are %i nodes in %i closed cycle' % (len(cyc), i))
+        
+        return

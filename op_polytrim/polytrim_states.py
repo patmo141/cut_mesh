@@ -48,20 +48,10 @@ class Polytrim_States():
             self.linear_re_tesselate_segment(self.input_net.points[0],
                                                          self.input_net.points[n_pts-1],
                                                          res = 3.0)
-        
-        
-        if self.actions.pressed('F1'):
-            n_pts = self.plk.num_points
-            self.linear_re_tesselate_segment(self.input_net.points[2],
-                                                         self.input_net.points[4],
-                                                         res = 3.0)
-            
-        if self.actions.pressed('F2'):
-            n_pts = self.plk.num_points
-            self.linear_re_tesselate_segment(self.input_net.points[4],
-                                                         self.input_net.points[2],
-                                                         res = 3.0)
 
+        if self.actions.pressed('F1'):
+            self.input_net.find_network_cycles()
+            
         if self.actions.pressed('RET'):
             self.done()
             return

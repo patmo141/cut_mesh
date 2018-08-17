@@ -168,7 +168,7 @@ class Polytrim_UI_Tools():
             self.mouse.selected.seed_geom = self.grab_point.seed_geom
             self.mouse.selected.face_index = self.grab_point.face_index
 
-            for seg in self.mouse.selected.linked_segs:
+            for seg in self.mouse.selected.link_segments:
                 seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
             self.grab_point = None
@@ -316,7 +316,7 @@ class Polytrim_UI_Tools():
             self.input_net.remove_point(self.mouse.hovered[1])
 
             if not self.mouse.hovered[1].is_endpoint:
-                last_seg1, last_seg2 = self.mouse.hovered[1].linked_segs
+                last_seg1, last_seg2 = self.mouse.hovered[1].link_segments
                 ip1 = last_seg1.other_point(self.mouse.hovered[1])
                 ip2 = last_seg2.other_point(self.mouse.hovered[1])
                 new_seg = InputSegment(ip1, ip2)

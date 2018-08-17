@@ -101,7 +101,7 @@ class Polytrim_UI_Draw():
             # Lines
 
             point_orig = self.mouse.selected  #had to be selected to be grabbed
-            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.linked_segs]
+            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
 
             for pt_3d in other_locs:
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
