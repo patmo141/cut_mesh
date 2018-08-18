@@ -75,7 +75,6 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.is_navigating   = False
 
         self.input_net = InputNetwork(self.context.object)
-        self.plk = PolyLineKnife(self.input_net, self.context, self.context.object)
         self.network_cutter = NetworkCutter(self.input_net)
         self.net_ui_context = self.NetworkUIContext(self.context, self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx, self.input_net)
         self.sketcher = self.SketchManager(self.input_net)

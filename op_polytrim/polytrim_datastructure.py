@@ -173,26 +173,6 @@ class NetworkCutter(object):
             
             
         return    
-            
-            
-            
-class PolyLineKnife(object): #NetworkCutter
-    '''
-    A class which manages user placed points on an object to create a
-    poly_line, adapted to the objects surface.
-    '''
-    def __init__(self,input_net,context, source_ob, ui_type = 'DENSE_POLY'):
-        self.input_net = input_net # is network
-                
-
-        #TODO: (Cutting with new method, very hard)
-        self.face_chain = set()
-
-        #keep up with these to show user
-        self.perimeter_edges = []
-
-    def num_points(self): return self.input_net.num_points
-    num_points = property(num_points)
 
 class InputPoint(object):  # NetworkNode
     '''
@@ -265,11 +245,11 @@ class InputSegment(object): #NetworkSegment
         self.ip0 = ip0
         self.ip1 = ip1
         self.points = [ip0, ip1]
-        self.path = []  #list of 3d points for previsualization 
+        self.path = []  #list of 3d points for previsualization
         self.bad_segment = False
         ip0.link_segments.append(self)
         ip1.link_segments.append(self)
-        
+
         self.face_chain = []   #TODO, get a better structure within Netork Cutter
 
 
