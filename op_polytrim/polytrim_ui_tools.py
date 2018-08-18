@@ -6,7 +6,7 @@ Created on Oct 10, 2015
 from ..bmesh_fns import edge_loops_from_bmedges_old
 from ..common.utils import get_matrices
 from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
-from .polytrim_datastructure import InputNetwork, PolyLineKnife, InputPoint, InputSegment
+from .polytrim_datastructure import InputNetwork, InputPoint, InputSegment
 from bpy_extras import view3d_utils
 from mathutils import Vector, kdtree
 from mathutils.geometry import intersect_point_line
@@ -190,7 +190,7 @@ class Polytrim_UI_Tools():
     class NetworkUIContext():
         '''
         UI tool for storing data depending on where mouse is located
-        * Intermediary between polytrim_states and PolyLineKnife
+        * Intermediary between polytrim_states and Network
         '''
         def __init__(self, context, bme, bvh, mx, imx, input_net):
             self.context = context

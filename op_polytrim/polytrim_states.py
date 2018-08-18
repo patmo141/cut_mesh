@@ -10,7 +10,7 @@ from bpy_extras import view3d_utils
 
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.blender import show_error_message
-from .polytrim_datastructure import PolyLineKnife, InputPoint
+from .polytrim_datastructure import InputPoint
 
 
 class Polytrim_States():
