@@ -54,9 +54,15 @@ class Polytrim_UI_Tools():
 
         def finalize(self, context, start_pnt, end_pnt=None):
             ''' takes sketch data and adds it into the datastructures '''
-            if not isinstance(end_pnt, InputPoint): end_pnt = None
-
-            prev_pnt = None
+            
+            
+            print(start_pnt, end_pnt)
+            if not isinstance(end_pnt, InputPoint): end_pnt = None    
+            if not isinstance(start_pnt, InputPoint): 
+                prev_pnt = None
+            else:
+                prev_pnt = start_pnt
+            
             for ind in range(0, len(self.sketch) , 5):
                 if not prev_pnt:
                     if self.input_net.num_points == 1: new_pnt = self.input_net.points[0]
@@ -68,14 +74,18 @@ class Polytrim_UI_Tools():
                     if face_ind != -1:
                         new_pnt = self.input_net.create_point(self.input_net.mx * loc, loc, view_vector, face_ind)
                 if prev_pnt:
+                    print(prev_pnt)
                     seg = InputSegment(prev_pnt,new_pnt)
                     self.input_net.segments.append(seg)
-                    seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
+                    
+                    #self.network_cutter.precompute_cut(seg)
+                    #seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
                 prev_pnt = new_pnt
             if end_pnt:
                 seg = InputSegment(prev_pnt,end_pnt)
                 self.input_net.segments.append(seg)
-                seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
+                #self.network_cutter.precompute_cut(seg)
+                #seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
     ## TODO: Hovering functions are happening in here, bring them out.
     class GrabManager():
@@ -170,7 +180,8 @@ class Polytrim_UI_Tools():
             self.net_ui_context.selected.face_index = self.grab_point.face_index
 
             for seg in self.net_ui_context.selected.link_segments:
-                seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
+                self.network_cutter.precompute_cut(seg)
+                #seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
             self.grab_point = None
 
@@ -314,13 +325,15 @@ class Polytrim_UI_Tools():
             if ip1:
                 seg = InputSegment(self.net_ui_context.selected, ip1)
                 self.input_net.segments.append(seg)
-                seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
+                self.network_cutter.precompute_cut(seg)
+                #seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
         
         elif (self.net_ui_context.hovered[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             closest_endpoint = self.closest_endpoint(self.input_net.mx * loc)
             self.net_ui_context.selected = self.input_net.create_point(self.input_net.mx * loc, loc, view_vector, face_ind)
             if closest_endpoint:
                 self.input_net.connect_points(self.net_ui_context.selected, closest_endpoint)
+                self.network_cutter.precompute_cut(self.input_net.segments[-1])  #<  Hmm...not very clean.  
 
         elif self.net_ui_context.hovered[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
 
@@ -336,7 +349,8 @@ class Polytrim_UI_Tools():
 
             seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
             self.input_net.segments.append(seg)
-            seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
+            self.network_cutter.precompute_cut(seg)
+            #seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
         elif self.net_ui_context.hovered[0] == 'POINT':
             self.net_ui_context.selected = self.net_ui_context.hovered[1]
@@ -364,7 +378,8 @@ class Polytrim_UI_Tools():
                 ip2 = last_seg2.other_point(self.net_ui_context.hovered[1])
                 new_seg = InputSegment(ip1, ip2)
                 self.input_net.segments.append(new_seg)
-                new_seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
+                self.network_cutter.precompute_cut(new_seg)
+                #new_seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
             if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered[1]:
                 self.net_ui_context.selected = None
@@ -509,23 +524,23 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
-            print('point is hovered')
-            print(pixel_dist)
+            #print('point is hovered')
+            #print(pixel_dist)
             self.net_ui_context.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             self.net_ui_context.snap_element = None
             return
 
         elif pixel_dist >= select_radius and pixel_dist < snap_radius:
-            print('point is within snap radius')
-            print(pixel_dist)
+            #print('point is within snap radius')
+            #print(pixel_dist)
             if closest_ip.is_endpoint:
                 self.net_ui_context.snap_element = closest_ip
 
-                print('This is the close loop scenario')
+                #print('This is the close loop scenario')
                 closest_endpoints = self.closest_endpoints(self.net_ui_context.snap_element.world_loc, 2)
 
-                print('these are the 2 closest endpoints, one should be snap element itself')
-                print(closest_endpoints)
+                #print('these are the 2 closest endpoints, one should be snap element itself')
+                #print(closest_endpoints)
                 if closest_endpoints == None:
                     #we are not quite hovered but in snap territory
                     return

@@ -25,21 +25,157 @@ from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
-from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points
+from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points, path_between_2_points_clean
 from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
 from ..common.blender import bversion
 from ..common.utils import get_matrices
 from ..common.bezier import CubicBezier, CubicBezierSpline
 from ..common.shaders import circleShader
+from concurrent.futures.thread import ThreadPoolExecutor
 
 class NetworkCutter(object):
     ''' Manages cuts in the InputNetwork '''
 
-    def __init__(self):
-        self.cut = False
+    def __init__(self, input_net):
+        #this is all the basic data that is needed
+        self.input_net = input_net
 
+        #this is fancy "que" of things to be processed
+        self.exectutor = ThreadPoolExecutor()  #alright
 
+    def precompute_cut(self, seg):
+
+        print('precomputing cut!')
+        #TODO  shuld only take bmesh, input faces and locations.  Should not take BVH ro matrix as inputs
+        self.face_chain = []
+        #TODO: Separate this into NetworkCutter.
+        # * return either bad segment or other important data.
+        f0 = self.input_net.bme.faces[seg.ip0.face_index]  #<<--- Current BMFace
+        f1 = self.input_net.bme.faces[seg.ip1.face_index] #<<--- Next BMFace
+
+        if f0 == f1:
+            seg.path = [seg.ip0.world_loc, seg.ip1.world_loc]
+            seg.bad_segment = False  #perhaps a dict self.bad_segments[seg] = True
+            return
+
+        ###########################
+        ## Define the cutting plane for this segment#
+        ############################
+
+        surf_no = self.input_net.imx.to_3x3() * seg.ip0.view.lerp(seg.ip1.view, 0.5)  #must be a better way.
+        e_vec = seg.ip1.local_loc - seg.ip0.local_loc
+        #define
+        cut_no = e_vec.cross(surf_no)
+        #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
+        cut_pt = .5 * seg.ip0.local_loc + 0.5 * seg.ip1.local_loc
+
+        #find the shared edge,, check for adjacent faces for this cut segment
+        cross_ed = None
+        for ed in f0.edges:
+            if f1 in ed.link_faces:
+                cross_ed = ed
+                seg.face_chain.add(f1)
+                break
+
+        #if no shared edge, need to cut across to the next face
+        if not cross_ed:
+            p_face = None
+
+            vs = []
+            epp = .0000000001
+            use_limit = True
+            attempts = 0
+            while epp < .0001 and not len(vs) and attempts <= 5:
+                attempts += 1
+                vs, eds, eds_crossed, faces_crossed, error = path_between_2_points_clean(self.input_net.bme,
+                    seg.ip0.local_loc, seg.ip0.face_index,
+                    seg.ip1.local_loc, seg.ip1.face_index,
+                    max_tests = 5000, debug = True,
+                    prev_face = p_face,
+                    use_limit = use_limit,
+                    epsilon = epp)
+                if len(vs) and error == 'LIMIT_SET':
+                    vs = []
+                    use_limit = False
+                    print('Limit was too limiting, relaxing that consideration')
+
+                elif len(vs) == 0 and error == 'EPSILON':
+                    print('Epsilon was too small, relaxing epsilon')
+                    epp *= 10
+                elif len(vs) == 0 and error:
+                    print('too bad, couldnt adjust due to ' + error)
+                    print(p_face)
+                    print(f0)
+                    break
+
+            if not len(vs):
+                print('\n')
+                print('CUTTING METHOD')
+
+                vs = []
+                epp = .00000001
+                use_limit = True
+                attempts = 0
+                while epp < .0001 and not len(vs) and attempts <= 10:
+                    attempts += 1
+                    vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(
+                        self.input_net.bme,
+                        cut_pt, cut_no,
+                        f0.index,seg.ip0.local_loc,
+                        #f1.index, self.cut_pts[ind_p1],
+                        f1.index, seg.ip1.local_loc,
+                        max_tests = 10000, debug = True, prev_face = p_face,
+                        epsilon = epp)
+                    if len(vs) and error == 'LIMIT_SET':
+                        vs = []
+                        use_limit = False
+                    elif len(vs) == 0 and error == 'EPSILON':
+                        epp *= 10
+                    elif len(vs) == 0 and error:
+                        print('too bad, couldnt adjust due to ' + error)
+                        print(p_face)
+                        print(f0)
+                        break
+
+            if len(vs):
+                print('crossed %i faces' % len(faces_crossed))
+                seg.face_chain = (faces_crossed)
+                seg.path = [self.input_net.mx * v for v in vs]
+                seg.bad_segment = False
+
+            else:  #we failed to find the next face in the face group
+                self.bad_segment = True
+                self.path = [self.ip0.world_loc, self.ip1.world_loc]
+                print('cut failure!!!')
+        
+        return
+        
+    def knife_geometry(self):
+        
+        cycles = self.input_net.find_network_cycles()
+        
+        for p_cycle, seg_cycle in cycles:
+            
+            pass
+            #check a closed loop vs edge to edge
+            
+            #check for nodiness along the lopo that will need to be updated  
+            #Eg,an InputPoint that is on BMEdge will be on a BMVert after this cycle is executed
+            #For now, nodes are not allowed
+            
+            
+            #check for face_map overlap with other cycles? and update those cycles afterward?
+            
+            #calculate the face crossings and create new Bmverts
+            
+            #figure out all the goodness for splititng faces, face changes etc 
+            
+            
+        return    
+            
+            
+            
 class PolyLineKnife(object): #NetworkCutter
     '''
     A class which manages user placed points on an object to create a
@@ -49,7 +185,7 @@ class PolyLineKnife(object): #NetworkCutter
         self.input_net = input_net # is network
                 
 
-         #TODO: (Cutting with new method, very hard)
+        #TODO: (Cutting with new method, very hard)
         self.face_chain = set()
 
         #keep up with these to show user
@@ -128,6 +264,7 @@ class InputSegment(object): #NetworkSegment
     def __init__(self, ip0, ip1):
         self.ip0 = ip0
         self.ip1 = ip1
+        self.points = [ip0, ip1]
         self.path = []  #list of 3d points for previsualization 
         self.bad_segment = False
         ip0.link_segments.append(self)
@@ -135,13 +272,12 @@ class InputSegment(object): #NetworkSegment
         
         self.face_chain = []   #TODO, get a better structure within Netork Cutter
 
-    def linked_points(self): return [self.ip0, self.ip1]
+
     def is_bad(self): return self.bad_segment
-    linked_points = property(linked_points)
     is_bad = property(is_bad)
 
     def other_point(self, p):
-        if p not in self.linked_points: return None
+        if p not in self.points: return None
         return self.ip0 if p == self.ip1 else self.ip1
 
     def detach(self):
@@ -301,7 +437,7 @@ class InputNetwork(object): #InputNetwork
     def connect_points(self, p1, p2, make_path=True):
         ''' connect 2 points with a segment '''
         self.segments.append(InputSegment(p1, p2))
-        if make_path: self.segments[-1].make_path(self.bme, self.bvh, self.mx, self.imx)
+        #if make_path: self.segments[-1].make_path(self.bme, self.bvh, self.mx, self.imx)
 
     def disconnect_points(self, p1, p2):
         seg = self.are_connected(p1, p2)
