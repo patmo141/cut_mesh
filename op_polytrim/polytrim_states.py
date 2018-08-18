@@ -10,7 +10,7 @@ from bpy_extras import view3d_utils
 
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.blender import show_error_message
-from .polytrim_datastructure import PolyLineKnife, InputPoint
+from .polytrim_datastructure import InputPoint
 
 
 class Polytrim_States():
@@ -45,7 +45,7 @@ class Polytrim_States():
 
         #re-tesselate at 3mm resolution
         if self.actions.pressed('T'):
-            n_pts = self.plk.num_points
+            n_pts = self.input_net.num_points
             self.linear_re_tesselate_segment(self.input_net.points[0],
                                                          self.input_net.points[n_pts-1],
                                                          res = 3.0)
@@ -116,7 +116,7 @@ class Polytrim_States():
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
         self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
-        return (self.input_net.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered[0] == 'POINT') or self.plk.num_points == 1
+        return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered[0] == 'POINT') or self.input_net.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):

@@ -38,10 +38,11 @@ from concurrent.futures.thread import ThreadPoolExecutor
 class NetworkCutter(object):
     ''' Manages cuts in the InputNetwork '''
 
-    def __init__(self, input_net):
+    def __init__(self, input_net, net_ui_context):
         #this is all the basic data that is needed
         self.input_net = input_net
-        
+        self.net_ui_context = net_ui_context
+
         #this is fancy "que" of things to be processed
         self.executor = ThreadPoolExecutor()  #alright
         self.executor_tasks = {}
@@ -87,8 +88,8 @@ class NetworkCutter(object):
         self.face_chain = []
         #TODO: Separate this into NetworkCutter.
         # * return either bad segment or other important data.
-        f0 = self.input_net.bme.faces[seg.ip0.face_index]  #<<--- Current BMFace
-        f1 = self.input_net.bme.faces[seg.ip1.face_index] #<<--- Next BMFace
+        f0 = self.net_ui_context.bme.faces[seg.ip0.face_index]  #<<--- Current BMFace
+        f1 = self.net_ui_context.bme.faces[seg.ip1.face_index] #<<--- Next BMFace
 
         if f0 == f1:
             seg.path = [seg.ip0.world_loc, seg.ip1.world_loc]
@@ -99,7 +100,7 @@ class NetworkCutter(object):
         ## Define the cutting plane for this segment#
         ############################
 
-        surf_no = self.input_net.imx.to_3x3() * seg.ip0.view.lerp(seg.ip1.view, 0.5)  #must be a better way.
+        surf_no = self.net_ui_context.imx.to_3x3() * seg.ip0.view.lerp(seg.ip1.view, 0.5)  #must be a better way.
         e_vec = seg.ip1.local_loc - seg.ip0.local_loc
         #define
         cut_no = e_vec.cross(surf_no)
@@ -126,7 +127,7 @@ class NetworkCutter(object):
             attempts = 0
             while epp < .0001 and not len(vs) and attempts <= 5:
                 attempts += 1
-                vs, eds, eds_crossed, faces_crossed, error = path_between_2_points_clean(self.input_net.bme,
+                vs, eds, eds_crossed, faces_crossed, error = path_between_2_points_clean(self.net_ui_context.bme,
                     seg.ip0.local_loc, seg.ip0.face_index,
                     seg.ip1.local_loc, seg.ip1.face_index,
                     max_tests = 5000, debug = True,
@@ -158,7 +159,7 @@ class NetworkCutter(object):
                 while epp < .0001 and not len(vs) and attempts <= 10:
                     attempts += 1
                     vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(
-                        self.input_net.bme,
+                        self.net_ui_context.bme,
                         cut_pt, cut_no,
                         f0.index,seg.ip0.local_loc,
                         #f1.index, self.cut_pts[ind_p1],
@@ -179,7 +180,7 @@ class NetworkCutter(object):
             if len(vs):
                 print('crossed %i faces' % len(faces_crossed))
                 seg.face_chain = (faces_crossed)
-                seg.path = [self.input_net.mx * v for v in vs]
+                seg.path = [self.net_ui_context.mx * v for v in vs]
                 seg.bad_segment = False
                 seg.needs_calculation = False
                 seg.calculation_complete = True
@@ -242,45 +243,6 @@ class NetworkCutter(object):
             
             
         return    
-            
-            
-            
-class PolyLineKnife(object): #NetworkCutter
-    '''
-    A class which manages user placed points on an object to create a
-    poly_line, adapted to the objects surface.
-    '''
-    def __init__(self,input_net,context, source_ob, ui_type = 'DENSE_POLY'):
-        self.input_net = input_net # is network
-                
-
-        #TODO: (Cutting with new method, very hard)
-        self.face_chain = set()
-
-        self.non_man_eds = [ed.index for ed in self.input_net.bme.edges if not ed.is_manifold] #UI? (Network,cutting...)
-        self.non_man_ed_loops = edge_loops_from_bmedges_old(self.input_net.bme, self.non_man_eds) #UI? (Network,cutting...)
-
-        self.non_man_points = []        #UI
-        self.non_man_bmverts = []       #UI
-        for loop in self.non_man_ed_loops:
-            self.non_man_points += [self.input_net.source_ob.matrix_world * self.input_net.bme.verts[ind].co for ind in loop]
-            self.non_man_bmverts += [self.input_net.bme.verts[ind].index for ind in loop]
-        if len(self.non_man_points):
-            kd = kdtree.KDTree(len(self.non_man_points))
-            for i, v in enumerate(self.non_man_points):
-                kd.insert(v, i)
-            kd.balance()
-            self.kd = kd
-        else:
-            self.kd = None
-
-
-
-        #keep up with these to show user
-        self.perimeter_edges = []
-
-    def num_points(self): return self.input_net.num_points
-    num_points = property(num_points)
 
 class InputPoint(object):  # NetworkNode
     '''
@@ -353,11 +315,11 @@ class InputSegment(object): #NetworkSegment
         self.ip0 = ip0
         self.ip1 = ip1
         self.points = [ip0, ip1]
-        self.path = []  #list of 3d points for previsualization 
+        self.path = []  #list of 3d points for previsualization
         self.bad_segment = False
         ip0.link_segments.append(self)
         ip1.link_segments.append(self)
-        
+
         self.face_chain = []   #TODO, get a better structure within Netork Cutter
 
         self.calculation_complete = False #this is a NetworkCutter Flag
@@ -385,17 +347,9 @@ class InputNetwork(object): #InputNetwork
 
     Collection of all InputPoints and Input Segments
     '''
-    def __init__(self, source_ob, ui_type="DENSE_POLY"):
-        self.source_ob = source_ob
-        self.bme = bmesh.new()  #This I think should remain at this level
-        self.bme.from_mesh(self.source_ob.data)
-        ensure_lookup(self.bme)
-        self.bvh = BVHTree.FromBMesh(self.bme)  #TODO headed to context
-        self.mx, self.imx = get_matrices(self.source_ob)  #TODO headed to context
-        if ui_type not in {'SPARSE_POLY','DENSE_POLY', 'BEZIER'}:
-            self.ui_type = 'SPARSE_POLY'
-        else:
-            self.ui_type = ui_type
+    def __init__(self, net_ui_context, ui_type="DENSE_POLY"):
+        self.net_ui_context = net_ui_context
+        self.bvh = self.net_ui_context.bvh
 
         self.points = []
         self.segments = []  #order not important, but maintain order in this list for indexing?
@@ -424,7 +378,6 @@ class InputNetwork(object): #InputNetwork
     def connect_points(self, p1, p2, make_path=True):
         ''' connect 2 points with a segment '''
         self.segments.append(InputSegment(p1, p2))
-        #if make_path: self.segments[-1].make_path(self.bme, self.bvh, self.mx, self.imx)
 
     def disconnect_points(self, p1, p2):
         seg = self.are_connected(p1, p2)

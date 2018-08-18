@@ -22,7 +22,7 @@ class Polytrim_UI_Draw():
     def draw_postview(self):
         self.draw_stuff_3d()
 
-        # if self.plk.snap_element != None:
+        # if self.net_ui_context.snap_element != None:
         #     bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
         #     bgl.glEnable(bgl.GL_BLEND)
         #     bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
@@ -44,7 +44,7 @@ class Polytrim_UI_Draw():
         #     a = 1
         #     circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
         #     circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*a)
-        #     p1 = self.plk.snap_element.world_loc
+        #     p1 = self.net_ui_context.snap_element.world_loc
         #     bgl.glVertex3f(*p1)
             
         #     bgl.glEnd()
@@ -88,7 +88,7 @@ class Polytrim_UI_Draw():
             common_drawing.draw_3d_points(context,[pt], 6, green)
 
         if  self.input_net.is_empty: return
-   
+
         ## Selected Point
         if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint):
             common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
