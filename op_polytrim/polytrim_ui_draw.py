@@ -83,15 +83,15 @@ class Polytrim_UI_Draw():
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
         ## Hovered Non-manifold Edge or Vert
-        if self.mouse.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
-            ed, pt = self.mouse.hovered[1]
+        if self.net_ui_context.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+            ed, pt = self.net_ui_context.hovered[1]
             common_drawing.draw_3d_points(context,[pt], 6, green)
 
         if  self.input_net.is_empty: return
    
         ## Selected Point
-        if self.mouse.selected and isinstance(self.mouse.selected, InputPoint):
-            common_drawing.draw_3d_points(context,[self.mouse.selected.world_loc], 8, orange)
+        if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint):
+            common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
 
 
         # Grab Location Dot and Lines XXX:This part is gross..
@@ -100,7 +100,7 @@ class Polytrim_UI_Draw():
             common_drawing.draw_3d_points(context,[self.grabber.grab_point.world_loc], 5, blue_opaque)
             # Lines
 
-            point_orig = self.mouse.selected  #had to be selected to be grabbed
+            point_orig = self.net_ui_context.selected  #had to be selected to be grabbed
             other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
 
             for pt_3d in other_locs:
@@ -109,24 +109,24 @@ class Polytrim_UI_Draw():
                 if other_loc and grab_loc:
                     common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         ## Hovered Point
-        elif self.mouse.hovered[0] == 'POINT':
-            common_drawing.draw_3d_points(context,[self.mouse.hovered[1].world_loc], 8, color = (0,1,0,1))
+        elif self.net_ui_context.hovered[0] == 'POINT':
+            common_drawing.draw_3d_points(context,[self.net_ui_context.hovered[1].world_loc], 8, color = (0,1,0,1))
         # Insertion Lines (for adding in a point to edge)
-        elif self.mouse.hovered[0] == 'EDGE':
-            seg = self.mouse.hovered[1]
+        elif self.net_ui_context.hovered[0] == 'EDGE':
+            seg = self.net_ui_context.hovered[1]
             a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
             b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
             if a and b:
                 common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         # Insertion Lines (for adding closing loop)
-        elif self.mouse.snap_element != None and self.mouse.connect_element != None:
-            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.mouse.connect_element.world_loc)
-            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.mouse.snap_element.world_loc)
+        elif self.net_ui_context.snap_element != None and self.net_ui_context.connect_element != None:
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.connect_element.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.snap_element.world_loc)
             if a and b:
                 common_drawing.draw_polyline_from_points(context, [a, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         # Endpoint to Cursor Line
-        elif self.mouse.closest_ep:
-            ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.mouse.closest_ep.world_loc)
+        elif self.net_ui_context.closest_ep:
+            ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.closest_ep.world_loc)
             common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
 
 
