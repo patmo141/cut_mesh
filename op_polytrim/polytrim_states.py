@@ -111,7 +111,7 @@ class Polytrim_States():
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
         self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
-        return (self.input_net.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered[0] == 'POINT') or self.input_net.num_points == 1
+        return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered[0] == 'POINT') or self.input_net.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
