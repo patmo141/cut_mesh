@@ -52,7 +52,12 @@ class Polytrim_States():
 
         if self.actions.pressed('F1'):
             self.input_net.find_network_cycles()
+        
+        
+        if self.actions.pressed('F2'):
+            self.network_cutter.preview_bad_segments_geodesic()
             
+                
         if self.actions.pressed('RET'):
             self.done()
             return
@@ -85,7 +90,7 @@ class Polytrim_States():
             #confirm location
             x,y = self.actions.mouse
             self.grabber.finalize(self.context)
-
+            self.network_cutter.update_segments()
             if self.net_ui_context.selected not in self.input_net.points:
                 self.net_ui_context.selected = -1
             self.ui_text_update()
@@ -137,6 +142,7 @@ class Polytrim_States():
                 print("NEW:",self.net_ui_context.hovered)
                 print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
+                self.network_cutter.update_segments_async()
             self.ui_text_update()
             self.sketcher.reset()
             return 'main'

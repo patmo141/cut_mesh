@@ -7,9 +7,9 @@ from ..common.utils import get_matrices
 from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
 from .polytrim_datastructure import InputNetwork, PolyLineKnife, InputPoint, InputSegment
 from bpy_extras import view3d_utils
-from mathutils import Vector
+from mathutils import Vector, kdtree
 from mathutils.geometry import intersect_point_line
-
+from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 
 
 class Polytrim_UI_Tools():
@@ -98,7 +98,8 @@ class Polytrim_UI_Tools():
             self.grab_point = None
 
         def initiate_grab_point(self):
-            self.grab_point = self.net_ui_context.selected.duplicate()
+            #self.grab_point = self.net_ui_context.selected.duplicate()
+            self.grab_point = self.net_ui_context.selected
             print("GRAB",self.grab_point)
 
         def move_grab_point(self,context,mouse_loc):
@@ -116,10 +117,10 @@ class Polytrim_UI_Tools():
             if isinstance(self.net_ui_context.selected, InputPoint) and self.net_ui_context.selected.seed_geom != None:
 
                 #check the 3d mouse location vs non manifold verts
-                co3d, index, dist = self.input_net.kd.find(self.input_net.mx * loc)
+                co3d, index, dist = self.net_ui_context.kd.find(self.input_net.mx * loc)
 
                 #get the actual non man vert from original list
-                close_bmvert = self.input_net.bme.verts[self.input_net.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
+                close_bmvert = self.input_net.bme.verts[self.net_ui_context.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
                 close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
                 loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
@@ -179,7 +180,10 @@ class Polytrim_UI_Tools():
             self.net_ui_context.selected.face_index = self.grab_point.face_index
 
             for seg in self.net_ui_context.selected.link_segments:
-                self.network_cutter.precompute_cut(seg)
+                seg.path = []
+                seg.needs_calculation = True
+                seg.calculation_complete = False
+                
                 #seg.make_path(self.input_net.bme, self.input_net.bvh, self.input_net.mx, self.input_net.imx)
 
             self.grab_point = None
@@ -211,7 +215,26 @@ class Polytrim_UI_Tools():
             self.closest_ep = None
             self.hovered = [None, -1]
 
-
+            self.init_non_man()
+        
+        def init_non_man(self):
+            
+            self.non_man_eds = [ed.index for ed in self.input_net.bme.edges if not ed.is_manifold] #UI? (Network,cutting...)
+            self.non_man_ed_loops = edge_loops_from_bmedges_old(self.input_net.bme, self.non_man_eds) #UI? (Network,cutting...)
+            self.non_man_points = []        #UI
+            self.non_man_bmverts = []       #UI
+            for loop in self.non_man_ed_loops:
+                self.non_man_points += [self.input_net.source_ob.matrix_world * self.input_net.bme.verts[ind].co for ind in loop]
+                self.non_man_bmverts += [self.input_net.bme.verts[ind].index for ind in loop]
+            if len(self.non_man_points):
+                kd = kdtree.KDTree(len(self.non_man_points))
+                for i, v in enumerate(self.non_man_points):
+                    kd.insert(v, i)
+                kd.balance()
+                self.kd = kd
+            else:
+                self.kd = None
+                    
         def update(self, mouse_loc):
             self.mouse_loc = mouse_loc
             self.ray_cast_mouse()
@@ -221,12 +244,13 @@ class Polytrim_UI_Tools():
         def ray_cast_mouse(self):
             view_vector, ray_origin, ray_target= get_view_ray_data(self.context, self.mouse_loc)
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
-            if face_ind == -1: self.hovered = {}
+            if face_ind == -1: self.hovered = [None, -1]
             else:
                 self.hovered2["local_loc"] = loc
                 self.hovered2["normal"] = no
                 self.hovered2["face_ind"] = face_ind
 
+               
         def nearest_non_man_loc(self):
             '''
             finds nonman edges and verts nearby to cursor location
@@ -243,11 +267,11 @@ class Polytrim_UI_Tools():
 
             mouse = Vector(mouse)
             loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-            if len(self.plk.non_man_points):
-                co3d, index, dist = self.plk.kd.find(mx * self.hovered2["local_loc"])
+            if len(self.non_man_points):
+                co3d, index, dist = self.kd.find(mx * self.hovered2["local_loc"])
 
                 #get the actual non man vert from original list
-                close_bmvert = self.bme.verts[self.plk.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
+                close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
                 close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
                 if len(close_eds) == 2:
                     bm0 = close_eds[0].other_vert(close_bmvert)

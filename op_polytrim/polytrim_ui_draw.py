@@ -201,10 +201,18 @@ class Polytrim_UI_Draw():
         # Polylines...InputSegments
  
         for seg in self.input_net.segments:
-            if seg.is_bad:
+            if seg.bad_segment and not len(seg.path) > 2:
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
-            elif len(seg.path) >= 2:
+            
+            elif len(seg.path) >= 2 and not seg.bad_segment:
                 draw3d_polyline(context, seg.path,  blue, 2, 'GL_LINE_STRIP' )
+            
+            elif len(seg.path) >= 2 and seg.bad_segment:
+                draw3d_polyline(context, seg.path,  orange, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
+                    
+            elif seg.calculation_complete == False:
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
             else:
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
     

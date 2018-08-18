@@ -26,6 +26,7 @@ from bpy_extras import view3d_utils
 
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points, path_between_2_points_clean
+from ..geodesic import GeoPath, geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
 from ..common.blender import bversion
@@ -42,8 +43,43 @@ class NetworkCutter(object):
         self.input_net = input_net
         
         #this is fancy "que" of things to be processed
-        self.exectutor = ThreadPoolExecutor()  #alright
-
+        self.executor = ThreadPoolExecutor()  #alright
+        self.executor_tasks = {}
+    def update_segments(self):
+        
+        for seg in self.input_net.segments:
+            
+            if seg.needs_calculation and not seg.calculation_complete:
+                self.precompute_cut(seg)
+                
+                #check for existing task
+                #if still computing, cancel it
+                #start a new task
+                #future = self.executor.submit(self.precompute_cut, (seg))
+                
+                #self.tasks.append(future)
+                
+            
+            
+        return
+    
+    def update_segments_async(self):
+        for seg in self.input_net.segments:
+            
+            if seg.needs_calculation and not seg.calculation_complete:
+                seg.needs_calculation = False #this will prevent it from submitting it again before it's done
+                                
+                #TODO check for existing task
+                #TODO if still computing, cancel it
+                #start a new task
+                future = self.executor.submit(self.precompute_cut, (seg))
+                
+                self.executor_tasks[seg] = future
+                
+            
+            
+        return
+    
     def precompute_cut(self, seg):
 
         print('precomputing cut!')
@@ -76,6 +112,8 @@ class NetworkCutter(object):
             if f1 in ed.link_faces:
                 cross_ed = ed
                 seg.face_chain.add(f1)
+                seg.needs_calculation = False
+                seg.calculation_complete = True
                 break
 
         #if no shared edge, need to cut across to the next face
@@ -143,14 +181,45 @@ class NetworkCutter(object):
                 seg.face_chain = (faces_crossed)
                 seg.path = [self.input_net.mx * v for v in vs]
                 seg.bad_segment = False
+                seg.needs_calculation = False
+                seg.calculation_complete = True
 
             else:  #we failed to find the next face in the face group
-                self.bad_segment = True
-                self.path = [self.ip0.world_loc, self.ip1.world_loc]
+                seg.bad_segment = True
+                seg.needs_calculation = False
+                seg.calculation_complete = True
+                seg.path = [seg.ip0.world_loc, seg.ip1.world_loc]
                 print('cut failure!!!')
         
         return
+    
+    
+    
+    def pre_vis_geo(self, seg, bme, bvh, mx):
         
+        geo = GeoPath(bme, bvh, mx)
+        geo.seed = bme.faces[seg.ip0.face_index]
+        geo.seed_loc = seg.ip0.local_loc
+        geo.target = bme.faces[seg.ip1.face_index]
+        geo.target_loc =  seg.ip0.local_loc
+            
+        geo.calculate_walk()
+        
+        self.geodesic = geo
+        
+        if geo.found_target():
+            geo.gradient_descend()
+            seg.path = [mx * v for v in geo.path]
+        
+    def preview_bad_segments_geodesic(self):
+        
+        
+        for seg in self.input_net.segments:
+            if seg.bad_segment:
+                self.pre_vis_geo(seg, self.input_net.bme, self.input_net.bvh, self.input_net.mx)   
+                
+                
+                 
     def knife_geometry(self):
         
         cycles = self.input_net.find_network_cycles()
@@ -291,7 +360,8 @@ class InputSegment(object): #NetworkSegment
         
         self.face_chain = []   #TODO, get a better structure within Netork Cutter
 
-
+        self.calculation_complete = False #this is a NetworkCutter Flag
+        self.needs_calculation = True
     def is_bad(self): return self.bad_segment
     is_bad = property(is_bad)
 
@@ -304,108 +374,6 @@ class InputSegment(object): #NetworkSegment
         self.ip0.link_segments.remove(self)
         self.ip1.link_segments.remove(self)
 
-    def make_path(self, bme, bvh, mx, imx): 
-        #TODO  shuld only take bmesh, input faces and locations.  Should not take BVH ro matrix as inputs
-        self.face_chain = []
-        #TODO: Separate this into NetworkCutter.
-        # * return either bad segment or other important data.
-        f0 = bme.faces[self.ip0.face_index]  #<<--- Current BMFace
-        f1 = bme.faces[self.ip1.face_index] #<<--- Next BMFace
-
-        if f0 == f1:
-            self.path = [self.ip0.world_loc, self.ip1.world_loc]
-            self.bad_segment = False
-            return
-
-        ###########################
-        ## Define the cutting plane for this segment#
-        ############################
-
-        surf_no = imx.to_3x3() * self.ip0.view.lerp(self.ip1.view, 0.5)  #must be a better way.
-        e_vec = self.ip1.local_loc - self.ip0.local_loc
-        #define
-        cut_no = e_vec.cross(surf_no)
-        #cut_pt = .5*self.cut_pts[ind_p1] + 0.5*self.cut_pts[ind]
-        cut_pt = .5 * self.ip0.local_loc + 0.5 * self.ip1.local_loc
-
-        #find the shared edge,, check for adjacent faces for this cut segment
-        cross_ed = None
-        for ed in f0.edges:
-            if f1 in ed.link_faces:
-                cross_ed = ed
-                self.face_chain.add(f1)
-                break
-
-        #if no shared edge, need to cut across to the next face
-        if not cross_ed:
-            p_face = None
-
-            vs = []
-            epp = .0000000001
-            use_limit = True
-            attempts = 0
-            while epp < .0001 and not len(vs) and attempts <= 5:
-                attempts += 1
-                vs, eds, eds_crossed, faces_crossed, error = path_between_2_points(
-                    bme,
-                    bvh,
-                    self.ip0.local_loc, self.ip1.local_loc,
-                    max_tests = 1000, debug = True,
-                    prev_face = p_face,
-                    use_limit = use_limit)
-                if len(vs) and error == 'LIMIT_SET':
-                    vs = []
-                    use_limit = False
-                    print('Limit was too limiting, relaxing that consideration')
-
-                elif len(vs) == 0 and error == 'EPSILON':
-                    print('Epsilon was too small, relaxing epsilon')
-                    epp *= 10
-                elif len(vs) == 0 and error:
-                    print('too bad, couldnt adjust due to ' + error)
-                    print(p_face)
-                    print(f0)
-                    break
-
-            if not len(vs):
-                print('\n')
-                print('CUTTING METHOD')
-
-                vs = []
-                epp = .00000001
-                use_limit = True
-                attempts = 0
-                while epp < .0001 and not len(vs) and attempts <= 10:
-                    attempts += 1
-                    vs, eds, eds_crossed, faces_crossed, error = cross_section_2seeds_ver1(
-                        bme,
-                        cut_pt, cut_no,
-                        f0.index,self.ip0.local_loc,
-                        #f1.index, self.cut_pts[ind_p1],
-                        f1.index, self.ip1.local_loc,
-                        max_tests = 10000, debug = True, prev_face = p_face,
-                        epsilon = epp)
-                    if len(vs) and error == 'LIMIT_SET':
-                        vs = []
-                        use_limit = False
-                    elif len(vs) == 0 and error == 'EPSILON':
-                        epp *= 10
-                    elif len(vs) == 0 and error:
-                        print('too bad, couldnt adjust due to ' + error)
-                        print(p_face)
-                        print(f0)
-                        break
-
-            if len(vs):
-                print('crossed %i faces' % len(faces_crossed))
-                self.face_chain = (faces_crossed)
-                self.path = [mx * v for v in vs]
-                self.bad_segment = False
-
-            else:  #we failed to find the next face in the face group
-                self.bad_segment = True
-                self.path = [self.ip0.world_loc, self.ip1.world_loc]
-                print('cut failure!!!')
 
 class InputNetwork(object): #InputNetwork
     '''
@@ -513,8 +481,14 @@ class InputNetwork(object): #InputNetwork
         #will need to implement "IputNode.get_segment_to_right(InputSegment) to take care this
         
         
+        
         ip_set = set(self.points)
         endpoints = set(self.get_endpoints())
+        
+        
+        print('evaluating the input points')
+        for i, ip in enumerate(self.points):
+            print(len(ip.link_segments))
         
         print('There are %i endpoints' % len(endpoints))
         print('there are %i input points' % len(ip_set))
