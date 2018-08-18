@@ -217,7 +217,7 @@ class NetworkCutter(object):
         
         for seg in self.input_net.segments:
             if seg.bad_segment:
-                self.pre_vis_geo(seg, self.input_net.bme, self.input_net.bvh, self.input_net.mx)   
+                self.pre_vis_geo(seg, self.input_net.bme, self.input_net.bvh, self.net_ui_context.mx)   
                 
                 
                  
@@ -349,8 +349,8 @@ class InputNetwork(object): #InputNetwork
     '''
     def __init__(self, net_ui_context, ui_type="DENSE_POLY"):
         self.net_ui_context = net_ui_context
-        self.bvh = self.net_ui_context.bvh
-
+        self.bvh = self.net_ui_context.bvh   #this should go into net context.
+        self.bme = self.net_ui_context.bme  #the network exists on the BMesh, it is fundamental
         self.points = []
         self.segments = []  #order not important, but maintain order in this list for indexing?
 
