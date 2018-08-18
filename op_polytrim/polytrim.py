@@ -13,7 +13,7 @@ from .polytrim_ui            import Polytrim_UI
 from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
-from .polytrim_datastructure import PolyLineKnife, InputNetwork
+from .polytrim_datastructure import InputNetwork
 from .polytrim_datastructure import NetworkCutter
 
 

@@ -9,8 +9,6 @@ import bpy
 import bmesh
 from mathutils import Matrix, Vector
 
-
-from .polytrim_datastructure import PolyLineKnife
 from .cache import polytrim_undo_cache
 
 class Polytrim_UI:
