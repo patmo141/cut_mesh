@@ -3,11 +3,12 @@ Created on Oct 10, 2015
 
 @author: Patrick
 '''
+from ..bmesh_fns import edge_loops_from_bmedges_old
 from ..common.utils import get_matrices
 from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
 from .polytrim_datastructure import InputNetwork, PolyLineKnife, InputPoint, InputSegment
 from bpy_extras import view3d_utils
-from mathutils import Vector
+from mathutils import Vector, kdtree
 from mathutils.geometry import intersect_point_line
 
 
@@ -106,10 +107,10 @@ class Polytrim_UI_Tools():
             if isinstance(self.net_ui_context.selected, InputPoint) and self.net_ui_context.selected.seed_geom != None:
 
                 #check the 3d mouse location vs non manifold verts
-                co3d, index, dist = self.input_net.kd.find(self.input_net.mx * loc)
+                co3d, index, dist = self.net_ui_context.kd.find(self.input_net.mx * loc)
 
                 #get the actual non man vert from original list
-                close_bmvert = self.input_net.bme.verts[self.input_net.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
+                close_bmvert = self.input_net.bme.verts[self.net_ui_context.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
                 close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
                 loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
@@ -180,7 +181,7 @@ class Polytrim_UI_Tools():
         UI tool for storing data depending on where mouse is located
         * Intermediary between polytrim_states and PolyLineKnife
         '''
-        def __init__(self, context, bme, bvh, mx, imx, input_net, plk):
+        def __init__(self, context, bme, bvh, mx, imx, input_net):
             self.context = context
             self.ob = context.object
             self.bme = bme
@@ -188,17 +189,34 @@ class Polytrim_UI_Tools():
             self.mx = mx
             self.imx = imx
 
-            self.plk = plk
             self.input_net = input_net
 
             self.mouse_loc = None
 
-            self.hovered2 = {}
+            self.hovered_mesh = {}
             self.selected = -1
             self.snap_element = None
             self.connect_element = None
             self.closest_ep = None
             self.hovered = [None, -1]
+
+            self.non_man_eds = [ed.index for ed in self.input_net.bme.edges if not ed.is_manifold]
+            self.non_man_ed_loops = edge_loops_from_bmedges_old(self.input_net.bme, self.non_man_eds)
+
+            self.non_man_points = []
+            self.non_man_bmverts = []
+            for loop in self.non_man_ed_loops:
+                self.non_man_points += [self.input_net.source_ob.matrix_world * self.input_net.bme.verts[ind].co for ind in loop]
+                self.non_man_bmverts += [self.input_net.bme.verts[ind].index for ind in loop]
+            if len(self.non_man_points):
+                kd = kdtree.KDTree(len(self.non_man_points))
+                for i, v in enumerate(self.non_man_points):
+                    kd.insert(v, i)
+                kd.balance()
+                self.kd = kd
+            else:
+                self.kd = None
+
 
 
         def update(self, mouse_loc):
@@ -210,33 +228,23 @@ class Polytrim_UI_Tools():
         def ray_cast_mouse(self):
             view_vector, ray_origin, ray_target= get_view_ray_data(self.context, self.mouse_loc)
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
-            if face_ind == -1: self.hovered = {}
+            if face_ind == -1: self.hovered_mesh = {}
             else:
-                self.hovered2["local_loc"] = loc
-                self.hovered2["normal"] = no
-                self.hovered2["face_ind"] = face_ind
+                self.hovered_mesh["local_loc"] = loc
+                self.hovered_mesh["normal"] = no
+                self.hovered_mesh["face_ind"] = face_ind
 
         def nearest_non_man_loc(self):
             '''
             finds nonman edges and verts nearby to cursor location
             '''
-            mouse = self.mouse_loc
-            context = self.context
-            mx = self.mx
-            imx = self.imx
-
-            region = context.region
-            rv3d = context.region_data
-            # ray casting
             self.ray_cast_mouse()
 
-            mouse = Vector(mouse)
-            loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-            if len(self.plk.non_man_points):
-                co3d, index, dist = self.plk.kd.find(mx * self.hovered2["local_loc"])
+            if len(self.non_man_points) and self.hovered_mesh:
+                co3d, index, dist = self.kd.find(self.mx * self.hovered_mesh["local_loc"])
 
                 #get the actual non man vert from original list
-                close_bmvert = self.bme.verts[self.plk.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
+                close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
                 close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
                 if len(close_eds) == 2:
                     bm0 = close_eds[0].other_vert(close_bmvert)
@@ -246,24 +254,29 @@ class Polytrim_UI_Tools():
                     b   = close_bmvert.co
                     a1  = bm1.co
 
-                    inter_0, d0 = intersect_point_line(self.hovered2["local_loc"], a0, b)
-                    inter_1, d1 = intersect_point_line(self.hovered2["local_loc"], a1, b)
+                    inter_0, d0 = intersect_point_line(self.hovered_mesh["local_loc"], a0, b)
+                    inter_1, d1 = intersect_point_line(self.hovered_mesh["local_loc"], a1, b)
 
-                    screen_0 = loc3d_reg2D(region, rv3d, mx * inter_0)
-                    screen_1 = loc3d_reg2D(region, rv3d, mx * inter_1)
-                    screen_v = loc3d_reg2D(region, rv3d, mx * b)
+                    region = self.context.region
+                    rv3d = self.context.region_data
+                    loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+                    mouse_v = Vector(self.mouse_loc)
+
+                    screen_0 = loc3d_reg2D(region, rv3d, self.mx * inter_0)
+                    screen_1 = loc3d_reg2D(region, rv3d, self.mx * inter_1)
+                    screen_v = loc3d_reg2D(region, rv3d, self.mx * b)
 
                     if screen_0 and screen_1 and screen_v:
-                        screen_d0 = (mouse - screen_0).length
-                        screen_d1 = (mouse - screen_1).length
-                        screen_dv = (mouse - screen_v).length
+                        screen_d0 = (mouse_v - screen_0).length
+                        screen_d1 = (mouse_v - screen_1).length
+                        screen_dv = (mouse_v - screen_v).length
 
                         #TODO, decid how to handle when very very close to vertcies
                         if 0 < d0 <= 1 and screen_d0 < 20:
-                            self.hovered = ['NON_MAN_ED', (close_eds[0], mx*inter_0)]
+                            self.hovered = ['NON_MAN_ED', (close_eds[0], self.mx*inter_0)]
                             return
                         elif 0 < d1 <= 1 and screen_d1 < 20:
-                            self.hovered = ['NON_MAN_ED', (close_eds[1], mx*inter_1)]
+                            self.hovered = ['NON_MAN_ED', (close_eds[1], self.mx*inter_1)]
                             return
 
 

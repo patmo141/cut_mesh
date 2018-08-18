@@ -52,25 +52,6 @@ class PolyLineKnife(object): #NetworkCutter
          #TODO: (Cutting with new method, very hard)
         self.face_chain = set()
 
-        self.non_man_eds = [ed.index for ed in self.input_net.bme.edges if not ed.is_manifold] #UI? (Network,cutting...)
-        self.non_man_ed_loops = edge_loops_from_bmedges_old(self.input_net.bme, self.non_man_eds) #UI? (Network,cutting...)
-
-        self.non_man_points = []        #UI
-        self.non_man_bmverts = []       #UI
-        for loop in self.non_man_ed_loops:
-            self.non_man_points += [self.input_net.source_ob.matrix_world * self.input_net.bme.verts[ind].co for ind in loop]
-            self.non_man_bmverts += [self.input_net.bme.verts[ind].index for ind in loop]
-        if len(self.non_man_points):
-            kd = kdtree.KDTree(len(self.non_man_points))
-            for i, v in enumerate(self.non_man_points):
-                kd.insert(v, i)
-            kd.balance()
-            self.kd = kd
-        else:
-            self.kd = None
-
-
-
         #keep up with these to show user
         self.perimeter_edges = []
 

@@ -88,7 +88,7 @@ class Polytrim_UI_Draw():
             common_drawing.draw_3d_points(context,[pt], 6, green)
 
         if  self.input_net.is_empty: return
-   
+
         ## Selected Point
         if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint):
             common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
