@@ -261,7 +261,18 @@ class InputPoint(object):  # NetworkNode
     def is_endpoint(self):
         if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
         if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
-        
+    
+    
+    def is_edgepoint(self):
+        '''
+        defines whether this InputPoint lies on the non_manifold edge 
+        of the source mesh
+        '''
+        if isinstance(self.seed_geom, bmesh.types.BMEdge):
+            return True
+        else:
+            return False
+               
     def num_linked_segs(self): return len(self.link_segments)
     
     is_endpoint = property(is_endpoint)
@@ -426,7 +437,14 @@ class InputNetwork(object): #InputNetwork
         endpoints = [ip for ip in self.points if ip.is_endpoint] #TODO self.endpoints?
         
         return endpoints
+    
+    
+    def get_edgepoints(self):
         
+        edge_points = [ip for ip in self.points if ip.is_edgepoint()]
+        
+        return edge_points
+         
     def find_network_cycles(self):  #TODO
         #this is the equivalent of "edge_loops"
         #TODO, mirror the get_cycle method from polystrips
@@ -438,13 +456,12 @@ class InputNetwork(object): #InputNetwork
         ip_set = set(self.points)
         endpoints = set(self.get_endpoints())
         
+        closed_edgepoints = set(self.get_edgepoints()) - endpoints
         
-        print('evaluating the input points')
-        for i, ip in enumerate(self.points):
-            print(len(ip.link_segments))
         
         print('There are %i endpoints' % len(endpoints))
         print('there are %i input points' % len(ip_set))
+        print('there are %i closed edge_points' % len(closed_edgepoints))
         
         unclosed_ip_cycles = []
         unclosed_seg_cycles = []
@@ -495,7 +512,13 @@ class InputNetwork(object): #InputNetwork
         ip_cycles = []
         seg_cycles = []   #<<this basicaly becomes a PolyLineKine
         while len(ip_set):
-            current_ip = ip_set.pop()
+            
+            if len(closed_edgepoints):  #this makes sure we start with a closed edge point
+                current_ip = closed_edgepoints.pop()
+                ip_set.remove(current_ip)
+            else:
+                current_ip = ip_set.pop()
+            
             ip_start = current_ip
                 
             node_cycle = [current_ip]
@@ -511,6 +534,7 @@ class InputNetwork(object): #InputNetwork
                 
                 #take care of sets
                 if next_ip in ip_set: ip_set.remove(next_ip)  #<-- i what circumstance would this not be true?
+                if next_ip in closed_edgepoints: closed_edgepoints.remove(next_ip)
                 node_cycle += [next_ip]
                 
                 #find next segment
@@ -526,7 +550,7 @@ class InputNetwork(object): #InputNetwork
             seg_cycles += [seg_cycle] 
         
         
-        print('there are %i closed seg cycles' % len(seg_cycle))
+        print('there are %i closed seg cycles' % len(seg_cycles))
         for i, cyc in enumerate(ip_cycles):
             print('There are %i nodes in %i closed cycle' % (len(cyc), i))
         

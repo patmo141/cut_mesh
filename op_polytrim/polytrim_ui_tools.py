@@ -125,10 +125,11 @@ class Polytrim_UI_Tools():
             if face_ind == -1: return
 
             #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
+            #TODO context closest_nonmanifold_source_geometry?
             if isinstance(self.net_ui_context.selected, InputPoint) and self.net_ui_context.selected.seed_geom != None:
 
                 #check the 3d mouse location vs non manifold verts
-                co3d, index, dist = self.net_ui_context.kd.find(self.net_context_ui.mx * loc)
+                co3d, index, dist = self.net_ui_context.kd.find(self.net_ui_context.mx * loc)
 
                 #get the actual non man vert from original list
                 close_bmvert = self.net_ui_context.bme.verts[self.net_ui_context.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
