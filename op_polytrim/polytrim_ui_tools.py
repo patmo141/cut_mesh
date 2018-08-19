@@ -386,7 +386,7 @@ class Polytrim_UI_Tools():
             old_seg = self.net_ui_context.hovered[1]
             self.input_net.insert_point(point, old_seg)
             self.net_ui_context.selected = point
-
+            self.network_cutter.update_segments()
     # TODO: Clean this up
     def click_delete_point(self, mode = 'mouse'):
         '''

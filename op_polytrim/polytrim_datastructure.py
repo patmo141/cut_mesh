@@ -53,15 +53,6 @@ class NetworkCutter(object):
             if seg.needs_calculation and not seg.calculation_complete:
                 self.precompute_cut(seg)
                 
-                #check for existing task
-                #if still computing, cancel it
-                #start a new task
-                #future = self.executor.submit(self.precompute_cut, (seg))
-                
-                #self.tasks.append(future)
-                
-            
-            
         return
     
     def update_segments_async(self):
@@ -75,10 +66,7 @@ class NetworkCutter(object):
                 #start a new task
                 future = self.executor.submit(self.precompute_cut, (seg))
                 
-                self.executor_tasks[seg] = future
-                
-            
-            
+                self.executor_tasks[seg] = future  
         return
     
     def precompute_cut(self, seg):
