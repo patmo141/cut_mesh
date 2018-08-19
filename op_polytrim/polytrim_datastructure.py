@@ -402,12 +402,12 @@ class InputNetwork(object): #InputNetwork
         self.connect_points(p1, new_p)
         self.connect_points(p2, new_p)
 
-    def remove_point(self, point):
+    def remove_point(self, point, disconnect = False):
         connected_points = self.connected_points(point)
         for cp in connected_points:
             self.disconnect_points(cp, point)
 
-        if len(connected_points) == 2:
+        if len(connected_points) == 2 and not disconnect:
             self.connect_points(connected_points[0], connected_points[1])
 
         self.points.remove(point)
@@ -432,7 +432,10 @@ class InputNetwork(object): #InputNetwork
         edge_points = [ip for ip in self.points if ip.is_edgepoint()]
         
         return edge_points
-         
+    
+    def find_cycles(self,ip):
+        pass
+       
     def find_network_cycles(self):  #TODO
         #this is the equivalent of "edge_loops"
         #TODO, mirror the get_cycle method from polystrips

@@ -396,17 +396,9 @@ class Polytrim_UI_Tools():
             if self.net_ui_context.hovered[0] != 'POINT':
                 return
 
-            self.input_net.remove_point(self.net_ui_context.hovered[1])
-
-            if not self.net_ui_context.hovered[1].is_endpoint:
-                last_seg1, last_seg2 = self.net_ui_context.hovered[1].link_segments
-                ip1 = last_seg1.other_point(self.net_ui_context.hovered[1])
-                ip2 = last_seg2.other_point(self.net_ui_context.hovered[1])
-                new_seg = InputSegment(ip1, ip2)
-                self.input_net.segments.append(new_seg)
-                self.network_cutter.precompute_cut(new_seg)
-                #new_seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
-
+            self.input_net.remove_point(self.net_ui_context.hovered[1], disconnect = False)  #TODO, Ctrl + Rightlcik    
+            self.network_cutter.update_segments()
+        
             if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered[1]:
                 self.net_ui_context.selected = None
 
