@@ -328,7 +328,7 @@ class Polytrim_UI_Tools():
             return min(endpoints, key = dist3d)
 
     # TODO: Clean this up
-    def click_add_point(self, context, mouse_loc):
+    def click_add_point(self, context, mouse_loc, connect=True):
         '''
         this will add a point into the trim line
         close the curve into a cyclic curve
@@ -357,7 +357,7 @@ class Polytrim_UI_Tools():
         elif (self.net_ui_context.hovered[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             closest_endpoint = self.closest_endpoint(self.net_ui_context.mx * loc)
             self.net_ui_context.selected = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
-            if closest_endpoint:
+            if closest_endpoint and connect:
                 self.input_net.connect_points(self.net_ui_context.selected, closest_endpoint)
                 self.network_cutter.precompute_cut(self.input_net.segments[-1])  #<  Hmm...not very clean.  
 

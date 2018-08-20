@@ -32,9 +32,16 @@ class Polytrim_States():
             self.ui_text_update()
 
         #after navigation filter, these are relevant events in this state
+        if self.actions.pressed('left ctrl'):
+            print("setting CTRL status")
+
         if self.actions.pressed('grab'): return 'grab'
 
         if self.actions.pressed('sketch'): return 'sketch'
+
+        if self.actions.pressed('add point (disconnected)'):
+            self.click_add_point(context, self.actions.mouse, False)
+            return
 
         if self.actions.pressed('delete'):
             print('delete pressed')
@@ -52,16 +59,16 @@ class Polytrim_States():
 
         if self.actions.pressed('F1'):
             self.input_net.find_network_cycles()
-        
-        
+
+
         if self.actions.pressed('F2'):
             self.network_cutter.preview_bad_segments_geodesic()
-            
-        
+
+
         if self.actions.pressed('F3'):
             self.network_cutter.knife_geometry()
             self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-                
+
         if self.actions.pressed('RET'):
             self.done()
             return
@@ -72,10 +79,7 @@ class Polytrim_States():
             return
             #return 'cancel'
 
-    @CookieCutter.FSM_State('nav')
-    def modal_nav(self):
-        print("hello??")
-    
+
     ######################################################
     # grab state
 

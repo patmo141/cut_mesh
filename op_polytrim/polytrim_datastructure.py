@@ -200,11 +200,9 @@ class NetworkCutter(object):
                 print('cut failure!!!')
         
         return
-    
-    
-    
+
     def pre_vis_geo(self, seg, bme, bvh, mx):
-        
+
         geo = GeoPath(bme, bvh, mx)
         geo.seed = bme.faces[seg.ip0.face_index]
         geo.seed_loc = seg.ip0.local_loc
@@ -218,15 +216,11 @@ class NetworkCutter(object):
         if geo.found_target():
             geo.gradient_descend()
             seg.path = [mx * v for v in geo.path]
-        
+
     def preview_bad_segments_geodesic(self):
-        
-        
         for seg in self.input_net.segments:
             if seg.bad_segment:
                 self.pre_vis_geo(seg, self.input_net.bme, self.input_net.bvh, self.net_ui_context.mx)   
-                
-                
 
     def confirm_cut_to_mesh(self):
         if len(self.bad_segments): return  #can't do this with bad segments!!
@@ -708,8 +702,7 @@ class NetworkCutter(object):
         finish = time.time()
         print('took %f seconds' % (finish-start))
         self.split = True
-        
-                         
+
     def knife_geometry(self):
         
         for ip in self.input_net.points:
@@ -904,8 +897,7 @@ class InputPoint(object):  # NetworkNode
     def is_endpoint(self):
         if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
         if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
-    
-    
+
     def is_edgepoint(self):
         '''
         defines whether this InputPoint lies on the non_manifold edge 
@@ -915,11 +907,11 @@ class InputPoint(object):  # NetworkNode
             return True
         else:
             return False
-               
+
     def num_linked_segs(self): return len(self.link_segments)
-    
+
     is_endpoint = property(is_endpoint)
-    
+
     num_linked_segs = property(num_linked_segs)
 
     def set_world_loc(self, loc): self.world_loc = loc
@@ -936,7 +928,7 @@ class InputPoint(object):  # NetworkNode
     #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
 
-    def are_connected(self, point):   
+    def are_connected(self, point):
         '''
         takes another input point, and returns InputSegment if they are connected
         returns False if they are not connected
@@ -946,8 +938,7 @@ class InputPoint(object):  # NetworkNode
                 return seg
             
         return False
-    
-    
+
     def print_data(self): # for debugging
         print('\n', "POINT DATA", '\n')
         print("world location:", self.world_loc, '\n')
