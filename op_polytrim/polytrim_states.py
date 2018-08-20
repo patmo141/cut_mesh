@@ -57,6 +57,10 @@ class Polytrim_States():
         if self.actions.pressed('F2'):
             self.network_cutter.preview_bad_segments_geodesic()
             
+        
+        if self.actions.pressed('F3'):
+            self.network_cutter.knife_geometry()
+            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
                 
         if self.actions.pressed('RET'):
             self.done()
