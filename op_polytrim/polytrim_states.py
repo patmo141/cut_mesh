@@ -42,8 +42,13 @@ class Polytrim_States():
             return
 
         if self.actions.pressed('delete'):
-            print('delete pressed')
             self.click_delete_point(mode='mouse')
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover()
+            return
+        
+        if self.actions.pressed('delete (disconnect)'):
+            self.click_delete_point('mouse', True)
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
             return

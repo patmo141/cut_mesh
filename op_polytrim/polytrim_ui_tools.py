@@ -387,7 +387,7 @@ class Polytrim_UI_Tools():
             self.net_ui_context.selected = point
             self.network_cutter.update_segments()
     # TODO: Clean this up
-    def click_delete_point(self, mode = 'mouse'):
+    def click_delete_point(self, mode = 'mouse', disconnect=False):
         '''
         removes point from the trim line
         '''
@@ -395,7 +395,7 @@ class Polytrim_UI_Tools():
             if self.net_ui_context.hovered[0] != 'POINT':
                 return
 
-            self.input_net.remove_point(self.net_ui_context.hovered[1], disconnect = False)  #TODO, Ctrl + Rightlcik    
+            self.input_net.remove_point(self.net_ui_context.hovered[1], disconnect)  #TODO, Ctrl + Rightlcik    
             self.network_cutter.update_segments()
         
             if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered[1]:
