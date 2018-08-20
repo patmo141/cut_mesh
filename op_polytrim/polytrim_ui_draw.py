@@ -62,6 +62,7 @@ class Polytrim_UI_Draw():
             common_drawing.draw_polyline_from_points(self.context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
 
 
+    #TODO: Clean up/ Organize this function into parts
     def draw_stuff(self, context):
         '''
         2d drawing
@@ -69,6 +70,7 @@ class Polytrim_UI_Draw():
         context = self.context
         mouse_loc = self.actions.mouse
         is_nav = self._nav
+        ctrl_pressed = self.actions.ctrl
 
         green  = (.3,1,.3,1)
         red = (1,.1,.1,1)
@@ -128,7 +130,7 @@ class Polytrim_UI_Draw():
                 if a and b:
                     common_drawing.draw_polyline_from_points(context, [a, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
             # Endpoint to Cursor Line
-            elif self.net_ui_context.closest_ep:
+            elif self.net_ui_context.closest_ep and not ctrl_pressed:
                 ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.closest_ep.world_loc)
                 common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
 

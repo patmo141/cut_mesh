@@ -31,7 +31,6 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
     default_keymap = {
         # key: a human-readable label
         # val: a str or a set of strings representing the user action
-        'left ctrl': {'LEFT_CTRL'},
         'action': {'LEFTMOUSE'},
         'sketch': {'LEFTMOUSE'},
         'add point (disconnected)': {'CTRL+LEFTMOUSE'},

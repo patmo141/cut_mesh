@@ -32,8 +32,6 @@ class Polytrim_States():
             self.ui_text_update()
 
         #after navigation filter, these are relevant events in this state
-        if self.actions.pressed('left ctrl'):
-            print("setting CTRL status")
 
         if self.actions.pressed('grab'): return 'grab'
 
