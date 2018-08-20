@@ -70,7 +70,6 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.cur_pos         = (0, 0)
         self.mode_radius     = 0
         self.action_center   = (0, 0)
-        self.is_navigating   = False
 
         self.net_ui_context = self.NetworkUIContext(self.context)
 

@@ -72,6 +72,10 @@ class Polytrim_States():
             return
             #return 'cancel'
 
+    @CookieCutter.FSM_State('nav')
+    def modal_nav(self):
+        print("hello??")
+    
     ######################################################
     # grab state
 
