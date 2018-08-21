@@ -732,28 +732,26 @@ class NetworkCutter(object):
             ip_set = set(ip_cyc)
             
             for i, ip in enumerate(ip_cyc):
-                print('attempting ip %i' % i)
+                
                 if ip not in ip_set: continue #already handled this one
+                print('\n\n')
+                print('attempting ip %i' % i)
                 
                 if ip.is_edgepoint(): #we have to treat edge points differently
-                    print('cutting boundary edge point')
+                    print('cutting starting at boundary edge point')
                     #TODO, split this off, thanks
                     ip_chain =[ip]
-                    print('there are %i link segments' % len(ip.link_segments))
                     current_seg = ip.link_segments[0]
                     
-                    print(ip)
-                    print(current_seg)
-                    print(current_seg.points)
+
                     ip_next = current_seg.other_point(ip)
                     
-                    if ip_next in ip_set:
-                        ip_set.remove(ip_next)
-                    else:
-                        print('ip_next not in ip_set')
-                        print(ip_next)
-                        
+    
                     while ip_next and ip_next.face_index == ip.face_index:
+                        
+                        if ip_next in ip_set:
+                            ip_set.remove(ip_next)
+                            
                         print('walking again')
                         ip_chain += [ip_next]
                         
@@ -789,11 +787,8 @@ class NetworkCutter(object):
                         self.input_net.bme.edges.new((bmvert_chain[n],bmvert_chain[n+1]))
                     
                 else: #TODO
-                    print('non edge point')
+                    print('starting at a regular point within in face')
                     #TODO, split this off, thanks
-                    
-                    print('there are %i link segments' % len(ip.link_segments))
-                    
                     
                     #TODO, generalize to the CCW cycle finding, not assuming 2 link segments
                     ip_chains = []
@@ -801,34 +796,33 @@ class NetworkCutter(object):
                     
                         current_seg = seg
                         chain = []
-                        print(ip)
-                        print(current_seg)
-                        print(current_seg.points)
                         ip_next = current_seg.other_point(ip)
                         
-                        if ip_next in ip_set:
-                            ip_set.remove(ip_next)
-                        else:
-                            print('ip_next not in ip_set')
-                            print(ip_next)
+                        
                             
                         while ip_next and ip_next.face_index == ip.face_index:
-                            print('walking again')
+                            
+                            if ip_next in ip_set:  #we remove it here only if its on the same face
+                                ip_set.remove(ip_next)
+                        
                             chain += [ip_next]
                             
                             next_seg = next_segment(ip_next, current_seg)
                             if next_seg == None: 
-                                print('there is no next seg')
+                                print('there is no next seg we ended on edge of mesh?')
                                 break
                         
                             ip_next = next_seg.other_point(ip_next)
-                            if ip_next in ip_set:
+
+                            if ip_next.is_edgepoint(): 
+                                print('we broke on an endpoint')
                                 ip_set.remove(ip_next)
-                            if ip_next.is_edgepoint(): break
+                                break
                             current_seg = next_seg
 
                         ip_chains += [chain]
                         
+                        #if this is first segment, we define that as the entrance segment
                         if seg == ip.link_segments[0]:
                             if current_seg.ip0 == ip_next:  #test the direction of the segment
                                 ed_enter = self.cut_data[current_seg]['edge_crosses'][0]
@@ -837,12 +831,15 @@ class NetworkCutter(object):
                             
                             bmv_enter = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_enter]
                         else:
-                            if current_seg.ip0 == ip_next:  #test the direction of the segment
-                                ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
+                            if ip_next.is_edgepoint():
+                                bmv_exit = self.ip_bmvert_map[ip_next]
                             else:
-                                ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]    
-                        
-                            bmv_exit = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_exit]
+                                if current_seg.ip0 == ip_next:  #test the direction of the segment
+                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
+                                else:
+                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]    
+                            
+                                bmv_exit = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_exit]
                             
                     ip_chains[0].reverse()
                     total_chain = ip_chains[0] + [ip] + ip_chains[1]

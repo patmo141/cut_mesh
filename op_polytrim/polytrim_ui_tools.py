@@ -369,7 +369,7 @@ class Polytrim_UI_Tools():
                 #we are not quite hovered but in snap territory
                 return
 
-            if len(closest_endpoints) != 2:
+            if len(closest_endpoints) < 2:
                 return
 
             seg = InputSegment(closest_endpoints[0], closest_endpoints[1])
@@ -562,8 +562,8 @@ class Polytrim_UI_Tools():
                     #we are not quite hovered but in snap territory
                     return
 
-                if len(closest_endpoints) != 2:
-                    print('len of closest endpoints not 2')
+                if len(closest_endpoints) < 2:
+                    #print('len of closest endpoints not 2')
                     return
 
                 self.net_ui_context.connect_element = closest_endpoints[1]
