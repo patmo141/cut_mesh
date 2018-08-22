@@ -752,7 +752,6 @@ class NetworkCutter(object):
                         if ip_next in ip_set:
                             ip_set.remove(ip_next)
                             
-                        print('walking again')
                         ip_chain += [ip_next]
                         
                         next_seg = next_segment(ip_next, current_seg)
@@ -774,9 +773,9 @@ class NetworkCutter(object):
                                     [self.ip_bmvert_map[ip_next]]
                     else:
                         if current_seg.ip0 == ip_next:  #test the direction of the segment
-                            ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
-                        else:
                             ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
+                        else:
+                            ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
                         
                         bmvert_chain  = [self.ip_bmvert_map[ipc] for ipc in ip_chain] + \
                                     [self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_exit]]
@@ -787,7 +786,7 @@ class NetworkCutter(object):
                         self.input_net.bme.edges.new((bmvert_chain[n],bmvert_chain[n+1]))
                     
                 else: #TODO
-                    print('starting at a regular point within in face')
+                    print('starting at a input point within in face')
                     #TODO, split this off, thanks
                     
                     #TODO, generalize to the CCW cycle finding, not assuming 2 link segments
@@ -823,21 +822,27 @@ class NetworkCutter(object):
                         ip_chains += [chain]
                         
                         #if this is first segment, we define that as the entrance segment
+                        #this is happening in the for seg in ip.link_segments
                         if seg == ip.link_segments[0]:
                             if current_seg.ip0 == ip_next:  #test the direction of the segment
-                                ed_enter = self.cut_data[current_seg]['edge_crosses'][0]
-                            else:
+                                #ed_enter = self.cut_data[current_seg]['edge_crosses'][0]
                                 ed_enter = self.cut_data[current_seg]['edge_crosses'][-1]
+                            else:
+                                #ed_enter = self.cut_data[current_seg]['edge_crosses'][-1]
+                                ed_enter = self.cut_data[current_seg]['edge_crosses'][0]
                             
                             bmv_enter = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_enter]
+                        #the endpoint
                         else:
                             if ip_next.is_edgepoint():
                                 bmv_exit = self.ip_bmvert_map[ip_next]
                             else:
                                 if current_seg.ip0 == ip_next:  #test the direction of the segment
-                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
+                                    #ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
+                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
                                 else:
-                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]    
+                                    #ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
+                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0]    
                             
                                 bmv_exit = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_exit]
                             
