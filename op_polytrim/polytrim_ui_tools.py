@@ -238,7 +238,11 @@ class Polytrim_UI_Tools():
             self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
             
         def has_non_man(self): return len(self.non_man_bmverts) > 0
+        def is_hovering_mesh(self): 
+            if self.hovered_mesh: return self.hovered_mesh["face_ind"] != -1
+            return False
         has_non_man = property(has_non_man)
+        is_hovering_mesh = property(is_hovering_mesh)
 
         def find_non_man(self):
             non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
@@ -268,6 +272,7 @@ class Polytrim_UI_Tools():
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
             if face_ind == -1: self.hovered_mesh = {}
             else:
+                self.hovered_mesh["world_loc"] = self.mx * loc
                 self.hovered_mesh["local_loc"] = loc
                 self.hovered_mesh["normal"] = no
                 self.hovered_mesh["face_ind"] = face_ind

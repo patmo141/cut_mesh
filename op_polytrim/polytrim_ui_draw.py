@@ -20,40 +20,17 @@ from .polytrim_datastructure import InputPoint
 class Polytrim_UI_Draw():
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
+        clear = (0,0,0,0)
+        green = (.3,1,.3,1)
         self.draw_stuff_3d()
-
-        if self.net_ui_context.snap_element and self.net_ui_context.connect_element and not self._nav:
-            bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
-            bgl.glEnable(bgl.GL_BLEND)
-            bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
-            bgl.glEnable(bgl.GL_DEPTH_TEST)
-
-            # draw in front of geometry
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-
-            circleShader.enable()
-            #print('matriz buffer')
-            circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
-            #print('set the uMVPMatrix')
-            #print(self.drawing.get_view_matrix_buffer())
-            
-            circleShader['uInOut'] = 0.5
-            self.drawing.point_size(80)  #this is diameter
-            bgl.glBegin(bgl.GL_POINTS)
-            
-            a = 1
-            circleShader['vOutColor'] = (0.75, 0.75, 0.75, 0.3*a)
-            circleShader['vInColor']  = (0.25, 0.25, 0.25, 0.3*a)
-            p1 = self.net_ui_context.snap_element.world_loc
-            bgl.glVertex3f(*p1)
-            
-            bgl.glEnd()
-            circleShader.disable()
-            
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            bgl.glDepthRange(0.0, 1.0)
-            bgl.glDepthMask(bgl.GL_TRUE)
-
+        # circle around point to be drawn
+        if not self._nav:
+            world_loc = None
+            if self.net_ui_context.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not self._nav:
+                world_loc = self.net_ui_context.hovered[1][1]
+            #elif self.net_ui_context.hovered_mesh:
+                #world_loc = self.net_ui_context.hovered_mesh["world_loc"]
+            if world_loc: self.draw_circle(world_loc, 20, .8, green, clear)
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
         if self.input_net:
@@ -225,6 +202,38 @@ class Polytrim_UI_Draw():
 
         bgl.glLineWidth(1)     
                 
+        
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthRange(0.0, 1.0)
+        bgl.glDepthMask(bgl.GL_TRUE)
+
+    def draw_circle(self, world_loc, diam, perc_in, clr_out, clr_in):
+        bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
+
+        # draw in front of geometry
+        bgl.glDepthFunc(bgl.GL_LEQUAL)
+
+        circleShader.enable()
+        #print('matriz buffer')
+        circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
+        #print('set the uMVPMatrix')
+        #print(self.drawing.get_view_matrix_buffer())
+        
+        circleShader['uInOut'] = perc_in
+        self.drawing.point_size(diam)  #this is diameter
+        bgl.glBegin(bgl.GL_POINTS)
+        
+        circleShader['vOutColor'] = clr_out
+        circleShader['vInColor']  = clr_in
+
+        print("WORLD", world_loc)
+        bgl.glVertex3f(*world_loc)
+        
+        bgl.glEnd()
+        circleShader.disable()
         
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
