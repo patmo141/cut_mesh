@@ -256,7 +256,7 @@ class Polytrim_UI_Tools():
                 self.kd = None
 
         def set_network(self, input_net): self.input_net = input_net
-                    
+
         def update(self, mouse_loc):
             self.mouse_loc = mouse_loc
             self.ray_cast_mouse()
