@@ -114,67 +114,15 @@ class Polytrim_UI_Tools():
         def initiate_grab_point(self):
             #self.grab_point = self.net_ui_context.selected.duplicate()
             self.grab_point = self.net_ui_context.selected
-            print("GRAB",self.grab_point)
 
         def move_grab_point(self,context,mouse_loc):
-            '''
-            finds what is near
-            '''
-            region = context.region
-            rv3d = context.region_data
-            # ray tracing
-            view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
-            loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, None)
-            if face_ind == -1: return
+            ''' Moves location of point'''
+            d = self.net_ui_context.hovered_mesh
+            if d:
 
-            #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
-            #TODO context closest_nonmanifold_source_geometry?
-            if isinstance(self.net_ui_context.selected, InputPoint) and self.net_ui_context.selected.seed_geom != None:
-
-                #check the 3d mouse location vs non manifold verts
-                co3d, index, dist = self.net_ui_context.kd.find(self.net_ui_context.mx * loc)
-
-                #get the actual non man vert from original list
-                close_bmvert = self.net_ui_context.bme.verts[self.net_ui_context.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
-                close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
-                loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-
-                if len(close_eds) != 2: return
-
-                bm0 = close_eds[0].other_vert(close_bmvert)
-                bm1 = close_eds[1].other_vert(close_bmvert)
-
-                a0 = bm0.co
-                b   = close_bmvert.co
-                a1  = bm1.co
-
-                inter_0, d0 = intersect_point_line(loc, a0, b)
-                inter_1, d1 = intersect_point_line(loc, a1, b)
-
-                screen_0 = loc3d_reg2D(region, rv3d, self.net_ui_context.mx * inter_0)
-                screen_1 = loc3d_reg2D(region, rv3d, self.net_ui_context.mx * inter_1)
-                screen_v = loc3d_reg2D(region, rv3d, self.net_ui_context.mx * b)
-
-                screen_d0 = (Vector((mouse_loc)) - screen_0).length
-                screen_d1 = (Vector((mouse_loc)) - screen_1).length
-                screen_dv = (Vector((mouse_loc)) - screen_v).length
-
-                if 0 < d0 <= 1 and screen_d0 < 60:
-                    ed, pt = close_eds[0], inter_0
-                elif 0 < d1 <= 1 and screen_d1 < 60:
-                    ed, pt = close_eds[1], inter_1
-                elif screen_dv < 60:
-                    if abs(d0) < abs(d1):
-                        ed, pt = close_eds[0], b
-                    else:
-                        ed, pt = close_eds[1], b
-                else:
-                    return
-
-                self.grab_point.set_values(self.net_ui_context.mx * pt, pt, view_vector, ed.link_faces[0].index)
-                self.grab_point.seed_geom = ed
-            else:
-                self.grab_point.set_values(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
+                print("here")
+                self.grab_point.print_data()
+                self.grab_point.set_values(d["world loc"], d["local loc"], d["normal"], d["face index"])
 
         def grab_cancel(self):
             '''
@@ -241,7 +189,7 @@ class Polytrim_UI_Tools():
             
         def has_non_man(self): return len(self.non_man_bmverts) > 0
         def is_hovering_mesh(self): 
-            if self.hovered_mesh: return self.hovered_mesh["face_ind"] != -1
+            if self.hovered_mesh: return self.hovered_mesh["face index"] != -1
             return False
         has_non_man = property(has_non_man)
         is_hovering_mesh = property(is_hovering_mesh)
@@ -274,10 +222,10 @@ class Polytrim_UI_Tools():
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
             if face_ind == -1: self.hovered_mesh = {}
             else:
-                self.hovered_mesh["world_loc"] = self.mx * loc
-                self.hovered_mesh["local_loc"] = loc
+                self.hovered_mesh["world loc"] = self.mx * loc
+                self.hovered_mesh["local loc"] = loc
                 self.hovered_mesh["normal"] = no
-                self.hovered_mesh["face_ind"] = face_ind
+                self.hovered_mesh["face index"] = face_ind
 
                
         def nearest_non_man_loc(self):
@@ -285,7 +233,7 @@ class Polytrim_UI_Tools():
             finds nonman edges and verts nearby to cursor location
             '''
             if self.has_non_man and self.hovered_mesh:
-                co3d, index, dist = self.kd.find(self.mx * self.hovered_mesh["local_loc"])
+                co3d, index, dist = self.kd.find(self.mx * self.hovered_mesh["local loc"])
 
                 #get the actual non man vert from original list
                 close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
@@ -298,8 +246,8 @@ class Polytrim_UI_Tools():
                     b   = close_bmvert.co
                     a1  = bm1.co
 
-                    inter_0, d0 = intersect_point_line(self.hovered_mesh["local_loc"], a0, b)
-                    inter_1, d1 = intersect_point_line(self.hovered_mesh["local_loc"], a1, b)
+                    inter_0, d0 = intersect_point_line(self.hovered_mesh["local loc"], a0, b)
+                    inter_1, d1 = intersect_point_line(self.hovered_mesh["local loc"], a1, b)
 
                     region = self.context.region
                     rv3d = self.context.region_data
@@ -534,7 +482,6 @@ class Polytrim_UI_Tools():
         self.network_cutter.knife_geometry()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
 
-    # XXX: NetworkUIContext
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse

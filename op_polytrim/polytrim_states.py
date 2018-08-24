@@ -122,9 +122,13 @@ class Polytrim_States():
             return 'main'
 
         if self.actions.mousemove:
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover()
             return
         if self.actions.mousemove_prev:
             #update the b_pt location
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
 
     ######################################################
