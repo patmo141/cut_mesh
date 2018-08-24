@@ -41,22 +41,22 @@ class Polytrim_States():
             return 'sketch'
 
         if self.actions.pressed('add point (disconnected)'):
-            self.ui_text_update()
             self.click_add_point(context, self.actions.mouse, False)
+            self.ui_text_update()
             return
 
         if self.actions.pressed('delete'):
-            self.ui_text_update()
             self.click_delete_point(mode='mouse')
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
+            self.ui_text_update()
             return
         
         if self.actions.pressed('delete (disconnect)'):
-            self.ui_text_update()
             self.click_delete_point('mouse', True)
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
+            self.ui_text_update()
             return
 
         #re-tesselate at 3mm resolution

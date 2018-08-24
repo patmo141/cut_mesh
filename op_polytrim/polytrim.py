@@ -62,16 +62,16 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         info.add(ui.UI_Label('Instructions'))
 
         self.instructions = {
-            "add": "Left-click to add a new point",
+            "add": "Left-click on the mesh to add a new point",
+            "add (disconnect)": "Ctrl + Leftlick will add a free-floating point",
             "sketch (anywhere)": "Hold left-click and drag to sketch in a line of points",
-            "sketch (point)": "Hold left-click and drag from a hovered point to sketch in a line of points"
+            "sketch (point)": "Hold left-click and drag from a hovered point to sketch in a line of points",
+            "delete": "Right-click on a point to remove it",
+            "delete (disconnect)": "Ctrl + right-click will remove a point and its connected segments",
+            "grab": "Press 'G' to grab and move selected point to a new location",
+            "grab cancel": "Right-click to cancel the initiated grab"
         }
-        self.info_a = info.add(ui.UI_Markdown('', min_size=(200,10)))
-        self.info_b = info.add(ui.UI_Markdown('', min_size=(200,10)))
-        self.info_c = info.add(ui.UI_Markdown('', min_size=(200,10)))
-        self.info_d = info.add(ui.UI_Markdown('', min_size=(200,10)))
-        self.info_e = info.add(ui.UI_Markdown('', min_size=(200,10)))
-        self.info_f = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
         self.set_ui_text_no_points()
 
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
