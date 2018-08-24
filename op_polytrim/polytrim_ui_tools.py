@@ -504,7 +504,7 @@ class Polytrim_UI_Tools():
 
     def set_ui_text_1_point(self):
         ''' sets the viewports text when 1 point has been placed'''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add'])
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (green line)'])
         self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
         self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch (point)'])
         self.inst_paragraphs[3].set_markdown('D) ' + self.instructions['grab'])
@@ -513,12 +513,13 @@ class Polytrim_UI_Tools():
     
     def set_ui_text_multiple_points(self):
         ''' sets the viewports text when there are multiple points '''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add'])
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (green line)'])
         self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
         self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch (point)'])
-        self.inst_paragraphs[3].set_markdown('D) ' + self.instructions['grab'])
-        self.inst_paragraphs[4].set_markdown('E) ' + self.instructions['add (disconnect)'])
-        self.inst_paragraphs[5].set_markdown('F) ' + self.instructions['delete (disconnect)'])
+        self.inst_paragraphs[3].set_markdown('C) ' + self.instructions['select'])
+        self.inst_paragraphs[4].set_markdown('D) ' + self.instructions['grab'])
+        self.inst_paragraphs[5].set_markdown('E) ' + self.instructions['add (disconnect)'])
+        self.inst_paragraphs[6].set_markdown('F) ' + self.instructions['delete (disconnect)'])
 
     def set_ui_text_grab_mode(self):
         ''' sets the viewports text during general creation of line '''

@@ -63,12 +63,14 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
 
         self.instructions = {
             "add": "Left-click on the mesh to add a new point",
+            "add (green line)": "Left click on the mesh to add/insert a point. The green line will visualize the new segments created",
             "add (disconnect)": "Ctrl + Leftlick will add a free-floating point",
+            "select": "Left-click on a point to select it",
             "sketch (anywhere)": "Hold left-click and drag to sketch in a line of points",
             "sketch (point)": "Hold left-click and drag from a hovered point to sketch in a line of points",
             "delete": "Right-click on a point to remove it",
             "delete (disconnect)": "Ctrl + right-click will remove a point and its connected segments",
-            "grab": "Press 'G' to grab and move selected point to a new location",
+            "grab": "Press 'G' to grab and move the selected point",
             "grab cancel": "Right-click to cancel the initiated grab"
         }
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
