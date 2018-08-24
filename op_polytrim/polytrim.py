@@ -59,7 +59,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
 
     def start(self):
         info = self.wm.create_window('PolyTrim Help', {'pos':9, 'movable':True, 'bgcolor':(.3,.6,.3,.6)})
-        info.add(ui.UI_Label('Instructions'))
+        info.add(ui.UI_Label('Instructions', fontsize=16, align=0, margin=4))
 
         self.instructions = {
             "add": "Left-click on the mesh to add a new point",
@@ -76,9 +76,11 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
         self.set_ui_text_no_points()
 
+        info.add(ui.UI_Label('Tools', fontsize=16, align=0, margin=4))
+        info.add(ui.UI_Button('Find Network Cycles', self.done, margin=5))
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
-        exitbuttons.add(ui.UI_Button('commit', self.done))
-        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
+        exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))
+        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True), margin=5))
 
         self.cursor_modal_set('CROSSHAIR')
 
