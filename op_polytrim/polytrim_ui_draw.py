@@ -22,19 +22,20 @@ class Polytrim_UI_Draw():
     def draw_postview(self):
         clear = (0,0,0,0)
         green = (.3,1,.3,1)
+        green_opaque = (.3,1,.3,.5)
         self.draw_stuff_3d()
         # circle around point to be drawn
         if not self._nav:
             world_loc = None
-            if self.net_ui_context.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not self._nav:
-                world_loc = self.net_ui_context.hovered[1][1]
+            if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not self._nav:
+                world_loc = self.net_ui_context.hovered_near[1][1]
             #elif self.net_ui_context.hovered_mesh:
                 #world_loc = self.net_ui_context.hovered_mesh["world_loc"]
-            if world_loc: self.draw_circle(world_loc, 20, .8, green, clear)
+            if world_loc: self.draw_circle(world_loc, 20, .7, green_opaque, clear)
+                
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
-        if self.input_net:
-            self.draw_stuff(self.context)
+        self.draw_stuff(self.context)
         if self.sketcher.has_locs:
             common_drawing.draw_polyline_from_points(self.context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
 
@@ -64,8 +65,8 @@ class Polytrim_UI_Draw():
 
 
         ## Hovered Non-manifold Edge or Vert
-        if self.net_ui_context.hovered[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not is_nav:
-            ed, pt = self.net_ui_context.hovered[1]
+        if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not is_nav:
+            ed, pt = self.net_ui_context.hovered_near[1]
             common_drawing.draw_3d_points(context,[pt], 6, green)
 
         if  self.input_net.is_empty: return
@@ -91,11 +92,11 @@ class Polytrim_UI_Draw():
                     common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
         elif not is_nav:
             ## Hovered Point
-            if self.net_ui_context.hovered[0] == 'POINT':
-                common_drawing.draw_3d_points(context,[self.net_ui_context.hovered[1].world_loc], 8, color = (0,1,0,1))
+            if self.net_ui_context.hovered_near[0] == 'POINT':
+                common_drawing.draw_3d_points(context,[self.net_ui_context.hovered_near[1].world_loc], 8, color = (0,1,0,1))
             # Insertion Lines (for adding in a point to edge)
-            elif self.net_ui_context.hovered[0] == 'EDGE':
-                seg = self.net_ui_context.hovered[1]
+            elif self.net_ui_context.hovered_near[0] == 'EDGE':
+                seg = self.net_ui_context.hovered_near[1]
                 a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
                 b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
                 if a and b:
@@ -106,10 +107,14 @@ class Polytrim_UI_Draw():
                 b = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.snap_element.world_loc)
                 if a and b:
                     common_drawing.draw_polyline_from_points(context, [a, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
-            # Endpoint to Cursor Line
+            # Insertion Line (for general adding of points)
             elif self.net_ui_context.closest_ep and not ctrl_pressed:
                 ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.closest_ep.world_loc)
-                common_drawing.draw_polyline_from_points(context, [ep_screen_loc, mouse_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+                if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+                    point_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.hovered_near[1][1])
+                else: point_loc = mouse_loc
+                common_drawing.draw_polyline_from_points(context, [ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+            
 
 
     def draw_stuff_3d(self):

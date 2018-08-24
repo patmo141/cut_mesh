@@ -229,7 +229,7 @@ class Polytrim_UI_Tools():
             self.snap_element = None
             self.connect_element = None
             self.closest_ep = None
-            self.hovered = [None, -1]
+            self.hovered_near = [None, -1]
 
             self.kd = None
             self.non_man_bmverts = []
@@ -315,10 +315,10 @@ class Polytrim_UI_Tools():
 
                         #TODO, decid how to handle when very very close to vertcies
                         if 0 < d0 <= 1 and screen_d0 < 20:
-                            self.hovered = ['NON_MAN_ED', (close_eds[0], self.mx*inter_0)]
+                            self.hovered_near = ['NON_MAN_ED', (close_eds[0], self.mx*inter_0)]
                             return
                         elif 0 < d1 <= 1 and screen_d1 < 20:
-                            self.hovered = ['NON_MAN_ED', (close_eds[1], self.mx*inter_1)]
+                            self.hovered_near = ['NON_MAN_ED', (close_eds[1], self.mx*inter_1)]
                             return
 
 
@@ -346,8 +346,8 @@ class Polytrim_UI_Tools():
         loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
         if loc == None: return
 
-        if self.net_ui_context.hovered[0] and 'NON_MAN' in self.net_ui_context.hovered[0]:
-            bmed, wrld_loc = self.net_ui_context.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
+        if self.net_ui_context.hovered_near[0] and 'NON_MAN' in self.net_ui_context.hovered_near[0]:
+            bmed, wrld_loc = self.net_ui_context.hovered_near[1] # hovered_near[1] is tuple (BMesh Element, location?)
             ip1 = self.closest_endpoint(wrld_loc)
 
             self.net_ui_context.selected = self.input_net.create_point(wrld_loc, self.net_ui_context.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
@@ -359,19 +359,19 @@ class Polytrim_UI_Tools():
                 self.network_cutter.precompute_cut(seg)
                 #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
         
-        elif (self.net_ui_context.hovered[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+        elif (self.net_ui_context.hovered_near[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             closest_endpoint = self.closest_endpoint(self.net_ui_context.mx * loc)
             self.net_ui_context.selected = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
             if closest_endpoint and connect:
                 self.input_net.connect_points(self.net_ui_context.selected, closest_endpoint)
                 self.network_cutter.precompute_cut(self.input_net.segments[-1])  #<  Hmm...not very clean.  
 
-        elif self.net_ui_context.hovered[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+        elif self.net_ui_context.hovered_near[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
 
             closest_endpoints = self.closest_endpoints(self.net_ui_context.snap_element.world_loc, 2)
 
             if closest_endpoints == None:
-                #we are not quite hovered but in snap territory
+                #we are not quite hovered_near but in snap territory
                 return
 
             if len(closest_endpoints) != 2:
@@ -382,12 +382,12 @@ class Polytrim_UI_Tools():
             self.network_cutter.precompute_cut(seg)
             #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
 
-        elif self.net_ui_context.hovered[0] == 'POINT':
-            self.net_ui_context.selected = self.net_ui_context.hovered[1]
+        elif self.net_ui_context.hovered_near[0] == 'POINT':
+            self.net_ui_context.selected = self.net_ui_context.hovered_near[1]
 
-        elif self.net_ui_context.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
+        elif self.net_ui_context.hovered_near[0] == 'EDGE':  #TODO, actually make InputSegment as hovered_near
             point = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
-            old_seg = self.net_ui_context.hovered[1]
+            old_seg = self.net_ui_context.hovered_near[1]
             self.input_net.insert_point(point, old_seg)
             self.net_ui_context.selected = point
             self.network_cutter.update_segments()
@@ -397,13 +397,13 @@ class Polytrim_UI_Tools():
         removes point from the trim line
         '''
         if mode == 'mouse':
-            if self.net_ui_context.hovered[0] != 'POINT':
+            if self.net_ui_context.hovered_near[0] != 'POINT':
                 return
 
-            self.input_net.remove_point(self.net_ui_context.hovered[1], disconnect)  #TODO, Ctrl + Rightlcik    
+            self.input_net.remove_point(self.net_ui_context.hovered_near[1], disconnect)  #TODO, Ctrl + Rightlcik    
             self.network_cutter.update_segments()
         
-            if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered[1]:
+            if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered_near[1]:
                 self.net_ui_context.selected = None
 
         else: #hard delete with x key
@@ -485,8 +485,8 @@ class Polytrim_UI_Tools():
         updates the text at the bottom of the viewport depending on certain conditions
         '''
         context = self.context
-        if self.net_ui_context.hovered[0] == 'POINT':
-            if self.net_ui_context.hovered[1] == 0:
+        if self.net_ui_context.hovered_near[0] == 'POINT':
+            if self.net_ui_context.hovered_near[1] == 0:
                 context.area.header_text_set("For origin point, left click to toggle cyclic")
             else:
                 context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
@@ -520,7 +520,7 @@ class Polytrim_UI_Tools():
         self.net_ui_context.connect_element = None
 
         if self.input_net.is_empty:
-            self.net_ui_context.hovered = [None, -1]
+            self.net_ui_context.hovered_near = [None, -1]
             self.net_ui_context.nearest_non_man_loc()
             return
         if face_ind == -1: self.net_ui_context.closest_ep = None
@@ -546,9 +546,9 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
-            #print('point is hovered')
+            #print('point is hovered_near')
             #print(pixel_dist)
-            self.net_ui_context.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
+            self.net_ui_context.hovered_near = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             self.net_ui_context.snap_element = None
             return
 
@@ -564,7 +564,7 @@ class Polytrim_UI_Tools():
                 #print('these are the 2 closest endpoints, one should be snap element itself')
                 #print(closest_endpoints)
                 if closest_endpoints == None:
-                    #we are not quite hovered but in snap territory
+                    #we are not quite hovered_near but in snap territory
                     return
 
                 if len(closest_endpoints) != 2:
@@ -577,7 +577,7 @@ class Polytrim_UI_Tools():
 
 
         if self.input_net.num_points == 1:  #why did we do this? Oh because there are no segments.
-            self.net_ui_context.hovered = [None, -1]
+            self.net_ui_context.hovered_near = [None, -1]
             self.net_ui_context.snap_element = None
             return
 
@@ -603,11 +603,11 @@ class Polytrim_UI_Tools():
                 dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
                 bound = intersect[1]
                 if (dist < select_radius**2) and (bound < 1) and (bound > 0):
-                    self.net_ui_context.hovered = ['EDGE', closest_seg]
+                    self.net_ui_context.hovered_near = ['EDGE', closest_seg]
                     return
 
         ## Multiple points, but not hovering over edge or point.
-        self.net_ui_context.hovered = [None, -1]
+        self.net_ui_context.hovered_near = [None, -1]
 
         self.net_ui_context.nearest_non_man_loc()  #todo, optimize because double ray cast per mouse move!
 
