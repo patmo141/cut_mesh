@@ -108,6 +108,9 @@ class Polytrim_UI_Tools():
             self.network_cutter = network_cutter
             self.grab_point = None
 
+        def in_use(self): return self.grab_point != None
+        in_use = property(in_use)
+
         def initiate_grab_point(self):
             #self.grab_point = self.net_ui_context.selected.duplicate()
             self.grab_point = self.net_ui_context.selected
@@ -195,7 +198,6 @@ class Polytrim_UI_Tools():
                 seg.path = []
                 seg.needs_calculation = True
                 seg.calculation_complete = False
-                
 
             self.grab_point = None
 
@@ -484,20 +486,45 @@ class Polytrim_UI_Tools():
         '''
         updates the text at the bottom of the viewport depending on certain conditions
         '''
-        context = self.context
-        if self.net_ui_context.hovered_near[0] == 'POINT':
-            if self.net_ui_context.hovered_near[1] == 0:
-                context.area.header_text_set("For origin point, left click to toggle cyclic")
-            else:
-                context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
-        else:
-            self.set_ui_text_main()
+        self.reset_ui_text()
+        if self.input_net.is_empty:
+            self.set_ui_text_no_points()
+        elif self.grabber.in_use:
+            self.set_ui_text_grab_mode()
+        elif self.input_net.num_points == 1:
+            self.set_ui_text_1_point()
+        elif self.input_net.num_points > 1:
+            self.set_ui_text_multiple_points()
 
     # XXX: Fine for now, but will likely be irrelevant in future
-    def set_ui_text_main(self):
+    def set_ui_text_no_points(self):
         ''' sets the viewports text during general creation of line '''
-        self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
-        #self.context.area.header_text_set()
+        self.info_a.set_markdown('A) ' + self.instructions['add'])
+        self.info_b.set_markdown('B) ' + self.instructions['sketch (anywhere)'])
+
+    def set_ui_text_1_point(self):
+        ''' sets the viewports text during general creation of line '''
+        self.info_a.set_markdown('A) ' + self.instructions['add'])
+        self.info_b.set_markdown('B) ' + self.instructions['sketch (anywhere)'])
+    
+    def set_ui_text_multiple_points(self):
+        ''' sets the viewports text during general creation of line '''
+        self.info_a.set_markdown('A) ' + self.instructions['add'])
+        self.info_b.set_markdown('B) ' + self.instructions['sketch (anywhere)'])
+
+    def set_ui_text_no_points(self):
+        ''' sets the viewports text during general creation of line '''
+        self.info_a.set_markdown('A) ' + self.instructions['add'])
+        self.info_b.set_markdown('B) ' + self.instructions['sketch (anywhere)'])
+
+    def reset_ui_text(self):
+        self.info_a.set_markdown('')
+        self.info_b.set_markdown('')
+        self.info_c.set_markdown('')
+        self.info_d.set_markdown('')
+        self.info_e.set_markdown('')
+        self.info_f.set_markdown('')
+
 
     # XXX: NetworkUIContext
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?

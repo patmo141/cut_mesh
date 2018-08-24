@@ -26,28 +26,34 @@ class Polytrim_States():
         if self.actions.mousemove:
             return
         if self.actions.mousemove_prev:
-            # TODO: update self.hover to use Accel2D?
             self.net_ui_context.update(self.actions.mouse)
+            #TODO: Bring hover into NetworkUiContext
             self.hover()
-            self.ui_text_update()
 
         #after navigation filter, these are relevant events in this state
 
-        if self.actions.pressed('grab'): return 'grab'
+        if self.actions.pressed('grab'): 
+            self.ui_text_update()
+            return 'grab'
 
-        if self.actions.pressed('sketch'): return 'sketch'
+        if self.actions.pressed('sketch'): 
+            self.ui_text_update()
+            return 'sketch'
 
         if self.actions.pressed('add point (disconnected)'):
+            self.ui_text_update()
             self.click_add_point(context, self.actions.mouse, False)
             return
 
         if self.actions.pressed('delete'):
+            self.ui_text_update()
             self.click_delete_point(mode='mouse')
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
             return
         
         if self.actions.pressed('delete (disconnect)'):
+            self.ui_text_update()
             self.click_delete_point('mouse', True)
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
@@ -108,13 +114,11 @@ class Polytrim_States():
             self.network_cutter.update_segments()
             if self.net_ui_context.selected not in self.input_net.points:
                 self.net_ui_context.selected = -1
-            self.ui_text_update()
             return 'main'
 
         if self.actions.pressed('cancel'):
             #put it back!
             self.grabber.grab_cancel()
-            self.ui_text_update()
             return 'main'
 
         if self.actions.mousemove:

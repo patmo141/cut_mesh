@@ -58,13 +58,27 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         return True
 
     def start(self):
-        info = self.wm.create_window('info', {'pos':9, 'movable':False})
-        info.add(ui.UI_Label('PolyTrim'))
-        self.info_label = info.add(ui.UI_Markdown('info here', min_size=(200,10)))
-        self.info_label.set_markdown('Here is what to do next...')
+        info = self.wm.create_window('PolyTrim Help', {'pos':9, 'movable':True, 'bgcolor':(.3,.6,.3,.6)})
+        info.add(ui.UI_Label('Instructions'))
+
+        self.instructions = {
+            "add": "Left-click to add a new point",
+            "sketch (anywhere)": "Hold left-click and drag to sketch in a line of points",
+            "sketch (point)": "Hold left-click and drag from a hovered point to sketch in a line of points"
+        }
+        self.info_a = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.info_b = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.info_c = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.info_d = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.info_e = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.info_f = info.add(ui.UI_Markdown('', min_size=(200,10)))
+        self.set_ui_text_no_points()
+
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done))
         exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
+
+        self.cursor_modal_set('CROSSHAIR')
 
         #self.drawing = Drawing.get_instance()
         self.drawing.set_region(bpy.context.region, bpy.context.space_data.region_3d, bpy.context.window)
@@ -81,8 +95,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.sketcher = self.SketchManager(self.input_net, self.net_ui_context, self.network_cutter)
         self.grabber = self.GrabManager(self.input_net, self.net_ui_context, self.network_cutter)
 
-        self.cursor_modal_set('CROSSHAIR')
-        self.set_ui_text_main()
+
 
     def end(self):
         ''' Called when tool is ending modal '''
