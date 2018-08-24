@@ -94,7 +94,7 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return (self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint))
+        return (self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint) and not self.input_net.is_empty)
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):

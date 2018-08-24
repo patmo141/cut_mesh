@@ -106,22 +106,21 @@ class Polytrim_UI_Tools():
             self.net_ui_context = net_ui_context
             self.input_net = input_net
             self.network_cutter = network_cutter
+
             self.grab_point = None
+            self.original_point = None
 
         def in_use(self): return self.grab_point != None
         in_use = property(in_use)
 
         def initiate_grab_point(self):
-            #self.grab_point = self.net_ui_context.selected.duplicate()
             self.grab_point = self.net_ui_context.selected
+            self.original_point = self.grab_point.duplicate()
 
         def move_grab_point(self,context,mouse_loc):
             ''' Moves location of point'''
             d = self.net_ui_context.hovered_mesh
             if d:
-
-                print("here")
-                self.grab_point.print_data()
                 self.grab_point.set_values(d["world loc"], d["local loc"], d["normal"], d["face index"])
 
         def grab_cancel(self):
@@ -129,7 +128,10 @@ class Polytrim_UI_Tools():
             returns variables to their status before grab was initiated
             '''
             #we have not touched the oringal point!
+            op = self.original_point
+            self.grab_point.set_values(op.world_loc, op.local_loc, op.view, op.face_index)
             self.grab_point = None
+            self.original_point = None
             return
 
         def finalize(self, context):
@@ -148,6 +150,7 @@ class Polytrim_UI_Tools():
                 seg.calculation_complete = False
 
             self.grab_point = None
+            self.original_point = None
 
             return
 
