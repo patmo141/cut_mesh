@@ -530,6 +530,10 @@ class Polytrim_UI_Tools():
         for inst_p in self.inst_paragraphs:
             inst_p.set_markdown('')
 
+    def find_network_cycles(self):
+        self.network_cutter.knife_geometry()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+
     # XXX: NetworkUIContext
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
