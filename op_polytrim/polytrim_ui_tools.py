@@ -120,14 +120,12 @@ class Polytrim_UI_Tools():
         def move_grab_point(self,context,mouse_loc):
             ''' Moves location of point'''
             d = self.net_ui_context.hovered_mesh
-            if d:
+            if d and self.grab_point:
                 self.grab_point.set_values(d["world loc"], d["local loc"], d["normal"], d["face index"])
 
         def grab_cancel(self):
-            '''
-            returns variables to their status before grab was initiated
-            '''
-            #we have not touched the oringal point!
+            ''' returns variables to their status before grab was initiated '''
+            if not self.grab_point: return
             op = self.original_point
             self.grab_point.set_values(op.world_loc, op.local_loc, op.view, op.face_index)
             self.grab_point = None
@@ -135,9 +133,8 @@ class Polytrim_UI_Tools():
             return
 
         def finalize(self, context):
-            '''
-            sets new variables based on new location
-            '''
+            ''' sets new variables based on new location '''
+            if not self.grab_point: return
             self.net_ui_context.selected.world_loc = self.grab_point.world_loc
             self.net_ui_context.selected.local_loc = self.grab_point.local_loc
             self.net_ui_context.selected.view = self.grab_point.view
@@ -178,7 +175,7 @@ class Polytrim_UI_Tools():
             self.hovered_mesh = {}
 
             # TODO: Organize everything below this
-            self.selected = -1
+            self.selected = None
             self.snap_element = None
             self.connect_element = None
             self.closest_ep = None
@@ -297,7 +294,9 @@ class Polytrim_UI_Tools():
         
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
         loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
-        if loc == None: return
+        if loc == None: 
+            print("Here")
+            return
 
         if self.net_ui_context.hovered_near[0] and 'NON_MAN' in self.net_ui_context.hovered_near[0]:
             bmed, wrld_loc = self.net_ui_context.hovered_near[1] # hovered_near[1] is tuple (BMesh Element, location?)
@@ -313,6 +312,7 @@ class Polytrim_UI_Tools():
                 #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
         
         elif (self.net_ui_context.hovered_near[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            print("Here 11")
             closest_endpoint = self.closest_endpoint(self.net_ui_context.mx * loc)
             self.net_ui_context.selected = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
             if closest_endpoint and connect:
@@ -320,7 +320,7 @@ class Polytrim_UI_Tools():
                 self.network_cutter.precompute_cut(self.input_net.segments[-1])  #<  Hmm...not very clean.  
 
         elif self.net_ui_context.hovered_near[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-
+            print("Here 2")
             closest_endpoints = self.closest_endpoints(self.net_ui_context.snap_element.world_loc, 2)
 
             if closest_endpoints == None:
@@ -350,12 +350,11 @@ class Polytrim_UI_Tools():
         removes point from the trim line
         '''
         if mode == 'mouse':
-            if self.net_ui_context.hovered_near[0] != 'POINT':
-                return
+            if self.net_ui_context.hovered_near[0] != 'POINT': return
 
-            self.input_net.remove_point(self.net_ui_context.hovered_near[1], disconnect)  #TODO, Ctrl + Rightlcik    
+            self.input_net.remove_point(self.net_ui_context.hovered_near[1], disconnect) 
             self.network_cutter.update_segments()
-        
+
             if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered_near[1]:
                 self.net_ui_context.selected = None
 

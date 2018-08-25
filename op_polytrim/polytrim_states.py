@@ -94,7 +94,11 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return (self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint) and not self.input_net.is_empty)
+        print("IS Empty:", self.input_net.is_empty)
+        print("Selected:", self.net_ui_context.selected)
+        can_enter = ((not self.input_net.is_empty) and self.net_ui_context.selected)
+        print("can_enter =",can_enter)
+        return (not self.input_net.is_empty and self.net_ui_context.selected != None)
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
@@ -113,7 +117,7 @@ class Polytrim_States():
             self.grabber.finalize(self.context)
             self.network_cutter.update_segments()
             if self.net_ui_context.selected not in self.input_net.points:
-                self.net_ui_context.selected = -1
+                self.net_ui_context.selected = None
             return 'main'
 
         if self.actions.pressed('cancel'):
@@ -136,9 +140,11 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('sketch', 'can enter')
     def sketch_can_enter(self):
+        print("selected", self.net_ui_context.selected)
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
         self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
+        print("selected 2", self.net_ui_context.selected)
         return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
