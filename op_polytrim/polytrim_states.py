@@ -94,17 +94,15 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        print("IS Empty:", self.input_net.is_empty)
-        print("Selected:", self.net_ui_context.selected)
-        can_enter = ((not self.input_net.is_empty) and self.net_ui_context.selected)
-        print("can_enter =",can_enter)
-        return (not self.input_net.is_empty and self.net_ui_context.selected != None)
+        can_enter = (not self.input_net.is_empty and self.net_ui_context.selected != None)
+        return can_enter
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
         self.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
         self.grabber.initiate_grab_point()
         self.grabber.move_grab_point(self.context, self.actions.mouse)
+        self.ui_text_update()
 
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
@@ -134,6 +132,10 @@ class Polytrim_States():
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
+
+    @CookieCutter.FSM_State('grab', 'exit')
+    def grab_exit(self):
+        self.ui_text_update()
 
     ######################################################
     # sketch state

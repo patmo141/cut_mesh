@@ -473,7 +473,7 @@ class Polytrim_UI_Tools():
 
     def set_ui_text_grab_mode(self):
         ''' sets the viewports text during general creation of line '''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['grab'])
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['grab confirm'])
         self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['grab cancel'])
 
     def reset_ui_text(self):

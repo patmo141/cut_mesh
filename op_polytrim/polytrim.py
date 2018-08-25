@@ -71,7 +71,8 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
             "delete": "Right-click on a point to remove it",
             "delete (disconnect)": "Ctrl + right-click will remove a point and its connected segments",
             "grab": "Press 'G' to grab and move the selected point",
-            "grab cancel": "Right-click to cancel the initiated grab"
+            "grab confirm": "Left-click to place point at cursor's location",
+            "grab cancel": "Right-click to cancel the grab"
         }
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
         self.set_ui_text_no_points()
