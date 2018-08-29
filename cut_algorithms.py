@@ -262,7 +262,8 @@ def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from,
     # returned values
     verts = [co_from]
     eds_crossed = [bme.edges[e_ind_from]]
-    faces_crossed = [bme.faces[f_ind_from]]
+    #faces_crossed = [bme.faces[f_ind_from]]  #don't record first face because we did not cross it?
+    faces_crossed = []
     looped = False
     found = False
     error = None
@@ -330,6 +331,9 @@ def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from,
         
         # get next face, edge, co
         f_next = next(f for f in edge.link_faces if f.index != find_current)
+        
+        if f_next == f_end:
+            print('we found the last face without end_edge_dict catching it')
         faces_crossed += [f_next]
         find_next = f_next.index
         eind_next = edge.index
@@ -412,7 +416,9 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
     # returned values
     verts = [co_from]
     eds_crossed = [bme.edges[e_ind_from]]
-    faces_crossed = [bme.faces[f_ind_from]]
+    #faces_crossed = [bme.faces[f_ind_from]] #we do not want to use the seed face in this dict, we didn't "cross" that face
+    
+    faces_crossed  = []
     looped = False
     found = False
     
@@ -496,6 +502,10 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
         
         # get next face, edge, co
         f_next = next(f for f in edge.link_faces if f.index != find_current)
+        
+        if f_next == f_end:
+            print('you somehow found f_end without end_edges_dict catching it')
+        #we tested to see if we met up with the final face 
         faces_crossed += [f_next]
         find_next = f_next.index
         eind_next = edge.index

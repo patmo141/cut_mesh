@@ -72,6 +72,12 @@ class Polytrim_States():
             self.network_cutter.knife_geometry()
             self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
 
+        
+        if self.actions.pressed('F4'):
+            self.network_cutter.knife_geometry2()
+            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+            
+            
         if self.actions.pressed('RET'):
             self.done()
             return
