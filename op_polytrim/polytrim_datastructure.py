@@ -25,7 +25,7 @@ from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
-from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points, path_between_2_points_clean
+from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points, path_between_2_points_clean, find_bmedges_crossing_plane
 from ..geodesic import GeoPath, geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
@@ -34,6 +34,7 @@ from ..common.utils import get_matrices
 from ..common.bezier import CubicBezier, CubicBezierSpline
 from ..common.shaders import circleShader
 from concurrent.futures.thread import ThreadPoolExecutor
+
 
 
 #helper function to split a face
@@ -164,7 +165,7 @@ class NetworkCutter(object):
         self.cut_data = {}  #a dictionary of cut data
         self.ip_bmvert_map = {} #dictionary of new bm verts to InputPoints  in input_net
         self.bmedge_to_new_vert_map = {} 
-        
+        self.reprocessed_edge_map = {}
     def update_segments(self):
         
         for seg in self.input_net.segments:
@@ -197,7 +198,14 @@ class NetworkCutter(object):
         for seg in old_cdata:
             self.cut_data.pop(seg, None)
                         
-                    
+    
+    def compute_cut_normal(self, seg):
+        surf_no = self.net_ui_context.imx.to_3x3() * seg.ip0.view.lerp(seg.ip1.view, 0.5)  #must be a better way.
+        e_vec = seg.ip1.local_loc - seg.ip0.local_loc
+        #define
+        cut_no = e_vec.cross(surf_no)
+        
+        return cut_no              
     def precompute_cut(self, seg):
 
         print('precomputing cut!')
@@ -327,9 +335,9 @@ class NetworkCutter(object):
                         continue
                     
                     if not cut_data['face_set'].isdisjoint(cdata['face_set']):
-                        seg.bad_segment = True #intersection
-                        if seg in self.cut_data:
-                            self.cut_data.pop(seg, None)
+                        #seg.bad_segment = True #intersection
+                        #if seg in self.cut_data:
+                        #    self.cut_data.pop(seg, None)
                 
                         print("\n Found self intersection on this segment")
                         
@@ -340,7 +348,7 @@ class NetworkCutter(object):
                         print('\n')
                         
                         
-                        return  #found a self intersection, for now forbidden
+                        #return  #found a self intersection, for now forbidden
                 self.cut_data[seg] = cut_data
                 
             else:  #we failed to find the next face in the face group
@@ -351,7 +359,8 @@ class NetworkCutter(object):
                 print('cut failure!!!')
         
         return
-
+    
+    
     def pre_vis_geo(self, seg, bme, bvh, mx):
 
         geo = GeoPath(bme, bvh, mx)
@@ -373,487 +382,7 @@ class NetworkCutter(object):
             if seg.bad_segment:
                 self.pre_vis_geo(seg, self.input_net.bme, self.input_net.bvh, self.net_ui_context.mx)   
 
-    def confirm_cut_to_mesh(self):#depricated, using as template for new cutting
-        if len(self.bad_segments): return  #can't do this with bad segments!!
-
-        if self.split: return #already split! no going back
-
-        self.calc_ed_pcts()
-
-        if self.ed_cross_map.has_multiple_crossed_edges:  #doubles in ed dictionary
-
-            print('doubles in the edges crossed!!')
-            print('ideally, this will turn  the face into an ngon for simplicity sake')
-            seen = set()
-            new_eds = []
-            new_cos = []
-            removals = []
-
-            for i, ed in enumerate(self.ed_cross_map.get_edges()):
-                if ed not in seen and not seen.add(ed):
-                    new_eds += [ed]
-                    new_cos += [self.ed_cross_map.get_loc(i)]
-                else:
-                    removals.append(ed.index)
-
-            print('these are the edge indices which were removed to be only cut once ')
-            print(removals)
-
-            self.ed_cross_map.add_list(new_eds, new_cos)
-
-        for v in self.bme.verts:
-            v.select_set(False)
-        for ed in self.bme.edges:
-            ed.select_set(False)
-        for f in self.bme.faces:
-            f.select_set(False)
-
-        start = time.time()
-        print('bisecting edges')
-        geom =  bmesh.ops.bisect_edges(self.bme, edges = self.ed_cross_map.get_edges(),cuts = 1,edge_percents = {})
-        new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
-
-        #assigned new verts their locations
-        for v, co in zip(new_bmverts, self.ed_cross_map.get_locs()):
-            v.co = co
-            #v.select_set(True)
-
-        finish = time.time()
-        print('Took %f seconds to bisect edges' % (finish-start))
-        start = finish
-
-        ##########################################################
-        ########## Connect all the newly crated verts ############
-        ed_geom = bmesh.ops.connect_verts(self.bme, verts = new_bmverts, faces_exclude = [], check_degenerate = False)
-        new_edges = ed_geom['edges']
-        if self.cyclic:
-            new_edges.reverse()
-            new_edges = new_edges[1:] + [new_edges[0]]
-
-
-        finish = time.time()
-        print('took %f seconds to connect the verts and %i new edges were created' % ((finish-start), len(new_edges)))
-        start = finish
-
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-
-        ########################################################
-        ###### The user clicked points need subdivision ########
-        newer_edges = []
-        unchanged_edges = []
-
-        bisect_eds = []
-        bisect_pts = []
-        for i, edge in enumerate(new_edges):
-            if i in self.new_ed_face_map:
-                #print('%i is in the new ed face map' % i)
-                face_ind = self.new_ed_face_map[i]
-                #print('edge %i is cross face %i' % (i, face_ind))
-                if face_ind not in self.face_groups:
-                    print('unfortunately, it is not in the face groups')
-                    unchanged_edges += [edge]
-                    continue
-                #these are the user polyine vertex indices
-                vert_inds = self.face_groups[face_ind]
-
-                if len(vert_inds):
-                    if len(vert_inds) > 1:
-                        print('there are %i user drawn poly points on the face' % len(vert_inds))
-
-                    bisect_eds += [edge]
-                    bisect_pts += [self.input_net.points[vert_inds[0]].local_loc]  #TODO, this only allows for a single point per face
-
-                    #geom =  bmesh.ops.bisect_edges(self.bme, edges = [edge],cuts = len(vert_inds),edge_percents = {})
-                    #new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
-                    #newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
-
-                    #if len(vert_inds) == 1:
-                    #    new_bmverts[0].co = self.cut_pts[vert_inds[0]]
-                else:
-                    print('#################################')
-                    print('there are not user drawn points...what do we do!?')
-                    print('so this may not be gettings split')
-                    print('#################################')
-
-            else:
-                #print('%i edge crosses a face in the walking algo, unchanged' % i)
-                unchanged_edges += [edge]
-
-        geom =  bmesh.ops.bisect_edges(self.bme, edges = bisect_eds,cuts = len(vert_inds),edge_percents = {})
-        new_bmverts = [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMVert)]
-        newer_edges += [ele for ele in geom['geom_split'] if isinstance(ele, bmesh.types.BMEdge)]
-
-        print('Len of new bmverts %i and len of expected verts %i' % (len(bisect_pts), len(new_bmverts)))
-        for v, loc in zip(new_bmverts, bisect_pts):
-            v.co = loc
-
-        finish = time.time()
-        print('Took %f seconds to bisect %i multipoint edges' % ((finish-start), len(newer_edges)))
-        print('Leaving %i unchanged edges' % len(unchanged_edges))
-        start = finish
-
-        for ed in new_edges:
-            ed.select_set(True)
-
-        for ed in newer_edges:
-            ed.select_set(True)
-
-
-
-        face_boundary = set()
-        for ed in new_edges:
-            face_boundary.update(list(ed.link_faces))
-        for ed in newer_edges:
-            face_boundary.update(list(ed.link_faces))
-
-        self.bme.verts.ensure_lookup_table()
-        self.bme.edges.ensure_lookup_table()
-        self.bme.faces.ensure_lookup_table()
-
-        self.perimeter_edges = list(set(new_edges) | set(newer_edges))
-        finish = time.time()
-        #print('took %f seconds' % (finish-start))
-        self.split = True
-
-    def confirm_cut_to_mesh_no_ops(self):  #depricated, using as template for new cutting
-
-        if len(self.bad_segments): return 
-        if self.split: return 
-
-        for v in self.bme.verts:
-            v.select_set(False)
-        for ed in self.bme.edges:
-            ed.select_set(False)
-        for f in self.bme.faces:
-            f.select_set(False)
-
-        start = time.time()
-
-        self.perimeter_edges = []
-
-        #Create new vertices and put them in data structure
-        new_vert_ed_map = {}
-        ed_list = self.ed_cross_map.get_edges()
-        new_bmverts = [self.bme.verts.new(co) for co in self.ed_cross_map.get_locs()]
-        for bmed, bmvert in zip(ed_list, new_bmverts):
-            if bmed not in new_vert_ed_map:
-                new_vert_ed_map[bmed] = [bmvert]
-            else:
-                print('Ed crossed multiple times.')
-                new_vert_ed_map[bmed] += [bmvert]
-
-
-        print('took %f seconds to create %i new verts and map them to edges' % (time.time()-start, len(new_bmverts)))
-        finish = time.time()
-
-        #SPLIT ALL THE CROSSED FACES
-        fast_ed_map = set(ed_list)
-        del_faces = []
-        new_faces = []
-
-        print('len of face chain %i' % len(self.face_chain))
-        errors = []
-        for bmface in self.face_chain:
-            eds_crossed = [ed for ed in bmface.edges if ed in fast_ed_map]
-
-            #scenario 1: it was simply crossed by cut plane. contains no input points
-            if bmface.index not in self.face_groups and len(eds_crossed) == 2:
-                if any([len(new_vert_ed_map[ed]) > 1 for ed in eds_crossed]):
-                    print('2 edges with some double crossed! skipping this face')
-                    errors += [(bmface, 'DOUBLE CROSS')]
-                    continue
-
-                ed0 = min(eds_crossed, key = ed_list.index)
-
-                if ed0 == eds_crossed[0]:  
-                    ed1 = eds_crossed[1]
-                else:
-                    ed1 = eds_crossed[0]
-
-                for v in ed0.verts:
-                    new_face_verts = [new_vert_ed_map[ed0][0]]
-                    next_v = ed0.other_vert(v)
-                    next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != ed0][0] #TODO, what if None?
-
-                    iters = 0  #safety for now, no 100 vert NGONS allowed!
-                    while next_ed != None and iters < 100:
-                        iters += 1
-                        if next_ed == ed1:
-                            new_face_verts += [next_v]
-                            new_face_verts += [new_vert_ed_map[ed1][0]]
-                            break
-                        else:
-                            new_face_verts += [next_v]
-                            next_v = next_ed.other_vert(next_v)
-                            next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != next_ed][0]
-
-
-                    new_faces += [self.bme.faces.new(tuple(new_face_verts))]
-
-                #put the new edge into perimeter edges
-                for ed in new_faces[-1].edges:
-                    if new_vert_ed_map[ed0][0] in ed.verts and new_vert_ed_map[ed1][0] in ed.verts:
-                        self.perimeter_edges += [ed]
-
-                del_faces += [bmface]
-
-            #scenario 2: face crossed by cut plane and contains at least 1 input point
-            elif bmface.index in self.face_groups and len(eds_crossed) == 2:
-
-                sorted_eds_crossed = sorted(eds_crossed, key = ed_list.index)
-                ed0 = sorted_eds_crossed[0]
-                ed1 = sorted_eds_crossed[1]
-
-
-                #make the new verts corresponding to the user click on bmface
-                inner_vert_cos = [self.input_net.points[i].local_loc for i in self.face_groups[bmface.index]]
-                inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
-
-                if ed_list.index(ed0) != 0:
-                    inner_verts.reverse()
-
-                for v in ed0.verts:
-                    new_face_verts = inner_verts + [new_vert_ed_map[ed0][0]]
-                    next_v = ed0.other_vert(v)
-                    next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != ed0][0]
-
-                    iters = 0  #safety for now, no 100 vert NGONS allowed!
-                    while next_ed != None and iters < 100:
-                        iters += 1
-                        if next_ed == ed1:
-                            new_face_verts += [next_v]
-                            new_face_verts += [new_vert_ed_map[ed1][0]]
-
-                            break
-                        else:
-                            new_face_verts += [next_v]
-                            next_v = next_ed.other_vert(next_v)
-                            next_ed = [ed for ed in next_v.link_edges if ed in bmface.edges and ed != next_ed][0]
-
-
-                    new_faces += [self.bme.faces.new(tuple(new_face_verts))]
-
-                vert_chain = [new_vert_ed_map[ed1][0]] + inner_verts + [new_vert_ed_map[ed0][0]]
-
-                eds = new_faces[-1].edges
-                for i, v in enumerate(vert_chain):
-                    if i == len(vert_chain) -1: continue
-                    for ed in eds:
-                        if ed.other_vert(v) == vert_chain[i+1]:
-                            self.perimeter_edges += [ed]
-                            break
-
-                del_faces += [bmface]
-
-            #scenario 3: face crossed on only one edge and contains input points
-            elif bmface.index in self.face_groups and len(eds_crossed) == 1:
-
-                print('ONE EDGE CROSSED TWICE?')
-
-                ed0 = eds_crossed[0]
-
-                #make the new verts corresponding to the user click on bmface
-                inner_vert_cos = [self.input_net.points[i].local_loc for i in self.face_groups[bmface.index]]
-                inner_verts = [self.bme.verts.new(co) for co in inner_vert_cos]
-
-                #A new face made entirely out of new verts
-                if eds_crossed.index(ed0) == 0:
-                    print('first multi face reverse')
-                    inner_verts.reverse()
-                    new_face_verts = [new_vert_ed_map[ed0][1]] + inner_verts + [new_vert_ed_map[ed0][0]]
-                    loc = new_vert_ed_map[ed0][0].co
-                else:
-                    new_face_verts = [new_vert_ed_map[ed0][0]] + inner_verts + [new_vert_ed_map[ed0][1]]
-                    loc = new_vert_ed_map[ed0][1].co
-
-                vert_chain = new_face_verts  #hang on to these for later
-                new_faces += [self.bme.faces.new(tuple(new_face_verts))]
-
-                #The old face, with new verts inserted
-                v_next = min(ed0.verts, key = lambda x: (x.co - loc).length)
-                v_end = ed0.other_vert(v_next)
-
-                next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != ed0][0]
-                iters = 0
-                while next_ed != None and iters < 100:
-                    iters += 1
-                    if next_ed == ed0:
-                        new_face_verts += [v_end]
-                        break
-
-                    else:
-                        new_face_verts += [v_next]
-                        v_next = next_ed.other_vert(v_next)
-                        next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
-
-                if iters > 10:
-                    print('This may have iterated out.  %i' % iters)
-                    errors += [(bmface, 'TWO CROSS AND ITERATIONS')]
-
-                new_faces += [self.bme.faces.new(tuple(new_face_verts))]
-
-                eds = new_faces[-1].edges
-                for i, v in enumerate(vert_chain):
-                    if i == len(vert_chain) - 1: continue
-                    for ed in eds:
-                        if ed.other_vert(v) == vert_chain[i+1]:
-                            self.perimeter_edges += [ed]
-                            break
-
-                del_faces += [bmface]
-
-            else:
-                print('\n')
-                print('THIS SCENARIO MAY NOT  ACCOUNTED FOR YET')
-
-                print('There are %i eds crossed' % len(eds_crossed))
-                print('BMFace index %i' % bmface.index)
-                print('These are the face groups')
-                print(self.face_groups)
-
-                if bmface.index in self.face_groups:
-                    print('cant cross face twice and have user point on it...ignoring user clicked points')
-                    errors += [(bmface, 'CLICK AND DOUBLE CROSS')]
-                    continue
-
-                sorted_eds_crossed = sorted(eds_crossed, key = ed_list.index)
-                ed0 = sorted_eds_crossed[0]
-                ed1 = sorted_eds_crossed[1]
-                ed2 = sorted_eds_crossed[2]
-                corners = set([v for v in bmface.verts])
-
-                if len(new_vert_ed_map[ed0]) == 2:
-                    vs = new_vert_ed_map[ed0]
-                    vs.reverse()
-                    new_vert_ed_map[ed0] = vs
-                    #change order
-                    ed0, ed1, ed2 = ed2, ed0, ed1
-
-
-                for v in ed0.verts:
-                    corners.remove(v)
-                    new_face_verts = [new_vert_ed_map[ed0][0], v]
-                    next_ed = [ed for ed in v.link_edges if ed in bmface.edges and ed != ed0][0]
-                    v_next = v
-                    while next_ed:
-
-                        if next_ed in sorted_eds_crossed:
-                            if len(new_vert_ed_map[next_ed]) > 1:
-                                loc = v_next.co
-                                #choose the intersection closest to the corner vertex
-                                v_last = min(new_vert_ed_map[next_ed], key = lambda x: (x.co - loc).length)
-                                new_face_verts += [v_last]
-                            else:
-                                new_face_verts += [new_vert_ed_map[next_ed][0]]
-
-                                if next_ed == ed1:
-                                    print('THIS IS THE PROBLEM!  ALREDY DONE')
-
-                                v_next = next_ed.other_vert(v_next)
-                                next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
-                                while next_ed != ed1:
-                                    v_next = next_ed.other_vert(v_next)
-                                    next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
-
-                                vs = sorted(new_vert_ed_map[ed1], key = lambda x: (x.co - v_next.co).length)
-                                new_face_verts += vs
-
-                            if len(new_face_verts) != len(set(new_face_verts)):
-                                print("ERRROR, multiple verts")
-                                print(new_face_verts)
-
-                                print('There are %i verts in vs %i' % (len(vs),bmface.index))
-                                print(vs)
-
-                                print('attempting a dumb hack')
-                                new_face_verts.pop()
-                                errors += [(bmface, 'MULTIPLE VERTS')]
-
-
-                            new_faces += [self.bme.faces.new(tuple(new_face_verts))]
-                            break
-
-                        v_next = next_ed.other_vert(v_next)
-                        next_ed = [ed for ed in v_next.link_edges if ed in bmface.edges and ed != next_ed][0]
-                        new_face_verts += [v_next]
-                        corners.remove(v_next)
-
-                for ed in new_faces[-1].edges:
-                    if ed.other_vert(new_vert_ed_map[ed0][0]) == new_vert_ed_map[ed1][0]:
-                        self.perimeter_edges += [ed]
-                        print('succesfully added edge?')
-                        break
-                #final corner
-                print('There shouldnt be too many left in corners %i' % len(corners))
-                v0 = [v for v in corners if v in ed2.verts][0]
-                vf = min(new_vert_ed_map[ed1], key = lambda x: (x.co - v0.co).length)
-                new_face_verts = [new_vert_ed_map[ed2][0], v0, vf]
-                new_faces += [self.bme.faces.new(tuple(new_face_verts))]
-
-                for ed in new_faces[-1].edges:
-                    if ed.other_vert(new_vert_ed_map[ed1][1]) == new_vert_ed_map[ed2][0]:
-                        self.perimeter_edges += [ed]
-                        print('succesffully added edge?')
-                        break
-
-                del_faces += [bmface]
-
-
-        print('took %f seconds to split the faces' % (time.time() - finish))
-        finish = time.time()
-
-        ensure_lookup(self.bme)
-
-        for bmface, msg in errors:
-            print('Error on this face %i' % bmface.index)
-            bmface.select_set(True)
-
-        bmesh.ops.delete(self.bme, geom = del_faces, context = 5)
-
-        ensure_lookup(self.bme)
-
-        self.bme.normal_update()
-
-        #normal est
-        to_test = set(new_faces)
-        iters = 0
-        while len(to_test) and iters < 10:
-            iters += 1
-            print('test round %i' % iters)
-            to_remove = []
-            for test_f in to_test:
-                link_faces = []
-                for ed in test_f.edges:
-                    if len(ed.link_faces) > 1:
-                        for f in ed.link_faces:
-                            if f not in to_test:
-                                link_faces += [f]
-                if len(link_faces)== 0:
-                    continue
-
-                if test_f.normal.dot(link_faces[0].normal) < 0:
-                    print('NEEDS FLIP')
-                    test_f.normal_flip()
-                else:
-                    print('DOESNT NEED FLIP')
-                to_remove += [test_f]
-            to_test.difference_update(to_remove)
-        #bmesh.ops.recalc_face_normals(self.bme, faces = new_faces)
-
-        ensure_lookup(self.bme)
-
-        #ngons = [f for f in new_faces if len(f.verts) > 4]
-        #bmesh.ops.triangulate(self.bme, faces = ngons)
-
-        for ed in self.perimeter_edges:
-            ed.select_set(True)
-
-
-        finish = time.time()
-        print('took %f seconds' % (finish-start))
-        self.split = True
-
+    
     def knife_geometry(self):
         #check all deferred calculations
         #ensure no bad segments
@@ -1212,12 +741,10 @@ class NetworkCutter(object):
                 print('segments still computing')
                 return
         
-        #dictionary to map newly created faces to their original faces and vice versa
+        #dictionaries to map newly created faces to their original faces and vice versa
         new_to_old_face_map = {}
         old_to_new_face_map = {}
-        
         completed_segments = set()
-
         bmedge_to_new_bmv_map = {}  #sometimes, edges will be out of date!
             
         #Create a new BMVert for every input point
@@ -1225,13 +752,132 @@ class NetworkCutter(object):
             bmv = self.input_net.bme.verts.new(ip.local_loc)
             self.ip_bmvert_map[ip] = bmv
         
-        #identify closed loops in the input        
+        #identify closed loops in the input      
         ip_cycles, seg_cycles = self.input_net.find_network_cycles()
+        
         
         #helper function to walk along input point chains
         def next_segment(ip, current_seg): #TODO Code golf this
             if len(ip.link_segments) != 2: return None  #TODO, the the segment to right
             return [seg for seg in ip.link_segments if seg != current_seg][0]
+        
+        def find_old_face(new_f, max_iters = 5):
+            '''
+            iteratively drill down to find source face of new_f
+            TODO return a list in order of inheritance?
+            '''
+            iters = 0
+            new_f = f
+            old_f = None
+            while iters < max_iters:
+                iters += 1
+                if new_f not in new_to_old_face_map: break
+                old_f = new_to_old_face_map[new_f]
+                new_f = old_f
+                
+            return old_f
+        
+        def find_new_faces(old_f, max_iters = 5):
+                
+            if old_f not in old_to_new_face_map: return []
+            
+            iters = 0
+            new_fs = []
+            
+            child_fs = old_to_new_face_map[old_f]
+            new_fs += child_fs
+            while iters < max_iters and len(child_fs):
+                iters += 1
+                next_gen = []
+                for f in child_fs:
+                    if f in old_to_new_face_map:
+                        next_gen += [f]
+                
+                new_fs += next_gen
+                child_fs = next_gen
+                
+            
+            #new_fs = old_to_new_face_map[old_f]
+                
+            return new_fs
+            
+            
+        def recompute_segment(seg):
+            
+            #scenario a, just ip0 is bad
+            
+            bad_fs = [f for f in self.cut_data[seg]['face_crosses'] if not f.is_valid]
+            
+            print('there are %i bad faces' % len(bad_fs))
+            
+            tip_bad, tail_bad = False, False
+            if self.cut_data[seg]['face_crosses'][0] in bad_fs:
+                tip_bad = True
+                print("the tip is bad")
+            if self.cut_data[seg]['face_crosses'][-1] in bad_fs:
+                tail_bad = True
+                print('The tail is bad')
+            
+            mid_bad = (len(bad_fs) - tip_bad * 1 - tail_bad * 1) >= 1
+            if mid_bad:
+                print('the middle is bad')
+            
+            #if just hte tip and or tail are bad, we can manually replace
+            #the edge map by looking up new faces in the new_to_old_face_map
+            
+                   
+            if tip_bad:       
+                new_fs = find_new_faces(self.cut_data[seg]['face_crosses'][0])
+            
+                print('there are the new faces for the tip')
+                print(new_fs)
+                
+                co = self.cut_data[seg]['verts'][0]
+                no = self.compute_cut_normal(seg)
+                for f in new_fs:
+                    ed_inters = find_bmedges_crossing_plane(co, no, f.edges[:], .000001)
+                    print('New edges intersecting')
+                    print(ed_inters)
+                    if len(ed_inters):
+                        ed, loc = ed_inters[0]
+                        
+                        print('replacing old edge with new edge')
+                        print(self.cut_data[seg]['edge_crosses'][0])
+                        print(ed)
+                        self.reprocessed_edge_map[self.cut_data[seg]['edge_crosses'][0]] =  ed
+                        self.cut_data[seg]['face_crosses'][0] = f
+                        self.cut_data[seg]['edge_crosses'][0] = ed
+                        break
+                
+                
+            if tail_bad:       
+                new_fs = find_new_faces(self.cut_data[seg]['face_crosses'][-1])
+            
+                co = self.cut_data[seg]['verts'][-1]
+                no = self.compute_cut_normal(seg)
+                for f in new_fs:
+                    ed_inters = find_bmedges_crossing_plane(co, no, f.edges[:], .000001)
+                    
+                    print('New edges intersecting')
+                    print(ed_inters)
+                    if len(ed_inters):
+                        ed, loc = ed_inters[0]
+                        
+                        print('replacing old edge with new edge')
+                        print(self.cut_data[seg]['edge_crosses'][0])
+                        print(ed)
+                        
+                        self.reprocessed_edge_map[self.cut_data[seg]['edge_crosses'][-1]] =  ed
+                        self.cut_data[seg]['face_crosses'][-1] = f
+                        self.cut_data[seg]['edge_crosses'][-1] = ed
+                        break
+               
+                
+            if tip_bad or tail_bad:
+                print('fixed tip and taill, process again')
+                process_segment(seg)   
+            return False
+        
         
         
         def process_segment(seg):
@@ -1241,6 +887,7 @@ class NetworkCutter(object):
             
             if not all([f.is_valid for f in self.cut_data[seg]['face_crosses']]):
                 print('segment out of date')
+                recompute_segment(seg)
                 return False
             
             if seg not in self.cut_data:
@@ -1253,7 +900,7 @@ class NetworkCutter(object):
             
             cdata = self.cut_data[seg]
             bmedge_to_new_vert_map = {}
-            cdata['bmedge_to_new_bmv'] = bmedge_to_new_vert_map  #TODO, store this here?  Shouldn't matter
+            cdata['bmedge_to_new_bmv'] = bmedge_to_new_vert_map  #TODO, store this here?  Shouldn't matter..does matter
             
             #create all verts on this segment
             for i, co in enumerate(cdata['verts']):
@@ -1273,6 +920,16 @@ class NetworkCutter(object):
                             ed_enter = ed
                         else:
                             ed_exit = ed
+                            
+                    elif ed in self.reprocessed_edge_map:
+                        print('Found reprocessed edge')
+                        re_ed = self.reprocessed_edge_map[ed]
+                        if re_ed in cdata['bmedge_to_new_bmv']:
+                            bmvs.append(cdata['bmedge_to_new_bmv'][ed])
+                            if ed_enter == None:
+                                ed_enter = ed
+                            else:
+                                ed_exit = ed    
                 
                 if ed_enter == None:
                     print('No ed enter')
@@ -1301,6 +958,7 @@ class NetworkCutter(object):
             bmesh.ops.delete(self.input_net.bme, geom = cdata['face_crosses'], context = 3)
             
             del_edges = [ed for ed in cdata['edge_crosses'] if len(ed.link_faces) == 0]
+            del_edges = list(set(del_edges))
             bmesh.ops.delete(self.input_net.bme, geom = del_edges, context = 4)
         
             completed_segments.add(seg)
@@ -1428,10 +1086,12 @@ class NetworkCutter(object):
                                 bmv_enter = self.ip_bmvert_map[ip_next]
                                 ed_enter = ip_next.seed_geom #TODO, make this seed_edge, seed_vert or seed_face
                             else:
-                                if current_seg.ip0 == ip_next:  #test the direction of the segment
+                                if current_seg.ip0 == ip_next: #meaning ip_current == ip1  #test the direction of the segment
                                     ed_enter = self.cut_data[current_seg]['edge_crosses'][-1]
+                                    print('Ed enter is IP_1')
                                 else:
                                     ed_enter = self.cut_data[current_seg]['edge_crosses'][0]
+                                    print('Ed enter is IP_0') 
                                 
                                 bmv_enter = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_enter]
                         
@@ -1445,9 +1105,11 @@ class NetworkCutter(object):
                                 if current_seg.ip0 == ip_next:  #test the direction of the segment
                                     #ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
                                     ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
+                                    print('Ed exit is IP_1')
                                 else:
                                     #ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
-                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0]    
+                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
+                                    print('Ed exit is IP_0')   
                             
                                 bmv_exit = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_exit]
                             
