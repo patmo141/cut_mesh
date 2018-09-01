@@ -22,7 +22,7 @@ def list_shift(seq, n):
     return seq[n:] + seq[:n]
 
 
-def find_bmedges_crossing_plane(pt, no, edges, epsilon):
+def find_bmedges_crossing_plane(pt, no, edges, epsilon, sort = False):
     '''
     pt - pt on cutting plane: mathutils.Vector
     no - normal of cutting plane: mathutils.Vector
@@ -103,8 +103,14 @@ def find_bmedges_crossing_plane(pt, no, edges, epsilon):
         sorted_edges = []
         sorted_is = [] 
     else:
-        sorted_edges = i_edges
-        sorted_is = intersects        
+        if sort:
+            #[x for (y,x) in sorted(zip(Y,X))]  X sorted by Y
+            sorted_edges = [ed for (d, ed) in sorted(zip(ds, i_edges))]
+            sorted_is = [i for (d, i) in sorted(zip(ds, intersects))]
+        else:
+            sorted_edges = i_edges
+            sorted_is = intersects
+           
     return list(zip(sorted_edges,sorted_is))
 
 def find_distant_bmedge_crossing_plane(pt, no, edges, epsilon, e_ind_from, co_from):
