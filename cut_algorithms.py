@@ -354,7 +354,15 @@ def cross_section_walker_endpoints(bme, pt, no, f_ind_from, e_ind_from, co_from,
                     # loop is P-shaped (loop with a tail)
                     print('p shaped loop len %i, clipping tail %i' % (len(verts), f_inds_dict[find_next]))
                     verts = verts[f_inds_dict[find_next]:]      # clip off tail
+                    faces_crossed = faces_crossed[f_inds_dict[find_next]:]
+                    eds_crossed = eds_crossed[f_inds_dict[find_next]:]
+                    
                     error = 'P_LOOP'
+                    
+                    print('do we need to do more clipping')
+                    print(len(verts))
+                    print(len(faces_crossed))
+                    print(len(eds_crossed))
                     break
             
             elif len(bme.faces[find_next].edges) > 4 and f_inds_dict[find_next] == 0:
@@ -510,7 +518,13 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
         f_next = next(f for f in edge.link_faces if f.index != find_current)
         
         if f_next == f_end:
+            
             print('you somehow found f_end without end_edges_dict catching it')
+            error = None
+            found = True
+            break
+        
+        
         #we tested to see if we met up with the final face 
         faces_crossed += [f_next]
         find_next = f_next.index
@@ -526,7 +540,15 @@ def cross_section_walker_dynamic_endpoints(bme, f_ind_from, e_ind_from, co_from,
                     # loop is P-shaped (loop with a tail)
                     print('p shaped loop len %i, clipping tail %i' % (len(verts), f_inds_dict[find_next]))
                     verts = verts[f_inds_dict[find_next]:]      # clip off tail
+                    faces_crossed = faces_crossed[f_inds_dict[find_next]:]
+                    eds_crossed = eds_crossed[f_inds_dict[find_next]:]
                     error = 'P_LOOP'
+                    
+                    print('do we need to do more clipping')
+                    print(len(verts))
+                    print(len(faces_crossed))
+                    print(len(eds_crossed))
+                    
                     break
             
             elif len(bme.faces[find_next].edges) > 4 and f_inds_dict[find_next] == 0:

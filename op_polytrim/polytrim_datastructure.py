@@ -294,14 +294,14 @@ class NetworkCutter(object):
                     print('Epsilon was too small, relaxing epsilon')
                     epp *= 10
                 elif len(vs) == 0 and error:
-                    print('too bad, couldnt adjust due to ' + error)
+                    print('too bad, could not adjust due to ' + error)
                     print(p_face)
                     print(f0)
                     break
 
             if not len(vs):
                 print('\n')
-                print('CUTTING METHOD')
+                print('CUTTING METHOD 2seeds ver1')
 
                 vs = []
                 epp = .00000001
@@ -349,20 +349,33 @@ class NetworkCutter(object):
                         continue
                     
                     if not cut_data['face_set'].isdisjoint(cdata['face_set']):
-                        #seg.bad_segment = True #intersection
-                        #if seg in self.cut_data:
-                        #    self.cut_data.pop(seg, None)
+                        bad_seg = False
                 
                         print("\n Found self intersection on this segment")
                         
                         overlap = cut_data['face_set'].intersection(cdata['face_set'])
-                        print(overlap)
-                        print(cdata['face_crosses'][0])
-                        print(cdata['face_crosses'][1])
+                        
+                        middle_overlap = overlap - set([cdata['face_crosses'][0], cdata['face_crosses'][-1]])
+                        
+                        if len(middle_overlap):
+                            print('there is a middle self intersection')
+                            bad_seg = True
+                        #if overlap includes faces other than tip and tail
+                        
+                        #check that it does not touch any InputPoint faces
+                        ipfaces = set(ip.bmface for ip in self.input_net.points)
+                        if not cut_data['face_set'].isdisjoint(ipfaces):
+                            print('crossed an IP Face, needs to not do that')
+                            bad_seg = True
+                        
+                        if bad_seg:
+                            seg.bad_segment = True #intersection
+                            if seg in self.cut_data:
+                                self.cut_data.pop(seg, None)
+                        
                         print('\n')
-                        
-                        
-                        #return  #found a self intersection, for now forbidden
+                        return  #found a self intersection, for now forbidden
+                    
                 self.cut_data[seg] = cut_data
                 
             else:  #we failed to find the next face in the face group
@@ -1423,12 +1436,34 @@ class NetworkCutter(object):
             2 segments.  It also happens when the user draws self intersecting cuts which
             is less common is handled by this
             '''
+            if seg not in self.cut_data:  #check for pre-processed cut data
+                print('no cut data for this segment, must need to precompute or perhaps its internal to a face')
+                return False
             
             cdata = self.cut_data[seg]
             bmedge_to_new_vert_map = {}
             cdata['bmedge_to_new_bmv'] = bmedge_to_new_vert_map
             
             bad_fs = [f for f in cdata['face_crosses'] if not f.is_valid]
+            tip_bad = cdata['face_crosses'][0].is_valid == False
+            tail_bad = cdata['face_crosses'][-1].is_valid == False
+    
+            #check for self intersections in the middle
+            if tip_bad and not tail_bad and len(bad_fs) > 1:
+                print('bad tip, and bad middle not handled')
+                return False
+            
+            if tail_bad and not tip_bad and len(bad_fs) > 1:
+                print('bad tail, and bad middle not handled')
+                return False
+            
+            if tip_bad and tail_bad and len(bad_fs) > 2:
+                print('bad tip, tail and, middle not handled')
+                return False
+            
+            if not tip_bad and not tail_bad and len(bad_fs) >= 1:
+                print('just a bad middle, not handled')
+                return False
             
             print('there are %i bad faces' % len(bad_fs))
             
@@ -1442,10 +1477,8 @@ class NetworkCutter(object):
             if len(cdata['edge_crosses']) == 2 and len(cdata['face_crosses']) == 1:
                 tip_bad = True
                 tail_bad = True
-                
-                
                 co0 = cdata['verts'][0]
-                co1 = cdata['verts'][0]
+                co1 = cdata['verts'][0]  #wait shouldn't this be verts [1]
                 new_fs = find_new_faces(cdata['face_crosses'][0])
                 
                 #fix the tip
