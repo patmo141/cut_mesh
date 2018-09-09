@@ -373,8 +373,9 @@ class NetworkCutter(object):
                             if seg in self.cut_data:
                                 self.cut_data.pop(seg, None)
                         
-                        print('\n')
-                        return  #found a self intersection, for now forbidden
+                            print('\n')
+                            #only return if there is a forbidden self intersection
+                            return  #found a self intersection, for now forbidden
                     
                 self.cut_data[seg] = cut_data
                 
@@ -1449,23 +1450,23 @@ class NetworkCutter(object):
             tail_bad = cdata['face_crosses'][-1].is_valid == False
     
             #check for self intersections in the middle
-            if tip_bad and not tail_bad and len(bad_fs) > 1:
-                print('bad tip, and bad middle not handled')
-                return False
+            #if tip_bad and not tail_bad and len(bad_fs) > 1:
+            #    print('bad tip, and bad middle not handled')
+            #    return False
             
-            if tail_bad and not tip_bad and len(bad_fs) > 1:
-                print('bad tail, and bad middle not handled')
-                return False
+            #if tail_bad and not tip_bad and len(bad_fs) > 1:
+            #    print('bad tail, and bad middle not handled')
+            #    return False
             
-            if tip_bad and tail_bad and len(bad_fs) > 2:
-                print('bad tip, tail and, middle not handled')
-                return False
+            #if tip_bad and tail_bad and len(bad_fs) > 2:
+            #    print('bad tip, tail and, middle not handled')
+            #    return False
             
-            if not tip_bad and not tail_bad and len(bad_fs) >= 1:
-                print('just a bad middle, not handled')
-                return False
+            #if not tip_bad and not tail_bad and len(bad_fs) >= 1:
+            #    print('just a bad middle, not handled')
+            #    return False
             
-            print('there are %i bad faces' % len(bad_fs))
+            #print('there are %i bad faces' % len(bad_fs))
             
             
             tip_bad, tail_bad = False, False

@@ -172,19 +172,21 @@ class Polytrim_UI_Tools():
                 self.grab_point.seed_geom = ed
             else:
                 self.grab_point.set_values(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
+                self.grab_point.bmface = self.input_net.bme.faces[face_ind]
 
         def grab_cancel(self):
             '''
             returns variables to their status before grab was initiated
             '''
-            #we have not touched the oringal point!
-            self.grab_point = None
+            #we have not touched the oringal point! #TODO fix after merge conflicts
+            self.grab_point = None #TODO BROKEN
             return
 
         def finalize(self, context):
             '''
             sets new variables based on new location
             '''
+            #TODO Broken or unnecessary because we are modifying grab point drectly
             self.net_ui_context.selected.world_loc = self.grab_point.world_loc
             self.net_ui_context.selected.local_loc = self.grab_point.local_loc
             self.net_ui_context.selected.view = self.grab_point.view

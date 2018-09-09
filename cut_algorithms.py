@@ -684,7 +684,7 @@ def path_between_2_points(bme, bvh, pt_a, pt_b,
     if found0 and found1:
         print('Found target both directions')
         print('Len of path0:   %i' % len(verts0))
-        print('Len of path1:   %i' % len(verts0))
+        print('Len of path1:   %i' % len(verts1))
         #great!  return the shortest path (TODO  shortest by path length)
         if len(verts0) < len(verts1):
             nv = len(verts0)
@@ -827,7 +827,7 @@ def path_between_2_points_clean(bme, loc_a, ind_a,
     if found0 and found1:
         print('Found target both directions')
         print('Len of path0:   %i' % len(verts0))
-        print('Len of path1:   %i' % len(verts0))
+        print('Len of path1:   %i' % len(verts1))
         #great!  return the shortest path (TODO  shortest by path length)
         if len(verts0) < len(verts1):
             nv = len(verts0)
