@@ -234,7 +234,7 @@ class Polytrim_UI_Draw():
         circleShader['vOutColor'] = clr_out
         circleShader['vInColor']  = clr_in
 
-        print("WORLD", world_loc)
+        #print("WORLD", world_loc)
         bgl.glVertex3f(*world_loc)
         
         bgl.glEnd()
