@@ -26,31 +26,37 @@ class Polytrim_States():
         if self.actions.mousemove:
             return
         if self.actions.mousemove_prev:
-            # TODO: update self.hover to use Accel2D?
             self.net_ui_context.update(self.actions.mouse)
+            #TODO: Bring hover into NetworkUiContext
             self.hover()
-            self.ui_text_update()
 
         #after navigation filter, these are relevant events in this state
 
-        if self.actions.pressed('grab'): return 'grab'
+        if self.actions.pressed('grab'): 
+            self.ui_text_update()
+            return 'grab'
 
-        if self.actions.pressed('sketch'): return 'sketch'
+        if self.actions.pressed('sketch'): 
+            self.ui_text_update()
+            return 'sketch'
 
         if self.actions.pressed('add point (disconnected)'):
             self.click_add_point(context, self.actions.mouse, False)
+            self.ui_text_update()
             return
 
         if self.actions.pressed('delete'):
             self.click_delete_point(mode='mouse')
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
+            self.ui_text_update()
             return
         
         if self.actions.pressed('delete (disconnect)'):
             self.click_delete_point('mouse', True)
             self.net_ui_context.update(self.actions.mouse)
             self.hover()
+            self.ui_text_update()
             return
 
         #re-tesselate at 3mm resolution
@@ -90,13 +96,15 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
-        return (self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint))
+        can_enter = (not self.input_net.is_empty and self.net_ui_context.selected != None)
+        return can_enter
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
         self.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
         self.grabber.initiate_grab_point()
         self.grabber.move_grab_point(self.context, self.actions.mouse)
+        self.ui_text_update()
 
     @CookieCutter.FSM_State('grab')
     def modal_grab(self):
@@ -109,31 +117,39 @@ class Polytrim_States():
             self.grabber.finalize(self.context)
             self.network_cutter.update_segments()
             if self.net_ui_context.selected not in self.input_net.points:
-                self.net_ui_context.selected = -1
-            self.ui_text_update()
+                self.net_ui_context.selected = None
             return 'main'
 
         if self.actions.pressed('cancel'):
             #put it back!
             self.grabber.grab_cancel()
-            self.ui_text_update()
             return 'main'
 
         if self.actions.mousemove:
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover()
             return
         if self.actions.mousemove_prev:
             #update the b_pt location
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
+
+    @CookieCutter.FSM_State('grab', 'exit')
+    def grab_exit(self):
+        self.ui_text_update()
 
     ######################################################
     # sketch state
 
     @CookieCutter.FSM_State('sketch', 'can enter')
     def sketch_can_enter(self):
+        print("selected", self.net_ui_context.selected)
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
         self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
-        return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered[0] == 'POINT') or self.input_net.num_points == 1
+        print("selected 2", self.net_ui_context.selected)
+        return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
@@ -151,12 +167,12 @@ class Polytrim_States():
         if self.actions.released('sketch'):
             is_sketch = self.sketcher.is_good()
             if is_sketch:
-                last_hovered_point = self.net_ui_context.hovered[1]
-                print("LAST:",self.net_ui_context.hovered)
+                last_hovered_point = self.net_ui_context.hovered_near[1]
+                print("LAST:",self.net_ui_context.hovered_near)
                 self.net_ui_context.update(self.actions.mouse)
                 self.hover()
-                new_hovered_point = self.net_ui_context.hovered[1]   
-                print("NEW:",self.net_ui_context.hovered)
+                new_hovered_point = self.net_ui_context.hovered_near[1]   
+                print("NEW:",self.net_ui_context.hovered_near)
                 print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
                 self.network_cutter.update_segments_async()

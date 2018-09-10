@@ -106,86 +106,36 @@ class Polytrim_UI_Tools():
             self.net_ui_context = net_ui_context
             self.input_net = input_net
             self.network_cutter = network_cutter
+
             self.grab_point = None
+            self.original_point = None
+
+        def in_use(self): return self.grab_point != None
+        in_use = property(in_use)
 
         def initiate_grab_point(self):
-            #self.grab_point = self.net_ui_context.selected.duplicate()
             self.grab_point = self.net_ui_context.selected
-            print("GRAB",self.grab_point)
+            self.original_point = self.grab_point.duplicate()
 
         def move_grab_point(self,context,mouse_loc):
-            '''
-            finds what is near
-            '''
-            region = context.region
-            rv3d = context.region_data
-            # ray tracing
-            view_vector, ray_origin, ray_target= get_view_ray_data(context, mouse_loc)
-            loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, None)
-            if face_ind == -1: return
-
-            #Shouldn't this be checking the grab_point?  which shoudl keep seed_geom in duplicate?
-            #TODO context closest_nonmanifold_source_geometry?
-            if isinstance(self.net_ui_context.selected, InputPoint) and self.net_ui_context.selected.seed_geom != None:
-
-                #check the 3d mouse location vs non manifold verts
-                co3d, index, dist = self.net_ui_context.kd.find(self.net_ui_context.mx * loc)
-
-                #get the actual non man vert from original list
-                close_bmvert = self.net_ui_context.bme.verts[self.net_ui_context.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts?  why not?  #undo caching?
-                close_eds = [ed for ed in close_bmvert.link_edges if not ed.is_manifold]
-                loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-
-                if len(close_eds) != 2: return
-
-                bm0 = close_eds[0].other_vert(close_bmvert)
-                bm1 = close_eds[1].other_vert(close_bmvert)
-
-                a0 = bm0.co
-                b   = close_bmvert.co
-                a1  = bm1.co
-
-                inter_0, d0 = intersect_point_line(loc, a0, b)
-                inter_1, d1 = intersect_point_line(loc, a1, b)
-
-                screen_0 = loc3d_reg2D(region, rv3d, self.net_ui_context.mx * inter_0)
-                screen_1 = loc3d_reg2D(region, rv3d, self.net_ui_context.mx * inter_1)
-                screen_v = loc3d_reg2D(region, rv3d, self.net_ui_context.mx * b)
-
-                screen_d0 = (Vector((mouse_loc)) - screen_0).length
-                screen_d1 = (Vector((mouse_loc)) - screen_1).length
-                screen_dv = (Vector((mouse_loc)) - screen_v).length
-
-                if 0 < d0 <= 1 and screen_d0 < 60:
-                    ed, pt = close_eds[0], inter_0
-                elif 0 < d1 <= 1 and screen_d1 < 60:
-                    ed, pt = close_eds[1], inter_1
-                elif screen_dv < 60:
-                    if abs(d0) < abs(d1):
-                        ed, pt = close_eds[0], b
-                    else:
-                        ed, pt = close_eds[1], b
-                else:
-                    return
-
-                self.grab_point.set_values(self.net_ui_context.mx * pt, pt, view_vector, ed.link_faces[0].index)
-                self.grab_point.seed_geom = ed
-            else:
-                self.grab_point.set_values(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
+            ''' Moves location of point'''
+            d = self.net_ui_context.hovered_mesh
+            if d and self.grab_point:
+                self.grab_point.set_values(d["world loc"], d["local loc"], d["normal"], d["face index"])
                 self.grab_point.bmface = self.input_net.bme.faces[face_ind]
 
         def grab_cancel(self):
-            '''
-            returns variables to their status before grab was initiated
-            '''
-            #we have not touched the oringal point! #TODO fix after merge conflicts
+            ''' returns variables to their status before grab was initiated '''
+            if not self.grab_point: return
+            op = self.original_point
+            self.grab_point.set_values(op.world_loc, op.local_loc, op.view, op.face_index)
             self.grab_point = None #TODO BROKEN
+            self.original_point = None
             return
 
         def finalize(self, context):
-            '''
-            sets new variables based on new location
-            '''
+            ''' sets new variables based on new location '''
+            if not self.grab_point: return
             #TODO Broken or unnecessary because we are modifying grab point drectly
             self.net_ui_context.selected.world_loc = self.grab_point.world_loc
             self.net_ui_context.selected.local_loc = self.grab_point.local_loc
@@ -197,9 +147,9 @@ class Polytrim_UI_Tools():
                 seg.path = []
                 seg.needs_calculation = True
                 seg.calculation_complete = False
-                
 
             self.grab_point = None
+            self.original_point = None
 
             return
 
@@ -227,11 +177,11 @@ class Polytrim_UI_Tools():
             self.hovered_mesh = {}
 
             # TODO: Organize everything below this
-            self.selected = -1
+            self.selected = None
             self.snap_element = None
             self.connect_element = None
             self.closest_ep = None
-            self.hovered = [None, -1]
+            self.hovered_near = [None, -1]
 
             self.kd = None
             self.non_man_bmverts = []
@@ -240,7 +190,11 @@ class Polytrim_UI_Tools():
             self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
             
         def has_non_man(self): return len(self.non_man_bmverts) > 0
+        def is_hovering_mesh(self): 
+            if self.hovered_mesh: return self.hovered_mesh["face index"] != -1
+            return False
         has_non_man = property(has_non_man)
+        is_hovering_mesh = property(is_hovering_mesh)
 
         def find_non_man(self):
             non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
@@ -258,7 +212,7 @@ class Polytrim_UI_Tools():
                 self.kd = None
 
         def set_network(self, input_net): self.input_net = input_net
-                    
+
         def update(self, mouse_loc):
             self.mouse_loc = mouse_loc
             self.ray_cast_mouse()
@@ -270,9 +224,10 @@ class Polytrim_UI_Tools():
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
             if face_ind == -1: self.hovered_mesh = {}
             else:
-                self.hovered_mesh["local_loc"] = loc
+                self.hovered_mesh["world loc"] = self.mx * loc
+                self.hovered_mesh["local loc"] = loc
                 self.hovered_mesh["normal"] = no
-                self.hovered_mesh["face_ind"] = face_ind
+                self.hovered_mesh["face index"] = face_ind
 
                
         def nearest_non_man_loc(self):
@@ -280,7 +235,7 @@ class Polytrim_UI_Tools():
             finds nonman edges and verts nearby to cursor location
             '''
             if self.has_non_man and self.hovered_mesh:
-                co3d, index, dist = self.kd.find(self.mx * self.hovered_mesh["local_loc"])
+                co3d, index, dist = self.kd.find(self.mx * self.hovered_mesh["local loc"])
 
                 #get the actual non man vert from original list
                 close_bmvert = self.bme.verts[self.non_man_bmverts[index]] #stupid mapping, unreadable, terrible, fix this, because can't keep a list of actual bmverts
@@ -293,8 +248,8 @@ class Polytrim_UI_Tools():
                     b   = close_bmvert.co
                     a1  = bm1.co
 
-                    inter_0, d0 = intersect_point_line(self.hovered_mesh["local_loc"], a0, b)
-                    inter_1, d1 = intersect_point_line(self.hovered_mesh["local_loc"], a1, b)
+                    inter_0, d0 = intersect_point_line(self.hovered_mesh["local loc"], a0, b)
+                    inter_1, d1 = intersect_point_line(self.hovered_mesh["local loc"], a1, b)
 
                     region = self.context.region
                     rv3d = self.context.region_data
@@ -312,10 +267,10 @@ class Polytrim_UI_Tools():
 
                         #TODO, decid how to handle when very very close to vertcies
                         if 0 < d0 <= 1 and screen_d0 < 20:
-                            self.hovered = ['NON_MAN_ED', (close_eds[0], self.mx*inter_0)]
+                            self.hovered_near = ['NON_MAN_ED', (close_eds[0], self.mx*inter_0)]
                             return
                         elif 0 < d1 <= 1 and screen_d1 < 20:
-                            self.hovered = ['NON_MAN_ED', (close_eds[1], self.mx*inter_1)]
+                            self.hovered_near = ['NON_MAN_ED', (close_eds[1], self.mx*inter_1)]
                             return
 
 
@@ -341,10 +296,12 @@ class Polytrim_UI_Tools():
         
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
         loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
-        if loc == None: return
+        if loc == None: 
+            print("Here")
+            return
 
-        if self.net_ui_context.hovered[0] and 'NON_MAN' in self.net_ui_context.hovered[0]:
-            bmed, wrld_loc = self.net_ui_context.hovered[1] # hovered[1] is tuple (BMesh Element, location?)
+        if self.net_ui_context.hovered_near[0] and 'NON_MAN' in self.net_ui_context.hovered_near[0]:
+            bmed, wrld_loc = self.net_ui_context.hovered_near[1] # hovered_near[1] is tuple (BMesh Element, location?)
             ip1 = self.closest_endpoint(wrld_loc)
 
             self.net_ui_context.selected = self.input_net.create_point(wrld_loc, self.net_ui_context.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
@@ -356,19 +313,20 @@ class Polytrim_UI_Tools():
                 self.network_cutter.precompute_cut(seg)
                 #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
         
-        elif (self.net_ui_context.hovered[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+        elif (self.net_ui_context.hovered_near[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            print("Here 11")
             closest_endpoint = self.closest_endpoint(self.net_ui_context.mx * loc)
             self.net_ui_context.selected = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
             if closest_endpoint and connect:
                 self.input_net.connect_points(self.net_ui_context.selected, closest_endpoint)
                 self.network_cutter.precompute_cut(self.input_net.segments[-1])  #<  Hmm...not very clean.  
 
-        elif self.net_ui_context.hovered[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
-
+        elif self.net_ui_context.hovered_near[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+            print("Here 2")
             closest_endpoints = self.closest_endpoints(self.net_ui_context.snap_element.world_loc, 2)
 
             if closest_endpoints == None:
-                #we are not quite hovered but in snap territory
+                #we are not quite hovered_near but in snap territory
                 return
 
             if len(closest_endpoints) < 2:
@@ -379,12 +337,12 @@ class Polytrim_UI_Tools():
             self.network_cutter.precompute_cut(seg)
             #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
 
-        elif self.net_ui_context.hovered[0] == 'POINT':
-            self.net_ui_context.selected = self.net_ui_context.hovered[1]
+        elif self.net_ui_context.hovered_near[0] == 'POINT':
+            self.net_ui_context.selected = self.net_ui_context.hovered_near[1]
 
-        elif self.net_ui_context.hovered[0] == 'EDGE':  #TODO, actually make InputSegment as hovered
+        elif self.net_ui_context.hovered_near[0] == 'EDGE':  #TODO, actually make InputSegment as hovered_near
             point = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
-            old_seg = self.net_ui_context.hovered[1]
+            old_seg = self.net_ui_context.hovered_near[1]
             self.input_net.insert_point(point, old_seg)
             self.net_ui_context.selected = point
             self.network_cutter.update_segments()
@@ -394,13 +352,12 @@ class Polytrim_UI_Tools():
         removes point from the trim line
         '''
         if mode == 'mouse':
-            if self.net_ui_context.hovered[0] != 'POINT':
-                return
+            if self.net_ui_context.hovered_near[0] != 'POINT': return
 
-            self.input_net.remove_point(self.net_ui_context.hovered[1], disconnect)  #TODO, Ctrl + Rightlcik    
+            self.input_net.remove_point(self.net_ui_context.hovered_near[1], disconnect) 
             self.network_cutter.update_segments()
-        
-            if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered[1]:
+
+            if self.input_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered_near[1]:
                 self.net_ui_context.selected = None
 
         else: #hard delete with x key
@@ -481,22 +438,54 @@ class Polytrim_UI_Tools():
         '''
         updates the text at the bottom of the viewport depending on certain conditions
         '''
-        context = self.context
-        if self.net_ui_context.hovered[0] == 'POINT':
-            if self.net_ui_context.hovered[1] == 0:
-                context.area.header_text_set("For origin point, left click to toggle cyclic")
-            else:
-                context.area.header_text_set("Right click to delete point. Hold left click and drag to make a sketch")
-        else:
-            self.set_ui_text_main()
+        self.reset_ui_text()
+        if self.input_net.is_empty:
+            self.set_ui_text_no_points()
+        elif self.grabber.in_use:
+            self.set_ui_text_grab_mode()
+        elif self.input_net.num_points == 1:
+            self.set_ui_text_1_point()
+        elif self.input_net.num_points > 1:
+            self.set_ui_text_multiple_points()
 
     # XXX: Fine for now, but will likely be irrelevant in future
-    def set_ui_text_main(self):
-        ''' sets the viewports text during general creation of line '''
-        self.info_label.set_markdown("Left click to place cut points on the mesh, then press 'C' to preview the cut")
-        #self.context.area.header_text_set()
+    def set_ui_text_no_points(self):
+        ''' sets the viewports text when no points are out '''
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add'])
+        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['sketch (anywhere)'])
 
-    # XXX: NetworkUIContext
+    def set_ui_text_1_point(self):
+        ''' sets the viewports text when 1 point has been placed'''
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (green line)'])
+        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
+        self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch (point)'])
+        self.inst_paragraphs[3].set_markdown('D) ' + self.instructions['grab'])
+        self.inst_paragraphs[4].set_markdown('E) ' + self.instructions['add (disconnect)'])
+        self.inst_paragraphs[5].set_markdown('F) ' + self.instructions['delete (disconnect)'])
+    
+    def set_ui_text_multiple_points(self):
+        ''' sets the viewports text when there are multiple points '''
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (green line)'])
+        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
+        self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch (point)'])
+        self.inst_paragraphs[3].set_markdown('C) ' + self.instructions['select'])
+        self.inst_paragraphs[4].set_markdown('D) ' + self.instructions['grab'])
+        self.inst_paragraphs[5].set_markdown('E) ' + self.instructions['add (disconnect)'])
+        self.inst_paragraphs[6].set_markdown('F) ' + self.instructions['delete (disconnect)'])
+
+    def set_ui_text_grab_mode(self):
+        ''' sets the viewports text during general creation of line '''
+        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['grab confirm'])
+        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['grab cancel'])
+
+    def reset_ui_text(self):
+        for inst_p in self.inst_paragraphs:
+            inst_p.set_markdown('')
+
+    def find_network_cycles(self):
+        self.network_cutter.knife_geometry()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse
@@ -517,7 +506,7 @@ class Polytrim_UI_Tools():
         self.net_ui_context.connect_element = None
 
         if self.input_net.is_empty:
-            self.net_ui_context.hovered = [None, -1]
+            self.net_ui_context.hovered_near = [None, -1]
             self.net_ui_context.nearest_non_man_loc()
             return
         if face_ind == -1: self.net_ui_context.closest_ep = None
@@ -543,9 +532,9 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist  < select_radius:
-            #print('point is hovered')
+            #print('point is hovered_near')
             #print(pixel_dist)
-            self.net_ui_context.hovered = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
+            self.net_ui_context.hovered_near = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             self.net_ui_context.snap_element = None
             return
 
@@ -561,7 +550,7 @@ class Polytrim_UI_Tools():
                 #print('these are the 2 closest endpoints, one should be snap element itself')
                 #print(closest_endpoints)
                 if closest_endpoints == None:
-                    #we are not quite hovered but in snap territory
+                    #we are not quite hovered_near but in snap territory
                     return
 
                 if len(closest_endpoints) < 2:
@@ -574,7 +563,7 @@ class Polytrim_UI_Tools():
 
 
         if self.input_net.num_points == 1:  #why did we do this? Oh because there are no segments.
-            self.net_ui_context.hovered = [None, -1]
+            self.net_ui_context.hovered_near = [None, -1]
             self.net_ui_context.snap_element = None
             return
 
@@ -600,11 +589,11 @@ class Polytrim_UI_Tools():
                 dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
                 bound = intersect[1]
                 if (dist < select_radius**2) and (bound < 1) and (bound > 0):
-                    self.net_ui_context.hovered = ['EDGE', closest_seg]
+                    self.net_ui_context.hovered_near = ['EDGE', closest_seg]
                     return
 
         ## Multiple points, but not hovering over edge or point.
-        self.net_ui_context.hovered = [None, -1]
+        self.net_ui_context.hovered_near = [None, -1]
 
         self.net_ui_context.nearest_non_man_loc()  #todo, optimize because double ray cast per mouse move!
 

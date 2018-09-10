@@ -2145,6 +2145,7 @@ class InputNetwork(object): #InputNetwork
     '''
     def __init__(self, net_ui_context, ui_type="DENSE_POLY"):
         self.net_ui_context = net_ui_context
+        self.net_ui_context.set_network(self)
         self.bvh = self.net_ui_context.bvh   #this should go into net context.
         self.bme = self.net_ui_context.bme  #the network exists on the BMesh, it is fundamental
         self.points = []

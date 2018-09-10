@@ -58,13 +58,32 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         return True
 
     def start(self):
-        info = self.wm.create_window('info', {'pos':9, 'movable':False})
-        info.add(ui.UI_Label('PolyTrim'))
-        self.info_label = info.add(ui.UI_Markdown('info here', min_size=(200,10)))
-        self.info_label.set_markdown('Here is what to do next...')
+        info = self.wm.create_window('PolyTrim Help', {'pos':9, 'movable':True, 'bgcolor':(.3,.6,.3,.6)})
+        info.add(ui.UI_Label('Instructions', fontsize=16, align=0, margin=4))
+
+        self.instructions = {
+            "add": "Left-click on the mesh to add a new point",
+            "add (green line)": "Left click on the mesh to add/insert a point. The green line will visualize the new segments created",
+            "add (disconnect)": "Ctrl + Leftlick will add a free-floating point",
+            "select": "Left-click on a point to select it",
+            "sketch (anywhere)": "Hold left-click and drag to sketch in a line of points",
+            "sketch (point)": "Hold left-click and drag from a hovered point to sketch in a line of points",
+            "delete": "Right-click on a point to remove it",
+            "delete (disconnect)": "Ctrl + right-click will remove a point and its connected segments",
+            "grab": "Press 'G' to grab and move the selected point",
+            "grab confirm": "Left-click to place point at cursor's location",
+            "grab cancel": "Right-click to cancel the grab"
+        }
+        self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
+        self.set_ui_text_no_points()
+
+        info.add(ui.UI_Label('Tools', fontsize=16, align=0, margin=4))
+        info.add(ui.UI_Button('Find Network Cycles', self.find_network_cycles, margin=5))
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
-        exitbuttons.add(ui.UI_Button('commit', self.done))
-        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True)))
+        exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))
+        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True), margin=5))
+
+        self.cursor_modal_set('CROSSHAIR')
 
         #self.drawing = Drawing.get_instance()
         self.drawing.set_region(bpy.context.region, bpy.context.space_data.region_3d, bpy.context.window)
@@ -76,15 +95,12 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.net_ui_context = self.NetworkUIContext(self.context)
 
         self.input_net = InputNetwork(self.net_ui_context)
-        self.net_ui_context.set_network(self.input_net)
-
         self.network_cutter = NetworkCutter(self.input_net, self.net_ui_context)
 
         self.sketcher = self.SketchManager(self.input_net, self.net_ui_context, self.network_cutter)
         self.grabber = self.GrabManager(self.input_net, self.net_ui_context, self.network_cutter)
 
-        self.cursor_modal_set('CROSSHAIR')
-        self.set_ui_text_main()
+
 
     def end(self):
         ''' Called when tool is ending modal '''
