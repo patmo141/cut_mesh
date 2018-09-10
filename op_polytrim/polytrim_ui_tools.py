@@ -122,7 +122,7 @@ class Polytrim_UI_Tools():
             d = self.net_ui_context.hovered_mesh
             if d and self.grab_point:
                 self.grab_point.set_values(d["world loc"], d["local loc"], d["normal"], d["face index"])
-                self.grab_point.bmface = self.input_net.bme.faces[face_ind]
+                self.grab_point.bmface = self.input_net.bme.faces[d["face index"]]
 
         def grab_cancel(self):
             ''' returns variables to their status before grab was initiated '''
@@ -142,7 +142,8 @@ class Polytrim_UI_Tools():
             self.net_ui_context.selected.view = self.grab_point.view
             self.net_ui_context.selected.seed_geom = self.grab_point.seed_geom
             self.net_ui_context.selected.face_index = self.grab_point.face_index
-
+            self.net_ui_context.selected.bmface = self.input_net.bme.faces[self.grab_point.face_index]
+            
             for seg in self.net_ui_context.selected.link_segments:
                 seg.path = []
                 seg.needs_calculation = True
