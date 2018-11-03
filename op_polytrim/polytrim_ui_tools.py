@@ -483,10 +483,18 @@ class Polytrim_UI_Tools():
         for inst_p in self.inst_paragraphs:
             inst_p.set_markdown('')
 
-    def find_network_cycles(self):
-        self.network_cutter.knife_geometry()
+    def find_network_cycles_button(self):
+        self.input_net.find_network_cycles()
+        
+    def compute_cut2_button(self):
+        self.network_cutter.knife_geometry2()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
 
+    def compute_cut3_button(self):
+        self.network_cutter.knife_geometry3()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        
+        
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse
