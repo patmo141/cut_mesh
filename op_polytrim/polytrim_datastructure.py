@@ -414,12 +414,17 @@ class NetworkCutter(object):
 
     def knife_geometry3(self):
         #check all deferred calculations
-        #ensure no bad segments
+        knife_sart = time.time()
         for seg in self.input_net.segments:
-            
             if (seg.needs_calculation == True) or (seg.calculation_complete == False):
                 print('segments still computing')
                 return
+            
+            if seg.is_bad:
+                print('bad_segment')  #TODO raise error message #TODO put this in a can_start/can_enter kind of check
+                return
+        #ensure no bad segments
+        
         
         #dictionaries to map newly created faces to their original faces and vice versa
         new_to_old_face_map = self.new_to_old_face_map
@@ -428,6 +433,7 @@ class NetworkCutter(object):
         completed_input_points = self.completed_input_points
         ip_bmvert_map = self.ip_bmvert_map
     
+        new_bmverts = set()
         #helper function to walk along input point chains
         def next_segment(ip, current_seg): #TODO Code golf this
             if len(ip.link_segments) != 2: return None  #TODO, the the segment to right
@@ -565,6 +571,7 @@ class NetworkCutter(object):
                         
                         #create the new tip vertex
                         bmv = self.input_net.bme.verts.new(co0)
+                        new_bmverts.add(bmv)
                         
                         #map the new edge and the old edge to that vertex
                         cdata['bmedge_to_new_bmv'][ed] = bmv
@@ -590,7 +597,7 @@ class NetworkCutter(object):
                         
                         #create the new tip vertex
                         bmv = self.input_net.bme.verts.new(co1)
-                        
+                        new_bmverts.add(bmv)
                         #map the new edge and the old eget to that vertex
                         cdata['bmedge_to_new_bmv'][ed] = bmv
                         cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][1]] = bmv
@@ -628,6 +635,7 @@ class NetworkCutter(object):
                         
                         #create the new tip vertex
                         bmv = self.input_net.bme.verts.new(co0)
+                        new_bmverts.add(bmv)
                         #map the new edge and the old eget to that vertex
                         cdata['bmedge_to_new_bmv'][ed] = bmv
                         cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][0]] = bmv
@@ -659,7 +667,7 @@ class NetworkCutter(object):
                         print('reality check, distance co to loc %f' % (co1 - loc).length)
                         #create the new tip vertex
                         bmv = self.input_net.bme.verts.new(co1)
-                        
+                        new_bmverts.add(bmv)
                         #map the new edge and the old edge to the new BMVert
                         cdata['bmedge_to_new_bmv'][ed] = bmv
                         cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][-1]] = bmv
@@ -691,6 +699,7 @@ class NetworkCutter(object):
                     bmedge = cdata['edge_crosses'][i]
                     bmv = self.input_net.bme.verts.new(co)
                     bmedge_to_new_vert_map[bmedge] = bmv
+                    new_bmverts.add(bmv)
             
                 #now process all the faces crossed
                 #for a face to be crossed 2 edges of the face must be crossed
@@ -803,7 +812,7 @@ class NetworkCutter(object):
                 bmedge = cdata['edge_crosses'][i]
                 bmv = self.input_net.bme.verts.new(co)
                 bmedge_to_new_vert_map[bmedge] = bmv
-            
+                new_bmverts.add(bmv)
             #now process all the faces crossed
             #for a face to be crossed 2 edges of the face must be crossed
             for f in cdata['face_crosses']:
@@ -891,7 +900,7 @@ class NetworkCutter(object):
         for ip in self.input_net.points:
             bmv = self.input_net.bme.verts.new(ip.local_loc)
             self.ip_bmvert_map[ip] = bmv
-        
+            new_bmverts.add(bmv)
         #identify closed loops in the input
         #we might need to recompute cycles if we are creating new segments   
         ip_cycles, seg_cycles = self.input_net.find_network_cycles()
@@ -1154,11 +1163,30 @@ class NetworkCutter(object):
                         print('delete old face and edges in %f seconds' % (geom_clean_finish - geom_clean_start))
                     finish = time.time()
                     print('split IP face in %f seconds' % (finish - start)) 
-                    
+        
+        for f in self.input_net.bme.faces:
+            f.select_set(False)
+            
+        for ed in self.input_net.bme.edges:
+            if ed.verts[0] in new_bmverts and ed.verts[1] in new_bmverts:
+                ed.select_set(True)
+            else:
+                ed.select_set(False)
+            
+        for v in self.input_net.bme.verts: 
+            if v in new_bmverts: 
+                v.select_set(True)
+            else:
+                v.select_set(False)
+                
+                           
         self.input_net.bme.verts.ensure_lookup_table()
         self.input_net.bme.edges.ensure_lookup_table()
         self.input_net.bme.faces.ensure_lookup_table()    
-        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)  
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        knife_finish = time.time()
+        print('\n')
+        print('Executed the cut in %f seconds' % (knife_finish - knife_sart))
         return    
     
     
