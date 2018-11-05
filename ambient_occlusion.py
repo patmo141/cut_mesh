@@ -100,9 +100,6 @@ def bake_ambient_object(context, ob):
         mat.use_shadeless = True
         mat.use_vertex_color_paint = True
         
-        
-        
-        
     if "AO" not in ob.data.materials:
         ob.data.materials.append(mat)
         

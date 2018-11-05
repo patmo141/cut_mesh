@@ -203,8 +203,13 @@ class Polytrim_UI_Draw():
             else:
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
     
+        
+        
         draw3d_points(context, self.input_net.point_world_locs, blue, 6)
 
+        draw3d_points(context, [p.world_loc for p in self.network_cutter.face_patches], orange, 6)
+        
+        
         bgl.glLineWidth(1)     
                 
         

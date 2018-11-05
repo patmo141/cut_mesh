@@ -59,16 +59,11 @@ def ray_cast_bvh(bvh, imx, ray_origin, ray_target, also_do_this):
     cast ray from to view to specified target on object. 
     '''
     if bversion() < '002.077.000':
-        loc, no, face_ind = bvh.ray_cast(imx * ray_origin, imx * ray_target)
-        if face_ind == -1:
-            if also_do_this:
-                also_do_this()
-                return [None, None, None]
-            else:
-                pass
+        print('NO GOING BACK TO 2.77')
+        return None, None, None
     else:
-        res, loc, no, face_ind = bvh.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
-        if not res:
+        loc, no, face_ind, d = bvh.ray_cast(imx * ray_origin, imx * ray_target - imx * ray_origin)
+        if loc == None:
             if also_do_this:
                 also_do_this()
                 return [None, None, None]

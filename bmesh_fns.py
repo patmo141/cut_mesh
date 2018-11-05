@@ -55,8 +55,6 @@ def vert_neighbors(bmvert):
     return neighbors
 
 
-
-
 #https://blender.stackexchange.com/questions/92406/circular-order-of-edges-around-vertex
 # Return edges around param vertex in counter-clockwise order
 def connectedEdgesFromVertex_CCW(vertex):
@@ -234,9 +232,7 @@ def flood_island_within_selected_verts(bme, selected_verts, seed_element, max_it
         print('max iterations reached') 
            
     return flood_selection
-    
-    
-    
+       
 def flood_selection_vertex_perimeter(bme, perimeter_verts, seed_element, max_iters = 10000):
     '''
     bme - bmesh
@@ -385,13 +381,7 @@ def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
         
     total_selection = set()
     total_selection.add(seed_face)
-    
-    #face_levy = set()
-    #for e in edge_loop:
-    #    face_levy.update([f for f in e.link_faces])  #it's funny because it stops the flood :-)
-
-    
-    
+        
     new_faces = set(face_neighbors_by_edge(seed_face)) #- face_levy
     iters = 0
     while iters < max_iters and new_faces:

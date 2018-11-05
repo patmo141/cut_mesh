@@ -4,10 +4,11 @@ Created on Oct 10, 2015
 @author: Patrick
 '''
 import bmesh
+import bpy
 
 from ..bmesh_fns import edge_loops_from_bmedges_old, ensure_lookup
 from ..common.utils import get_matrices
-from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path
+from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path, ray_cast_bvh
 
 from .polytrim_datastructure import InputNetwork, InputPoint, InputSegment
 
@@ -16,8 +17,6 @@ from mathutils import Vector, kdtree
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
 from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
-
-
 
 
 class Polytrim_UI_Tools():
@@ -79,8 +78,9 @@ class Polytrim_UI_Tools():
                 else:
                     pt_screen_loc = self.sketch[ind]  #in screen space
                     view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
-                    loc, no, face_ind =  ray_cast(self.net_ui_context.ob,self.net_ui_context.imx, ray_origin, ray_target, None)  #intersects that ray with the geometry
-                    if face_ind != -1:
+                    #loc, no, face_ind =  ray_cast(self.net_ui_context.ob,self.net_ui_context.imx, ray_origin, ray_target, None)  #intersects that ray with the geometry
+                    loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
+                    if face_ind != None:
                         new_pnt = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
                 if prev_pnt:
                     print(prev_pnt)
@@ -96,7 +96,6 @@ class Polytrim_UI_Tools():
                 #self.network_cutter.precompute_cut(seg)
                 #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
 
-    ## TODO: Hovering functions are happening in here, bring them out.
     class GrabManager():
         '''
         UI tool for managing input point grabbing/moving made by user.
@@ -109,13 +108,13 @@ class Polytrim_UI_Tools():
 
             self.grab_point = None
             self.original_point = None
-
+            self.backup_data = {}
         def in_use(self): return self.grab_point != None
         in_use = property(in_use)
 
         def initiate_grab_point(self):
             self.grab_point = self.net_ui_context.selected
-            self.original_point = self.grab_point.duplicate()
+            self.backup_data =  self.grab_point.duplicate_data()
 
         def move_grab_point(self,context,mouse_loc):
             ''' Moves location of point'''
@@ -127,22 +126,22 @@ class Polytrim_UI_Tools():
         def grab_cancel(self):
             ''' returns variables to their status before grab was initiated '''
             if not self.grab_point: return
-            op = self.original_point
-            self.grab_point.set_values(op.world_loc, op.local_loc, op.view, op.face_index)
+            for key in self.backup_data:
+                setattr(self.grab_point, key, self.backup_data[key])
+            
             self.grab_point = None #TODO BROKEN
-            self.original_point = None
             return
 
         def finalize(self, context):
             ''' sets new variables based on new location '''
             if not self.grab_point: return
             #TODO Broken or unnecessary because we are modifying grab point drectly
-            self.net_ui_context.selected.world_loc = self.grab_point.world_loc
-            self.net_ui_context.selected.local_loc = self.grab_point.local_loc
-            self.net_ui_context.selected.view = self.grab_point.view
-            self.net_ui_context.selected.seed_geom = self.grab_point.seed_geom
-            self.net_ui_context.selected.face_index = self.grab_point.face_index
-            self.net_ui_context.selected.bmface = self.input_net.bme.faces[self.grab_point.face_index]
+            #self.net_ui_context.selected.world_loc = self.grab_point.world_loc
+            #self.net_ui_context.selected.local_loc = self.grab_point.local_loc
+            #self.net_ui_context.selected.view = self.grab_point.view
+            #self.net_ui_context.selected.seed_geom = self.grab_point.seed_geom
+            #self.net_ui_context.selected.face_index = self.grab_point.face_index
+            #self.net_ui_context.selected.bmface = self.input_net.bme.faces[self.grab_point.face_index]
             
             for seg in self.net_ui_context.selected.link_segments:
                 seg.path = []
@@ -150,7 +149,7 @@ class Polytrim_UI_Tools():
                 seg.calculation_complete = False
 
             self.grab_point = None
-            self.original_point = None
+
 
             return
 
@@ -164,6 +163,23 @@ class Polytrim_UI_Tools():
             self.input_net = None
 
             self.ob = context.object
+            
+            context.space_data.viewport_shade = 'SOLID'  #TODO until smarter drawing
+            context.space_data.show_textured_solid = True #TODO until smarter patch drawing
+        
+            if "patches" not in bpy.data.materials:
+                mat = bpy.data.materials.new("patches")
+                mat.use_shadeless = True
+                mat.use_vertex_color_paint = True
+            else:
+                mat = bpy.data.materials.get("patches")
+                mat.use_shadeless = True
+                mat.use_vertex_color_paint = True
+        
+            if "patches" not in self.ob.data.materials:
+                self.ob.data.materials.append(mat)
+                self.ob.material_slots[0].material = mat
+            
             self.bme = bmesh.new()
             self.bme.from_mesh(self.ob.data)
             ensure_lookup(self.bme)
@@ -220,7 +236,7 @@ class Polytrim_UI_Tools():
 
             #self.nearest_non_man_loc()
 
-        def ray_cast_mouse(self):
+        def ray_cast_mouse_ob(self):
             view_vector, ray_origin, ray_target= get_view_ray_data(self.context, self.mouse_loc)
             loc, no, face_ind = ray_cast(self.ob, self.imx, ray_origin, ray_target, None)
             if face_ind == -1: self.hovered_mesh = {}
@@ -230,7 +246,18 @@ class Polytrim_UI_Tools():
                 self.hovered_mesh["normal"] = no
                 self.hovered_mesh["face index"] = face_ind
 
-               
+        
+        def ray_cast_mouse(self):
+            view_vector, ray_origin, ray_target= get_view_ray_data(self.context, self.mouse_loc)
+            loc, no, face_ind = ray_cast_bvh(self.bvh, self.imx, ray_origin, ray_target, None)
+            if face_ind == None: self.hovered_mesh = {}
+            else:
+                self.hovered_mesh["world loc"] = self.mx * loc
+                self.hovered_mesh["local loc"] = loc
+                self.hovered_mesh["normal"] = no
+                self.hovered_mesh["face index"] = face_ind
+            
+              
         def nearest_non_man_loc(self):
             '''
             finds nonman edges and verts nearby to cursor location
@@ -296,7 +323,9 @@ class Polytrim_UI_Tools():
         def none_selected(): self.net_ui_context.selected = None # TODO: Change this weird function in function shizz
         
         view_vector, ray_origin, ray_target= get_view_ray_data(context,mouse_loc)
-        loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
+        #loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
+        loc, no, face_ind = ray_cast_bvh(self.net_ui_context.bvh, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
+        
         if loc == None: 
             print("Here")
             return
@@ -347,6 +376,8 @@ class Polytrim_UI_Tools():
             self.input_net.insert_point(point, old_seg)
             self.net_ui_context.selected = point
             self.network_cutter.update_segments()
+    
+    
     # TODO: Clean this up
     def click_delete_point(self, mode = 'mouse', disconnect=False):
         '''
@@ -365,6 +396,16 @@ class Polytrim_UI_Tools():
             if not self.net_ui_context.selected: return
             self.input_net.remove(self.net_ui_context.selected, disconnect= True)
 
+    
+    def click_add_seed(self):
+        
+        if self.net_ui_context.hovered_mesh == {}: return
+        
+        face_ind = self.net_ui_context.hovered_mesh['face index']
+        world_loc = self.net_ui_context.hovered_mesh['world loc']
+        local_loc = self.net_ui_context.hovered_mesh['local loc']
+        self.network_cutter.add_seed(face_ind, world_loc, local_loc)
+        
     # TODO: Make this a NetworkUIContext function
     def closest_endpoint(self, pt3d):
         def dist3d(point):
@@ -486,10 +527,6 @@ class Polytrim_UI_Tools():
     def find_network_cycles_button(self):
         self.input_net.find_network_cycles()
         
-    def compute_cut2_button(self):
-        self.network_cutter.knife_geometry2()
-        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-
     def compute_cut3_button(self):
         self.network_cutter.knife_geometry3()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
@@ -509,8 +546,8 @@ class Polytrim_UI_Tools():
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
         # ray tracing
         view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
-        loc, no, face_ind = ray_cast(self.net_ui_context.ob, imx, ray_origin, ray_target, None)
-
+        #loc, no, face_ind = ray_cast(self.net_ui_context.ob, imx, ray_origin, ray_target, None)
+        loc, no, face_ind = ray_cast_bvh(self.net_ui_context.bvh, imx, ray_origin, ray_target, None)
         self.net_ui_context.snap_element = None
         self.net_ui_context.connect_element = None
 
@@ -518,7 +555,10 @@ class Polytrim_UI_Tools():
             self.net_ui_context.hovered_near = [None, -1]
             self.net_ui_context.nearest_non_man_loc()
             return
-        if face_ind == -1: self.net_ui_context.closest_ep = None
+        
+        if face_ind == -1 or face_ind == None: 
+            self.net_ui_context.closest_ep = None
+            return
         else: self.net_ui_context.closest_ep = self.closest_endpoint(mx * loc)
 
         #find length between vertex and mouse
@@ -604,7 +644,7 @@ class Polytrim_UI_Tools():
         ## Multiple points, but not hovering over edge or point.
         self.net_ui_context.hovered_near = [None, -1]
 
-        self.net_ui_context.nearest_non_man_loc()  #todo, optimize because double ray cast per mouse move!
+        self.net_ui_context.nearest_non_man_loc()
 
 
     ### XXX: Puth these in their own class maybe?

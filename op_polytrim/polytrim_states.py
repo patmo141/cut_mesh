@@ -59,6 +59,12 @@ class Polytrim_States():
             self.ui_text_update()
             return
 
+        if self.actions.pressed('S'):
+            #TODO what about a button?
+            #What about can_enter?
+            return 'seed'
+        
+        
         #re-tesselate at 3mm resolution
         if self.actions.pressed('T'):
             n_pts = self.input_net.num_points
@@ -127,12 +133,12 @@ class Polytrim_States():
 
         if self.actions.mousemove:
             self.net_ui_context.update(self.actions.mouse)
-            self.hover()
+            #self.hover()
             return
         if self.actions.mousemove_prev:
             #update the b_pt location
             self.net_ui_context.update(self.actions.mouse)
-            self.hover()
+            #self.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
 
     @CookieCutter.FSM_State('grab', 'exit')
@@ -180,3 +186,43 @@ class Polytrim_States():
             self.sketcher.reset()
             return 'main'
 
+    ######################################################
+    # seed/patch selection state
+
+    @CookieCutter.FSM_State('seed', 'can enter')
+    def seed_can_enter(self):
+        #the cut network has been executed
+        return True
+
+    @CookieCutter.FSM_State('seed', 'enter')
+    def seed_enter(self):
+        #set the cursor to to something
+        return
+    
+    @CookieCutter.FSM_State('seed')
+    def modal_seed(self):
+        
+        if self.actions.mousemove_prev:
+            #update the bmesh geometry under mouse location
+            self.net_ui_context.update(self.actions.mouse)
+               
+        #if left click
+            #place seed on surface
+            #background watershed form the seed to color the region on the mesh
+        
+        if self.actions.pressed('LEFTMOUSE'):
+            self.click_add_seed()        
+        
+        #if right click
+            #remove the seed
+            #remove any "patch" data associated with the seed
+
+        #if escape
+            #return to 'main'
+            
+        #if enter
+            #return to 'main'
+        if self.actions.pressed('RET'):
+            return 'main'
+           
+        return 'seed'
