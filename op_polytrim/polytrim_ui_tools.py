@@ -531,7 +531,12 @@ class Polytrim_UI_Tools():
         self.network_cutter.knife_geometry3()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         
-        
+    def enter_seed_select_button(self):    
+        self._state_next = 'seed'
+        self.cursor_modal_set('EYEDROPPER')
+        return
+    
+       
     def hover(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
         '''
         finds points/edges/etc that are near ,mouse

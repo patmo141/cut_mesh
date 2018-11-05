@@ -1149,7 +1149,7 @@ class NetworkCutter(object):
                         print('found segment chain in %f seconds' % (seg_chain_finish-seg_chain_start))
                         ip_chains += [chain]
                         
-                        
+
                         if current_seg not in completed_segments:  #here is some time, process as we go
                             process_start = time.time()
                             result = process_segment(current_seg)
@@ -1188,6 +1188,8 @@ class NetworkCutter(object):
                                         #print(ed_enter)
                                 bmv_enter = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_enter]
                         
+                                
+                                
                         #the other direction, will find the exit segment?
                         else:
                             if ip_next.is_edgepoint() and cdata == None:
@@ -1206,7 +1208,9 @@ class NetworkCutter(object):
                                     print('IP_1 of the input segment exiting the face')
                                 else:
                                     #ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
-                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0]
+                                    
+
+                                    ed_exit = self.cut_data[current_seg]['edge_crosses'][0] #TODO AGAIN SOMETIMES HERE AN ERROR
                                     
                                     if ed_exit in self.reprocessed_edge_map:
                                         ed_exit = self.reprocessed_edge_map[ed_exit]

@@ -78,9 +78,11 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.set_ui_text_no_points()
 
         info.add(ui.UI_Label('Tools', fontsize=16, align=0, margin=4))
-        info.add(ui.UI_Button('Find Network Cycles', self.find_network_cycles_button, margin=5))
+        #info.add(ui.UI_Button('Find Network Cycles', self.find_network_cycles_button, margin=5))
         #info.add(ui.UI_Button('Compute Cut Method 2', self.compute_cut2_button, margin=5))
         info.add(ui.UI_Button('Compute Cut Method 3', self.compute_cut3_button, margin=5))
+        info.add(ui.UI_Button('Select Seeds', self.enter_seed_select_button, margin=5))
+        
         
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))
