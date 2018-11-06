@@ -201,7 +201,7 @@ class Polytrim_States():
     
     @CookieCutter.FSM_State('seed')
     def modal_seed(self):
-        
+        self.cursor_modal_set('EYEDROPPER')
         if self.actions.mousemove_prev:
             #update the bmesh geometry under mouse location
             self.net_ui_context.update(self.actions.mouse)
