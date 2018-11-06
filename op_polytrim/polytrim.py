@@ -83,6 +83,9 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         info.add(ui.UI_Button('Compute Cut Method 3', self.compute_cut3_button, margin=5))
         info.add(ui.UI_Button('Select Seeds', self.enter_seed_select_button, margin=5))
         
+        #Knife geometry stepper buttons
+        info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
+        info.add(ui.UI_Button('Step Cut', self.knife_step_button, margin=5))
         
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))

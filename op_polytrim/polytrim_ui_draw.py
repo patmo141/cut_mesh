@@ -128,7 +128,9 @@ class Polytrim_UI_Draw():
         blue = (.1,.1,.8,1)
         blue2 = (.1,.2,1,.8)
         green = (.2,.5,.2,1)
-        orange = (1,.8,.2,1)
+        orange = (1,.65,.2,1)
+        
+        purple = (.8, .1, .8, 1)
 
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
@@ -186,14 +188,20 @@ class Polytrim_UI_Draw():
         bgl.glDepthRange(0.0, 1.0)
 
         # Polylines...InputSegments
- 
+
         for seg in self.input_net.segments:
+            
+            #bad segment with a preview path provided by geodesic
             if seg.bad_segment and not len(seg.path) > 2:
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
             
-            elif len(seg.path) >= 2 and not seg.bad_segment:
+            #s
+            elif len(seg.path) >= 2 and not seg.bad_segment and seg not in self.network_cutter.completed_segments:
                 draw3d_polyline(context, seg.path,  blue, 2, 'GL_LINE_STRIP' )
             
+            elif len(seg.path) >= 2 and not seg.bad_segment and seg in self.network_cutter.completed_segments:
+                draw3d_polyline(context, seg.path,  green, 2, 'GL_LINE_STRIP' )
+                
             elif len(seg.path) >= 2 and seg.bad_segment:
                 draw3d_polyline(context, seg.path,  orange, 2, 'GL_LINE_STRIP' )
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
@@ -207,9 +215,15 @@ class Polytrim_UI_Draw():
         
         draw3d_points(context, self.input_net.point_world_locs, blue, 6)
 
+        #draw the seed/face patch points
         draw3d_points(context, [p.world_loc for p in self.network_cutter.face_patches], orange, 6)
         
         
+        #draw the actively processing Input Point (IP Steper Debug)
+        if self.network_cutter.active_ip:
+            draw3d_points(context, [self.network_cutter.active_ip.world_loc], purple, 30)
+            draw3d_points(context, [ip.world_loc for ip in self.network_cutter.ip_chain], purple, 12)
+            
         bgl.glLineWidth(1)     
                 
         

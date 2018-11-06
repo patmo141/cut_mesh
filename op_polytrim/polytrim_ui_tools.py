@@ -526,7 +526,13 @@ class Polytrim_UI_Tools():
 
     def find_network_cycles_button(self):
         self.input_net.find_network_cycles()
+    
+    def knife_stepwise_prepare_button(self):
+        self.network_cutter.knife_gometry_stepper_prepare()
         
+    def knife_step_button(self):
+        self.network_cutter.knife_geometry_step()
+         
     def compute_cut3_button(self):
         self.network_cutter.knife_geometry3()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
