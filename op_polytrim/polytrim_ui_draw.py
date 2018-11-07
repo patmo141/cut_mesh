@@ -129,7 +129,7 @@ class Polytrim_UI_Draw():
         blue2 = (.1,.2,1,.8)
         green = (.2,.5,.2,1)
         orange = (1,.65,.2,1)
-        
+        red = (1,0,0,1)
         purple = (.8, .1, .8, 1)
 
         region,r3d = context.region,context.space_data.region_3d
@@ -212,6 +212,9 @@ class Polytrim_UI_Draw():
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
     
         
+        if self.network_cutter.the_bad_segment:
+            seg = self.network_cutter.the_bad_segment
+            draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, 'GL_LINE_STRIP' )
         
         draw3d_points(context, self.input_net.point_world_locs, blue, 6)
 

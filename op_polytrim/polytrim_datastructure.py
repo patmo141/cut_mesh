@@ -229,9 +229,11 @@ class NetworkCutter(object):
         self.face_patches = []
         
         
+        self.the_bad_segment = None
         self.active_ip = None
         self.ip_chain = []
         self.ip_set = set()
+        
         
     def update_segments(self):
         
@@ -398,15 +400,18 @@ class NetworkCutter(object):
                 cut_data['verts'] = vs
                 
                 old_cdata = []
+                self.cut_data[seg] = cut_data
                 for other_seg, cdata in self.cut_data.items():
                     if other_seg == seg: continue
                     if other_seg not in self.input_net.segments:
+                        print('old seg data in self.cut_data')
                         continue
                     
                     if not cut_data['face_set'].isdisjoint(cdata['face_set']):
                         bad_seg = False
                 
                         print("\n Found self intersection on this segment")
+                        print("\n")
                         
                         overlap = cut_data['face_set'].intersection(cdata['face_set'])
                         
@@ -426,13 +431,19 @@ class NetworkCutter(object):
                         if bad_seg:
                             seg.bad_segment = True #intersection
                             if seg in self.cut_data:
+                                print('\n')
+                                print('removing cut data for this segment')
+                                print('\n')
+                                print(seg)
+                                print(seg.ip0.bmface)
+                                print(seg.ip1.bmface)
                                 self.cut_data.pop(seg, None)
                         
                             print('\n')
                             #only return if there is a forbidden self intersection
                             return  #found a self intersection, for now forbidden
                     
-                self.cut_data[seg] = cut_data
+                
                 
             else:  #we failed to find the next face in the face group
                 seg.bad_segment = True
@@ -1586,6 +1597,11 @@ class NetworkCutter(object):
                                 ed_enter = ip_next.seed_geom #TODO, make this seed_edge, seed_vert or seed_face
                             else:
                                 if current_seg.ip0 == ip_next: #meaning ip_current == ip1  #test the direction of the segment
+                                    if current_seg not in self.cut_data:
+                                        print('ABOUT TO BE AN ERROR!')
+                                        self.the_bad_segment = current_seg
+                                        return
+                                    
                                     ed_enter = self.cut_data[current_seg]['edge_crosses'][-1]  #TODO error here some time
                                     print('IP_1 of he input segment entering the face')
                                     if ed_enter in self.reprocessed_edge_map:
@@ -1601,9 +1617,8 @@ class NetworkCutter(object):
                                         #print(ed_enter)
                                 bmv_enter = self.cut_data[current_seg]['bmedge_to_new_bmv'][ed_enter]
                         
-                                
-                                
-                        #the other direction, will find the exit segment?
+
+                        #the other direction, will find the exit segment.
                         else:
                             if ip_next.is_edgepoint() and cdata == None:
                                 print('getting the edgepoint IP bmvert')
@@ -1621,6 +1636,10 @@ class NetworkCutter(object):
                                     print('IP_1 of the input segment exiting the face')
                                 else:
                                     #ed_exit = self.cut_data[current_seg]['edge_crosses'][-1]
+                                    if current_seg not in self.cut_data:
+                                        print('ABOUT TO BE AN ERROR!')
+                                        self.the_bad_segment = current_seg
+                                        return
                                     
                                     ed_exit = self.cut_data[current_seg]['edge_crosses'][0] #TODO AGAIN SOMETIMES HERE AN ERROR
                                     
