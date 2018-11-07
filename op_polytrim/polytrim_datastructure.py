@@ -40,6 +40,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 
+
 #helper function to split a face
 def split_face_by_verts(bme, f, ed_enter, ed_exit, bmvert_chain):
     '''
@@ -208,6 +209,8 @@ class NetworkCutter(object):
         self.executor_tasks = {}
         
         
+        self.new_bmverts = set()
+        
         #TODO consider packaging this up into some structure
         self.cut_data = {}  #a dictionary of cut data
         self.ip_bmvert_map = {} #dictionary of new bm verts to InputPoints  in input_net 
@@ -230,6 +233,8 @@ class NetworkCutter(object):
         
         
         self.the_bad_segment = None
+        self.seg_enter = None
+        self.seg_exit = None
         self.active_ip = None
         self.ip_chain = []
         self.ip_set = set()
@@ -606,8 +611,10 @@ class NetworkCutter(object):
             
             #implied if ip_next.bmface != ip.bmface...we have stepped off of this face
         
+        seg_enter = None
+        seg_exit = current_seg
 
-        return ip_chain
+        return ip_chain, seg_enter, seg_exit
         
     def find_ip_chain_facepoint(self,ip):
         '''
@@ -617,16 +624,20 @@ class NetworkCutter(object):
                 
         ip_chain = []
         
-        #wak forward and back
+        #walk forward and back
         chain_0 = []
+        seg_enter = None
+        
         chain_1 = []
+        seg_exit = None
+        
         for seg in ip.link_segments:
             
             if seg == ip.link_segments[0]:
                 chain = chain_0
             else:
                 chain = chain_1
-            
+
             current_seg = seg
             ip_next = current_seg.other_point(ip)
         
@@ -653,13 +664,431 @@ class NetworkCutter(object):
                     break
                 current_seg = next_seg
             
+            if seg==ip.link_segments[0]:
+                seg_enter = current_seg
+            else:
+                seg_exit = current_seg
+                
         chain_0.reverse()
         
         #if len(chain_0) and len(chain_1):
             #print(chain_0 + [ip] + chain_1)
             
-        return chain_0 + [ip] + chain_1    
+        return chain_0 + [ip] + chain_1, seg_enter, seg_exit   
    
+   
+    def process_segment(self, seg):
+        if seg not in self.cut_data:  #check for pre-processed cut data
+            print('no cut data for this segment, must need to precompute or perhaps its internal to a face')
+            
+            print(seg.ip0.bmface)
+            print(seg.ip1.bmface)
+            
+            print(seg.cut_method)
+            seg.ip0.bmface.select_set(True)
+            seg.ip1.bmface.select_set(True)
+            
+            print('PROCESS SEGMENT')
+            
+            return False
+        
+        if not all([f.is_valid for f in self.cut_data[seg]['face_crosses']]):  #check the validity of the pre-processed data
+            print('segment out of date')
+            self.recompute_segment(seg)
+            return False
+        
+        if seg not in self.cut_data: #dumb check after recompute, #TODO, kick us back out into modal
+            print('there is no cut data for this segment')
+            return False
+        
+        if seg in self.completed_segments:  #don't attempt to cut it again.  TODO, delete InputSegment?  Return some flag for completed?
+            print('segment already completed')
+            return False
+        
+        start = time.time()
+        
+        cdata = self.cut_data[seg]
+        if 'bmedge_to_new_bmv' not in cdata:
+            bmedge_to_new_vert_map = {}
+            cdata['bmedge_to_new_bmv'] = bmedge_to_new_vert_map  #yes, keep a map on the per segment level and on the whole network level
+        else:
+            bmedge_to_new_vert_map = cdata['bmedge_to_new_bmv']
+            
+        #create all verts on this segment
+        for i, co in enumerate(cdata['verts']):
+            bmedge = cdata['edge_crosses'][i]
+            bmv = self.input_net.bme.verts.new(co)
+            bmedge_to_new_vert_map[bmedge] = bmv
+            self.new_bmverts.add(bmv)
+        #now process all the faces crossed
+        #for a face to be crossed 2 edges of the face must be crossed
+        for f in cdata['face_crosses']:
+            ed_enter = None
+            ed_exit = None
+            bmvs = []
+            for ed in f.edges:
+                if ed in cdata['bmedge_to_new_bmv']:
+                    bmvs.append(cdata['bmedge_to_new_bmv'][ed])
+                    if ed_enter == None:
+                        ed_enter = ed
+                    else:
+                        ed_exit = ed
+                        
+                elif ed in self.reprocessed_edge_map:
+                    print('Found reprocessed edge')
+                    re_ed = self.reprocessed_edge_map[ed]
+                    if re_ed in cdata['bmedge_to_new_bmv']:
+                        bmvs.append(cdata['bmedge_to_new_bmv'][ed])
+                        if ed_enter == None:
+                            ed_enter = ed
+                        else:
+                            ed_exit = ed    
+            
+            if ed_enter == None:
+                print('No ed enter')
+                f.select_set(True)
+                print(f)
+                continue
+            if ed_exit == None:
+                print('no ed exit')
+                f.select_set(True)
+                print(f)
+                continue
+            
+            if len(bmvs) != 2:
+                print('bmvs not 2')
+                continue
+            
+            #print(ed_enter, ed_exit, bmvs)
+            f1, f2 = split_face_by_verts(self.input_net.bme, f, ed_enter, ed_exit, bmvs)   
+            if f1 == None or f2 == None:
+                print('could not split faces in process segment')
+                #self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+                return
+                #continue 
+            self.new_to_old_face_map[f1] = f
+            self.new_to_old_face_map[f2] = f
+            
+            if f not in self.new_to_old_face_map:  #maybe not a good idea, if cutting twice and
+                self.original_indices_map[f.index] = f
+                    
+            self.old_to_new_face_map[f] = [f1, f2]
+            
+        finish = time.time()
+        print('finished adding new faces in %f seconds' % (finish - start))
+        
+        
+        #delete all old faces and edges from bmesh
+        #but references remain in InputNetwork elements like InputPoint!
+        #perhaps instead of deleting them on the fly, collect them and then delete them
+        face_delete_start = time.time()
+        #bmesh.ops.delete(self.input_net.bme, geom = cdata['face_crosses'], context = 3)
+        
+        #try and remove manually
+        for bmf in cdata['face_crosses']:
+            self.input_net.bme.faces.remove(bmf)
+            
+        face_delete_finish = time.time()
+        print('deleted old faces in %f seconds' % (face_delete_finish - face_delete_start))
+        
+        
+        edge_delete_start = time.time()
+        del_edges = [ed for ed in cdata['edge_crosses'] if len(ed.link_faces) == 0]
+        del_edges = list(set(del_edges))
+        #bmesh.ops.delete(self.input_net.bme, geom = del_edges, context = 4)
+        for ed in del_edges:
+            self.input_net.bme.edges.remove(ed)
+        edge_delete_finish = time.time()
+        print('deleted old edges in %f seconds' % (edge_delete_finish - edge_delete_start))
+        self.completed_segments.add(seg)
+        #self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        
+        return
+     
+    def recompute_segment(self, seg):
+            
+        '''
+        recomputation most often needs to happen with the first or last face is crossed by
+        2 segments.  It also happens when the user draws self intersecting cuts which
+        is less common is handled by this
+        '''
+        if seg not in self.cut_data:  #check for pre-processed cut data
+            print('no cut data for this segment, must need to precompute or perhaps its internal to a face')
+            
+            print(seg.ip0.bmface)
+            print(seg.ip1.bmface)
+            
+            seg.ip0.bmface.select_set(True)
+            seg.ip1.bmface.select_set(True)
+            
+            print("NOT RECOMPUTING?")
+            print(seg.cut_method)
+            return False
+        
+        start = time.time()
+        cdata = self.cut_data[seg]
+        bmedge_to_new_vert_map = {}
+        cdata['bmedge_to_new_bmv'] = bmedge_to_new_vert_map
+        
+        bad_fs = [f for f in cdata['face_crosses'] if not f.is_valid]
+        tip_bad = cdata['face_crosses'][0].is_valid == False
+        tail_bad = cdata['face_crosses'][-1].is_valid == False
+
+        #check for self intersections in the middle
+        #if tip_bad and not tail_bad and len(bad_fs) > 1:
+        #    print('bad tip, and bad middle not handled')
+        #    return False
+        
+        #if tail_bad and not tip_bad and len(bad_fs) > 1:
+        #    print('bad tail, and bad middle not handled')
+        #    return False
+        
+        #if tip_bad and tail_bad and len(bad_fs) > 2:
+        #    print('bad tip, tail and, middle not handled')
+        #    return False
+        
+        #if not tip_bad and not tail_bad and len(bad_fs) >= 1:
+        #    print('just a bad middle, not handled')
+        #    return False
+        
+        #print('there are %i bad faces' % len(bad_fs))
+        
+        
+        tip_bad, tail_bad = False, False
+        
+        f0 = seg.ip0.bmface  #TODO check validity in case rare cutting on IPFaces
+        f1 = seg.ip1.bmface  #TDOO check validity in case rare cutting on IPFaces
+        
+        no = self.compute_cut_normal(seg)
+        if len(cdata['edge_crosses']) == 2 and len(cdata['face_crosses']) == 1:
+            tip_bad = True
+            tail_bad = True
+            co0 = cdata['verts'][0]
+            co1 = cdata['verts'][0]  #wait shouldn't this be verts [1]
+            new_fs = self.find_new_faces(cdata['face_crosses'][0])
+            
+            #fix the tip
+            #find the new edge in new_faces that matches old ed_crosses[0]
+            fixed_tip, fixed_tail = False, False
+            for f in new_fs:
+                ed_inters = find_bmedges_crossing_plane(co0, no, f.edges[:], .000001, sort = True)
+                if len(ed_inters):
+                    ed, loc = ed_inters[0]
+                    
+                    print('reality check, distance co to loc %f' % (co0 - loc).length)
+                    
+                    #create the new tip vertex
+                    bmv = self.input_net.bme.verts.new(co0)
+                    self.new_bmverts.add(bmv)
+                    
+                    #map the new edge and the old edge to that vertex
+                    cdata['bmedge_to_new_bmv'][ed] = bmv
+                    cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][0]] = bmv
+                    
+                    #map new edge to old edge
+                    self.reprocessed_edge_map[ed] = cdata['edge_crosses'][0]
+                    #replace old edge  ed_crosses[0] with the new edge for
+                    cdata['edge_crosses'][0] = ed
+                    cdata['face_crosses'][0] = f
+                    
+                    print('this edge should be the edge we find in the tail ')
+                    print(ed_inters[1])
+                    
+                    break
+            #fix the tail
+            for f in new_fs:
+                ed_inters = find_bmedges_crossing_plane(co1, no, f.edges[:], .000001, sort = True)
+                if len(ed_inters):
+                    ed, loc = ed_inters[0]
+                    
+                    print('reality check, distance co to loc %f' % (co1 - loc).length)
+                    
+                    #create the new tip vertex
+                    bmv = self.input_net.bme.verts.new(co1)
+                    self.new_bmverts.add(bmv)
+                    #map the new edge and the old eget to that vertex
+                    cdata['bmedge_to_new_bmv'][ed] = bmv
+                    cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][1]] = bmv
+                    #map old edge to new edge
+                    self.reprocessed_edge_map[ed] = cdata['edge_crosses'][1]
+                    #replace ed_crosses[0] with the new edge for
+                    cdata['edge_crosses'][1] = ed
+                    
+                    print('does this edge match?')
+                    print(ed)
+                    
+                    #there is only one face so we already did that
+            
+            return
+        
+        elif len(cdata['edge_crosses']) > 2 and len(cdata['face_crosses']) > 1:
+            tip_bad = cdata['face_crosses'][0].is_valid == False
+            tail_bad = cdata['face_crosses'][-1].is_valid == False
+            
+            
+            co0 = cdata['verts'][0]
+            co1 = cdata['verts'][-1]
+            
+            new_fs = self.find_new_faces(cdata['face_crosses'][0])
+            #fix the tip
+            #find the new edge in new_faces that matches old ed_crosses[0]
+            fixed_tip, fixed_tail = False, False
+            for f in new_fs:
+                ed_inters = find_bmedges_crossing_plane(co0, no, f.edges[:], .000001, sort = True)
+                if len(ed_inters):
+                    ed, loc = ed_inters[0]
+                    ed1, loc1 = ed_inters[1]
+                    
+                    print('reality check, distance co to loc %f' % (co0 - loc).length)
+                    
+                    #create the new tip vertex
+                    bmv = self.input_net.bme.verts.new(co0)
+                    self.new_bmverts.add(bmv)
+                    #map the new edge and the old eget to that vertex
+                    cdata['bmedge_to_new_bmv'][ed] = bmv
+                    cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][0]] = bmv
+                    #map the new edge to the old edge
+                    self.reprocessed_edge_map[ed] = cdata['edge_crosses'][0]
+                    #replace ed_crosses[0] with the new edge for
+                    cdata['edge_crosses'][0] = ed
+                    cdata['face_crosses'][0] = f
+                    
+                    #now....will the exit edge be the same?
+                    cdata['edge_crosses'][1] = ed1
+                    
+                    #cdata['verts'].pop(0) #prevent a double vert creation
+                    #cdata['edge_crosses'].pop(0)
+                    
+                    print('link faces of redge one')
+                    print([f for f in ed1.link_faces])
+                    
+                    break
+            
+            #fix the tail
+            print('fixnig a bad tail on segment')
+            new_fs = self.find_new_faces(cdata['face_crosses'][-1])
+            for f in new_fs:
+                ed_inters = find_bmedges_crossing_plane(co1, no, f.edges[:], .000001, sort = True)
+                if len(ed_inters):
+                    ed, loc = ed_inters[0]
+                    ed1, loc1 = ed_inters[1]
+                    print('reality check, distance co to loc %f' % (co1 - loc).length)
+                    #create the new tip vertex
+                    bmv = self.input_net.bme.verts.new(co1)
+                    self.new_bmverts.add(bmv)
+                    #map the new edge and the old edge to the new BMVert
+                    cdata['bmedge_to_new_bmv'][ed] = bmv
+                    cdata['bmedge_to_new_bmv'][cdata['edge_crosses'][-1]] = bmv
+                    
+                    #map the new edge to the old edge
+                    self.reprocessed_edge_map[ed] = cdata['edge_crosses'][-1]
+                    #replace old edge ed_crosses[-1] with the new edge for
+                    cdata['edge_crosses'][-1] = ed
+                    cdata['face_crosses'][-1] = f
+                    cdata['edge_crosses'][-2] = ed1
+                    
+                    #cdata['verts'].pop() #prevent a double vert creation
+                    #cdata['edge_crosses'].pop()
+                    
+                    print('link faces of edge one')
+                    print([f for f in ed1.link_faces])
+                    break        
+        
+        if tip_bad or tail_bad:
+            print('fixed tip and tail , process again')
+            
+            #create all verts on this segment
+            for i, co in enumerate(cdata['verts']):
+                if tip_bad and i == 0: continue
+                if tail_bad and i == len(cdata['verts']) - 1: continue
+                bmedge = cdata['edge_crosses'][i]
+                bmv = self.input_net.bme.verts.new(co)
+                bmedge_to_new_vert_map[bmedge] = bmv
+                self.new_bmverts.add(bmv)
+        
+            #now process all the faces crossed
+            #for a face to be crossed 2 edges of the face must be crossed
+            for f in cdata['face_crosses']:
+                ed_enter = None
+                ed_exit = None
+                bmvs = []
+                for ed in f.edges:
+                    if ed in cdata['bmedge_to_new_bmv']:
+                        bmvs.append(cdata['bmedge_to_new_bmv'][ed])
+                        if ed_enter == None:
+                            ed_enter = ed
+                        else:
+                            ed_exit = ed
+                            
+                    elif ed in self.reprocessed_edge_map:
+                        print('Found reprocessed edge')
+                        re_ed = self.reprocessed_edge_map[ed]
+                        if re_ed in cdata['bmedge_to_new_bmv']:
+                            bmvs.append(cdata['bmedge_to_new_bmv'][ed])
+                            if ed_enter == None:
+                                ed_enter = ed
+                            else:
+                                ed_exit = ed    
+                
+                if ed_enter == None:
+                    print('No ed enter')
+                    f.select_set(True)
+                    print(f)
+                    continue
+                if ed_exit == None:
+                    print('no ed exit')
+                    f.select_set(True)
+                    print(f)
+                    continue
+                if len(bmvs) != 2:
+                    print('bmvs not 2')
+                    continue
+                
+                #print(ed_enter, ed_exit, bmvs)
+                f1, f2 = split_face_by_verts(self.input_net.bme, f, ed_enter, ed_exit, bmvs)   
+                if f1 == None or f2 == None:
+                    print('could not split faces in process segment')
+                    #self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+                    return
+                    #continue 
+                self.new_to_old_face_map[f1] = f
+                self.new_to_old_face_map[f2] = f
+                
+                #if this is an original face, store it's index because bvh is going to report original mesh indices
+                if f not in self.new_to_old_face_map:
+                    self.original_indices_map[f.index] = f
+                    
+                self.old_to_new_face_map[f] = [f1, f2]
+                
+        
+        finish = time.time()
+        print('Made new faces in %f seconds' % (finish - start))
+            
+        #delete all old faces and edges from bmesh
+        #but references remain in InputNetwork elements like InputPoint!
+        delete_face_start = time.time()
+        #bmesh.ops.delete(self.input_net.bme, geom = cdata['face_crosses'], context = 3)
+        for f in cdata['face_crosses']:
+            self.input_net.bme.faces.remove(f)
+        delete_face_finish = time.time()
+        print('Deleted old faces in %f seconds' % (delete_face_finish - delete_face_start))   
+        
+        delete_edges_start = time.time()    
+        del_edges = [ed for ed in cdata['edge_crosses'] if len(ed.link_faces) == 0]
+        del_edges = list(set(del_edges))
+        #bmesh.ops.delete(self.input_net.bme, geom = del_edges, context = 4)
+        for ed in del_edges:
+            self.input_net.bme.edges.remove(ed)
+        delete_edges_finish = time.time()
+        print('Deleted old edges in %f seconds' % (delete_edges_finish - delete_edges_start))
+        start = finish
+        
+        
+        self.completed_segments.add(seg)
+        #self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+            
+              
+        return False  
     def knife_gometry_stepper_prepare(self):
         
         self.new_bmverts = set()
@@ -684,9 +1113,9 @@ class NetworkCutter(object):
         self.active_ip = self.ip_set.pop()
         
         if self.active_ip.is_edgepoint():
-            self.ip_chain = self.find_ip_chain_edgepoint(self.active_ip)
+            self.ip_chain, self.seg_enter, self.seg_exit = self.find_ip_chain_edgepoint(self.active_ip)
         else:
-            self.ip_chain = self.find_ip_chain_facepoint(self.active_ip)
+            self.ip_chain, self.seg_enter, self.seg_exit = self.find_ip_chain_facepoint(self.active_ip)
         
         
         
@@ -699,31 +1128,26 @@ class NetworkCutter(object):
         self.active_ip = self.ip_set.pop()
         
         #find all connected IP on the same face
+        #as well as the segments which enter/exit the face (cross a face edge)
         if self.active_ip.is_edgepoint():
-            self.ip_chain = self.find_ip_chain_edgepoint(self.active_ip)
+            self.ip_chain, self.seg_enter, self.seg_exit = self.find_ip_chain_edgepoint(self.active_ip)
         else:
-            self.ip_chain = self.find_ip_chain_facepoint(self.active_ip)
+            self.ip_chain, self.seg_enter, self.seg_exit = self.find_ip_chain_facepoint(self.active_ip)
     
         print(len(self.ip_chain))
         
-        #find entrance and exit segments
-        
-        #if len(ip_chain) == 1
-            #if ip_chain[0].is_edgepoint
-                #seg_enter = None
-                #seg_exit = ip_chain[0].link_segments[0]
-            #else:
-                #seg_enter = ip_chain[0].link_segments[0]
-                #seg_exit = ip_chain[0].link_segments[1]
-        
-        #else:
-            #if ip_chain[0].is_edge_point():
-                #seg_enter = None
-            #else:
-                #    
+        #commit the entrance and exit segments to BMesh if not arleady
+        if self.seg_enter and self.seg_enter not in self.completed_segments:
+            self.process_segment(self.seg_enter)
             
-            #if ip_chain[-1].is_edgepoint()
-                #seg_exit = None
+        if self.seg_exit and self.seg_exit not in self.completed_segments:
+            self.process_segment(self.seg_exit)
+        
+        self.input_net.bme.verts.ensure_lookup_table()
+        self.input_net.bme.faces.ensure_lookup_table()
+        self.input_net.bme.edges.ensure_lookup_table()
+        
+        
         
         
     def knife_geometry3(self):
