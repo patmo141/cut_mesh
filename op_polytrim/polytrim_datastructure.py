@@ -636,6 +636,7 @@ class NetworkCutter(object):
                 if not ip_next.bmface.is_valid:
                     remap_input_point(ip_next)
                 if ip_next.is_edgepoint(): 
+                    chain += [ip_next]
                     print('we broke on an endpoint')
                     #ip_set.remove(ip_next)
                     break
@@ -643,8 +644,8 @@ class NetworkCutter(object):
             
         chain_0.reverse()
         
-        if len(chain_0)  and len(chain_1):
-            print(chain_0 + [ip] + chain_1)
+        #if len(chain_0) and len(chain_1):
+            #print(chain_0 + [ip] + chain_1)
             
         return chain_0 + [ip] + chain_1    
    
@@ -676,6 +677,8 @@ class NetworkCutter(object):
         else:
             self.ip_chain = self.find_ip_chain_facepoint(self.active_ip)
         
+        
+        
     def knife_geometry_step(self):
         
         #ensure we have prepared
@@ -691,6 +694,26 @@ class NetworkCutter(object):
             self.ip_chain = self.find_ip_chain_facepoint(self.active_ip)
     
         print(len(self.ip_chain))
+        
+        #find entrance and exit segments
+        
+        #if len(ip_chain) == 1
+            #if ip_chain[0].is_edgepoint
+                #seg_enter = None
+                #seg_exit = ip_chain[0].link_segments[0]
+            #else:
+                #seg_enter = ip_chain[0].link_segments[0]
+                #seg_exit = ip_chain[0].link_segments[1]
+        
+        #else:
+            #if ip_chain[0].is_edge_point():
+                #seg_enter = None
+            #else:
+                #    
+            
+            #if ip_chain[-1].is_edgepoint()
+                #seg_exit = None
+        
         
     def knife_geometry3(self):
         #check all deferred calculations
