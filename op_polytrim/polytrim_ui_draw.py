@@ -228,10 +228,10 @@ class Polytrim_UI_Draw():
             draw3d_points(context, [ip.world_loc for ip in self.network_cutter.ip_chain], purple, 12)
         
         if self.network_cutter.seg_enter:
-            draw3d_polyline(context, self.network_cutter.seg_enter.path,  orange, 4, 'GL_LINE_STRIP' )
+            draw3d_polyline(context, self.network_cutter.seg_enter.path,  green, 4, 'GL_LINE_STRIP' )
                 
         if self.network_cutter.seg_exit:
-            draw3d_polyline(context, self.network_cutter.seg_exit.path,  orange, 4, 'GL_LINE_STRIP' )
+            draw3d_polyline(context, self.network_cutter.seg_exit.path,  red, 4, 'GL_LINE_STRIP' )
                         
         bgl.glLineWidth(1)     
                 

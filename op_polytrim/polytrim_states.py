@@ -133,12 +133,13 @@ class Polytrim_States():
 
         if self.actions.mousemove:
             self.net_ui_context.update(self.actions.mouse)
-            #self.hover()
+            #self.net_ui_context.hover()
             return
         if self.actions.mousemove_prev:
             #update the b_pt location
             self.net_ui_context.update(self.actions.mouse)
             #self.hover()
+            #self.net_ui_context.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
 
     @CookieCutter.FSM_State('grab', 'exit')

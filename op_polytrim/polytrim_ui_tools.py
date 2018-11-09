@@ -5,6 +5,7 @@ Created on Oct 10, 2015
 '''
 import bmesh
 import bpy
+import time
 
 from ..bmesh_fns import edge_loops_from_bmedges_old, ensure_lookup
 from ..common.utils import get_matrices
@@ -120,7 +121,7 @@ class Polytrim_UI_Tools():
             ''' Moves location of point'''
             d = self.net_ui_context.hovered_mesh
             if d and self.grab_point:
-                self.grab_point.set_values(d["world loc"], d["local loc"], d["normal"], d["face index"])
+                self.grab_point.set_values(d["world loc"], d["local loc"], d["view"], d["face index"])
                 self.grab_point.bmface = self.input_net.bme.faces[d["face index"]]
 
         def grab_cancel(self):
@@ -205,7 +206,16 @@ class Polytrim_UI_Tools():
             self.find_non_man()
             self.non_man_eds = [ed.index for ed in self.bme.edges if not ed.is_manifold]
             self.non_man_ed_loops = edge_loops_from_bmedges_old(self.bme, self.non_man_eds)
+        
+        def update_bvh(self):
             
+            start = time.time()
+            del self.bvh
+            self.bvh = BVHTree.FromBMesh(self.bme)
+            finish = time.time()
+            
+            print('updated BVH in %f seconds' % (finish-start))
+                
         def has_non_man(self): return len(self.non_man_bmverts) > 0
         def is_hovering_mesh(self): 
             if self.hovered_mesh: return self.hovered_mesh["face index"] != -1
@@ -245,6 +255,7 @@ class Polytrim_UI_Tools():
                 self.hovered_mesh["local loc"] = loc
                 self.hovered_mesh["normal"] = no
                 self.hovered_mesh["face index"] = face_ind
+                self.hovered_mesh["view"] = view_vector
 
         
         def ray_cast_mouse(self):
@@ -256,7 +267,7 @@ class Polytrim_UI_Tools():
                 self.hovered_mesh["local loc"] = loc
                 self.hovered_mesh["normal"] = no
                 self.hovered_mesh["face index"] = face_ind
-            
+                self.hovered_mesh["view"] = view_vector
               
         def nearest_non_man_loc(self):
             '''
@@ -532,10 +543,12 @@ class Polytrim_UI_Tools():
         
     def knife_step_button(self):
         self.network_cutter.knife_geometry_step()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
          
     def compute_cut3_button(self):
         self.network_cutter.knife_geometry3()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        
         
     def enter_seed_select_button(self):    
         self._state_next = 'seed'
