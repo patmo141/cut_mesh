@@ -80,7 +80,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         info.add(ui.UI_Label('Tools', fontsize=16, align=0, margin=4))
         #info.add(ui.UI_Button('Find Network Cycles', self.find_network_cycles_button, margin=5))
         #info.add(ui.UI_Button('Compute Cut Method 2', self.compute_cut2_button, margin=5))
-        info.add(ui.UI_Button('Compute Cut Method 3', self.compute_cut3_button, margin=5))
+        info.add(ui.UI_Button('Compute Cut', self.compute_cut_button, margin=5))
         info.add(ui.UI_Button('Select Seeds', self.enter_seed_select_button, margin=5))
         
         #Knife geometry stepper buttons

@@ -182,6 +182,7 @@ class Polytrim_States():
                 print("NEW:",self.net_ui_context.hovered_near)
                 print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
+                self.sketcher.finalize_bezier(self.context)
                 self.network_cutter.update_segments_async()
             self.ui_text_update()
             self.sketcher.reset()
@@ -198,6 +199,7 @@ class Polytrim_States():
     @CookieCutter.FSM_State('seed', 'enter')
     def seed_enter(self):
         #set the cursor to to something
+        self.network_cutter.find_perimeter_edges()
         return
     
     @CookieCutter.FSM_State('seed')

@@ -316,7 +316,7 @@ class NetworkCutter(object):
         ############################
 
         
-        if seg.ip1.view.dot(seg.i0.view) < 0:
+        if seg.ip1.view.dot(seg.ip0.view) < 0:
             surf_no = self.net_ui_context.imx.to_3x3() * seg.ip0.view.lerp(-1 * seg.ip1.view, 0.5)
         else:
             surf_no = self.net_ui_context.imx.to_3x3() * seg.ip0.view.lerp(seg.ip1.view, 0.5)  #must be a better way.
@@ -1292,9 +1292,23 @@ class NetworkCutter(object):
             print('f1 or f2 is none why')
             return            
                     
-        self.input_net.bme.verts.ensure_lookup_table()
+     
+    
+    def knife_geometry4(self):
+        self.knife_gometry_stepper_prepare()
+        
+        while len(self.ip_set):
+            self.knife_geometry_step()
+        
+        self.seg_enter = None
+        self.seg_exit = None
+        self.active_ip = None
+        
         self.input_net.bme.faces.ensure_lookup_table()
         self.input_net.bme.edges.ensure_lookup_table()
+        self.input_net.bme.verts.ensure_lookup_table()   
+        return
+        
         
     def knife_geometry3(self):
         #check all deferred calculations

@@ -18,7 +18,7 @@ from mathutils import Vector, kdtree
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
 from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
-
+from ..common.bezier import CubicBezierSpline
 
 class Polytrim_UI_Tools():
     '''
@@ -37,7 +37,8 @@ class Polytrim_UI_Tools():
             self.net_ui_context = net_ui_context
             self.stroke_smoothing = 0.75  # 0: no smoothing. 1: no change
             self.sketch_curpos = (0, 0)
-
+            self.bez_data = []
+            
         def has_locs(self): return len(self.sketch) > 0
         has_locs = property(has_locs)
 
@@ -97,6 +98,29 @@ class Polytrim_UI_Tools():
                 #self.network_cutter.precompute_cut(seg)
                 #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
 
+        def finalize_bezier(self, context):
+            
+            stroke3d = []
+            for ind in range(0, len(self.sketch) , 5):
+                pt_screen_loc = self.sketch[ind]  #in screen space
+                view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
+                    #loc, no, face_ind =  ray_cast(self.net_ui_context.ob,self.net_ui_context.imx, ray_origin, ray_target, None)  #intersects that ray with the geometry
+                loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
+                if face_ind != None:
+                    stroke3d += [self.net_ui_context.mx * loc]
+                    
+                print(stroke3d)
+                #cbs = CubicBezierSpline.create_from_points([stroke3d], .5)
+                #cbs.tesselate_uniform(lambda p,q:(p-q).length, split=10)
+                #L = cbs.appoximate_totlength_tesselation()
+                #n = L/2  #2mm spacing long strokes?
+                #self.bez_data = cbs.tesselate_uniform_points(segments = n)
+                
+                #self.network_cutter.precompute_cut(seg)
+                #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
+            
+            
+            
     class GrabManager():
         '''
         UI tool for managing input point grabbing/moving made by user.
@@ -545,8 +569,8 @@ class Polytrim_UI_Tools():
         self.network_cutter.knife_geometry_step()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
          
-    def compute_cut3_button(self):
-        self.network_cutter.knife_geometry3()
+    def compute_cut_button(self):
+        self.network_cutter.knife_geometry4()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         
         
