@@ -64,6 +64,10 @@ class Polytrim_States():
             #What about can_enter?
             return 'seed'
         
+        if self.actions.pressed('P'):
+            #TODO what about a button?
+            #What about can_enter?
+            return 'paint_wait'
         
         #re-tesselate at 3mm resolution
         if self.actions.pressed('T'):
@@ -199,7 +203,11 @@ class Polytrim_States():
     @CookieCutter.FSM_State('seed', 'enter')
     def seed_enter(self):
         #set the cursor to to something
-        self.network_cutter.find_perimeter_edges()
+        if self.network_cutter.knife_complete:
+            self.network_cutter.find_perimeter_edges()
+        else:
+            self.network_cutter.find_boundary_faces()
+        
         return
     
     @CookieCutter.FSM_State('seed')
@@ -229,3 +237,95 @@ class Polytrim_States():
             return 'main'
            
         return 'seed'
+    
+    
+    @CookieCutter.FSM_State('paint_wait', 'can enter')
+    def paintwait_can_enter(self):
+        #the cut network has been executed
+        return True
+
+    @CookieCutter.FSM_State('paint_wait', 'enter')
+    def paintwait_enter(self):
+        
+        self.brush = self.PaintBrush(self.net_ui_context)
+        return
+    
+    @CookieCutter.FSM_State('paint_wait')
+    def modal_paintwait(self):
+        self.cursor_modal_set('PAINT_BRUSH')
+        if self.actions.mousemove_prev:
+            #update the bmesh geometry under mouse location
+            self.net_ui_context.update(self.actions.mouse)
+            
+                
+        if self.actions.pressed('LEFTMOUSE'):
+            #start painting
+            return 'paint'
+        
+        if self.actions.pressed('RIGHTMOUSE'):
+            
+            return 'paint'
+        
+        if self.actions.pressed('RET'):
+            
+            del self.brush
+            self.brush = None
+            self.paint_exit()
+            return 'main'
+        
+        if self.actions.pressed('ESC'):
+            del self.brush
+            self.brush = None
+            return 'main'
+        
+        return 'paint_wait'
+    
+    
+    @CookieCutter.FSM_State('paint', 'can enter')
+    def paint_can_enter(self):
+        #any time really, may require a BVH update if
+        #network cutter has been executed
+        return True
+
+    @CookieCutter.FSM_State('paint', 'enter')
+    def paint_enter(self):
+        #set the cursor to to something
+        self.network_cutter.find_boundary_faces()
+        self.click_enter_paint()
+        return
+    
+    @CookieCutter.FSM_State('paint')
+    def modal_paint(self):
+        self.cursor_modal_set('PAINT_BRUSH')
+        if self.actions.mousemove_prev:
+            #update the bmesh geometry under mouse location
+            #use brush radius to find all geometry within
+            #add that geometry to the "stroke region"
+            #color it as the "interim" strokeregion color
+            self.brush.absorb_geom(self.context, self.actions.mouse)
+            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+            return 'paint'
+        
+        if self.actions.released('LEFTMOUSE'):
+            self.brush.absorb_geom(self.context, self.actions.mouse)
+            self.paint_confirm()
+            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+            
+            #self.paint_confirm()
+            #add all geometry (or subtract all geometr) from current patch
+            #color it apporpriately
+            #reset the paint widget
+            return 'paint_wait'
+        
+        #if right click
+            #remove the seed
+            #remove any "patch" data associated with the seed
+
+        #if escape
+            #return to 'main'
+            
+        #if enter
+            #return to 'main'
+        
+           
+        return 'paint'

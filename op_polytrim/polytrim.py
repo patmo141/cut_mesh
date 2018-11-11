@@ -77,11 +77,14 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
         self.set_ui_text_no_points()
 
-        info.add(ui.UI_Label('Tools', fontsize=16, align=0, margin=4))
-        #info.add(ui.UI_Button('Find Network Cycles', self.find_network_cycles_button, margin=5))
-        #info.add(ui.UI_Button('Compute Cut Method 2', self.compute_cut2_button, margin=5))
+        info.add(ui.UI_Label('Pre Cut Tools', fontsize=16, align=0, margin=4))
+        info.add(ui.UI_Button('Paint Mode', self.enter_paint_mode, margin=5))
+        info.add(ui.UI_Button('Draw/Polyline Mode', self.enter_poly_mode, margin=5))
+        info.add(ui.UI_Button('Select Regions', self.enter_seed_select_button, margin=5))
+        
+        info.add(ui.UI_Label('Cut Tools', fontsize=16, align=0, margin=4))
         info.add(ui.UI_Button('Compute Cut', self.compute_cut_button, margin=5))
-        info.add(ui.UI_Button('Select Seeds', self.enter_seed_select_button, margin=5))
+        
         
         #Knife geometry stepper buttons
         info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
@@ -107,7 +110,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
 
         self.sketcher = self.SketchManager(self.input_net, self.net_ui_context, self.network_cutter)
         self.grabber = self.GrabManager(self.input_net, self.net_ui_context, self.network_cutter)
-
+        self.brush = None
 
 
     def end(self):

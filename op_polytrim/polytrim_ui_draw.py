@@ -123,7 +123,7 @@ class Polytrim_UI_Draw():
          * ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
         '''
         context = self.context
-        if self.input_net.is_empty: return
+        #if self.input_net.is_empty: return #TODO while diagnosing
 
         blue = (.1,.1,.8,1)
         blue2 = (.1,.2,1,.8)
@@ -233,10 +233,12 @@ class Polytrim_UI_Draw():
         if self.network_cutter.seg_exit:
             draw3d_polyline(context, self.network_cutter.seg_exit.path,  red, 4, 'GL_LINE_STRIP' )
         
-        if len(self.sketcher.bez_data):
-            draw3d_polyline(context, self.sketcher.bez_data,  (.3, .3, .3, .75), 4, 'GL_LINE_STRIP' )
+        #if len(self.sketcher.bez_data):
+        #    draw3d_polyline(context, self.sketcher.bez_data,  (.3, .3, .3, .75), 4, 'GL_LINE_STRIP' )
              
-                          
+        if len(self.network_cutter.simple_paths):
+            for path in self.network_cutter.simple_paths:
+                draw3d_polyline(context, path,  (.8, .5, .5, 1), 4, 'GL_LINE_STRIP' )                  
         bgl.glLineWidth(1)     
                 
         

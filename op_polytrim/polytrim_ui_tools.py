@@ -14,7 +14,7 @@ from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path, ray_cast_b
 from .polytrim_datastructure import InputNetwork, InputPoint, InputSegment
 
 from bpy_extras import view3d_utils
-from mathutils import Vector, kdtree
+from mathutils import Vector, kdtree, Color
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
 from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
@@ -96,8 +96,9 @@ class Polytrim_UI_Tools():
                 seg = InputSegment(prev_pnt,end_pnt)
                 self.input_net.segments.append(seg)
                 #self.network_cutter.precompute_cut(seg)
-                #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
-
+                #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.im 
+        
+        
         def finalize_bezier(self, context):
             
             stroke3d = []
@@ -109,18 +110,61 @@ class Polytrim_UI_Tools():
                 if face_ind != None:
                     stroke3d += [self.net_ui_context.mx * loc]
                     
-                print(stroke3d)
-                #cbs = CubicBezierSpline.create_from_points([stroke3d], .5)
-                #cbs.tesselate_uniform(lambda p,q:(p-q).length, split=10)
-                #L = cbs.appoximate_totlength_tesselation()
-                #n = L/2  #2mm spacing long strokes?
-                #self.bez_data = cbs.tesselate_uniform_points(segments = n)
+            print(stroke3d)
+            cbs = CubicBezierSpline.create_from_points([stroke3d], .2)
+            cbs.tessellate_uniform(lambda p,q:(p-q).length, split=20)
+            L = cbs.approximate_totlength_tessellation()
+            n = L/2  #2mm spacing long strokes?
+            print(cbs.tessellation)
+            
+            self.bez_data = []
+            for btess in cbs.tessellation:
+                self.bez_data += [pt.as_vector() for i,pt,d in btess]
+            
+            
+    class PaintBrush():  #TODO replace with widget, this is a coars placeholder
+        
+        #active patch?  meaning we are updating a selection
+        def __init__(self, net_ui_context, radius = 1.5, color = (.8, .1, .3)):
+            self.net_ui_context = net_ui_context
+            self.radius = radius
+            self.brush_color = Color(color)
+            #self.brush_rad_pixel = 40
+            
+            self.geom_accum = set()  #FACES
+        
+            #TODO....figure out if we need a dual color layer?
+            if "patches" not in self.net_ui_context.bme.loops.layers.color:
+                vcol_layer = self.net_ui_context.bme.loops.layers.color.new("patches")
+            else:
+                vcol_layer = self.net_ui_context.bme.loops.layers.color["patches"]
+            
+            self.vcol = vcol_layer
+            
+        def absorb_geom(self, context, pt_screen_loc):
+            
+            view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
+            loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
+                    
+            if loc != None:
+                close_geom = self.net_ui_context.bvh.find_nearest_range(loc, self.radius)
                 
-                #self.network_cutter.precompute_cut(seg)
-                #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
-            
-            
-            
+                fs = [self.net_ui_context.bme.faces[ind] for  _,_,ind,_ in close_geom]                
+                self.color_geom(fs)  
+                
+                self.geom_accum.update(fs)  
+                
+        def color_geom(self, faces):
+            for f in faces:
+                for loop in f.loops:
+                    loop[self.vcol] = self.brush_color
+                 
+        def color_all_geom(self):
+            for f in self.geom_accum:
+                for loop in f.loops:
+                    loop[self.vcol] = self.brush_color
+                    
+                    
     class GrabManager():
         '''
         UI tool for managing input point grabbing/moving made by user.
@@ -210,7 +254,10 @@ class Polytrim_UI_Tools():
             ensure_lookup(self.bme)
             self.bvh = BVHTree.FromBMesh(self.bme) 
             self.mx, self.imx = get_matrices(self.ob) 
-
+            self.mx_norm = self.imx.transposed().to_3x3() #local directions to global
+            self.imx_norm = self.imx.to_3x3() #global direction to local
+            
+            
             if ui_type not in {'SPARSE_POLY','DENSE_POLY', 'BEZIER'}: self.ui_type = 'SPARSE_POLY'
             else: self.ui_type = ui_type
 
@@ -440,7 +487,56 @@ class Polytrim_UI_Tools():
         world_loc = self.net_ui_context.hovered_mesh['world loc']
         local_loc = self.net_ui_context.hovered_mesh['local loc']
         self.network_cutter.add_seed(face_ind, world_loc, local_loc)
+    
+    def click_enter_paint(self):
         
+        if self.net_ui_context.hovered_mesh == {}: return
+        
+        face_ind = self.net_ui_context.hovered_mesh['face index']
+        world_loc = self.net_ui_context.hovered_mesh['world loc']
+        local_loc = self.net_ui_context.hovered_mesh['local loc']
+        
+        f= self.net_ui_context.bme.faces[face_ind] 
+         
+        self.network_cutter.active_patch = None  #TODO, this should already be none..should we enforce it?
+        for patch in self.network_cutter.face_patches:
+            if f in patch.patch_faces:  #just change the color but don't add a duplicate
+                self.network_cutter.active_patch = patch
+                self.brush.brush_color = patch.color
+                print('found the active patch')
+        
+        if self.network_cutter.active_patch == None:
+            self.network_cutter.add_patch_start_paint(face_ind, world_loc, local_loc)
+                       
+    def paint_confirm(self):
+        print('paint confirm')
+        for patch in self.network_cutter.face_patches:
+            if patch == self.network_cutter.active_patch:continue
+            L = len(patch.patch_faces)
+            patch.patch_faces.difference_update(self.brush.geom_accum)
+            if L != len(patch.patch_faces):
+                patch.paint_modified = True
+                for ip in patch.ip_points:
+                    if ip in self.input_net.points:
+                        self.input_net.remove_point(ip, disconnect = True)
+        
+        
+        #TODO, instead of obliterating entire path.... just delete the segments
+        #that are touched by geom_accum and cut_data[face_set] or IP.bmface in
+        #geom_accum
+        self.network_cutter.active_patch.patch_faces |= self.brush.geom_accum
+        self.network_cutter.active_patch.paint_modified = True
+        for ip in self.network_cutter.active_patch.ip_points:
+            if ip in self.input_net.points:
+                self.input_net.remove_point(ip, disconnect = True)
+                
+        self.network_cutter.active_patch.color_patch()
+        self.network_cutter.validate_cdata()
+        
+        
+    def paint_exit(self):
+        self.network_cutter.create_network_from_face_patches()
+         
     # TODO: Make this a NetworkUIContext function
     def closest_endpoint(self, pt3d):
         def dist3d(point):
@@ -559,6 +655,23 @@ class Polytrim_UI_Tools():
         for inst_p in self.inst_paragraphs:
             inst_p.set_markdown('')
 
+    def enter_poly_mode(self):
+        if self._state == 'main': return
+        
+        if self._state == 'paint_wait':
+            del self.brush
+            self.brush = None
+            self.paint_exit()
+            self._state_next = 'main'
+    
+        elif self._state == 'seed':
+            self._state_next = 'main'
+            
+            
+    def enter_paint_mode(self):
+        if self._state == 'paint_wait': return
+        self._state_next = 'paint_wait'
+               
     def find_network_cycles_button(self):
         self.input_net.find_network_cycles()
     
@@ -571,8 +684,14 @@ class Polytrim_UI_Tools():
          
     def compute_cut_button(self):
         self.network_cutter.knife_geometry4()
+        
+        self.network_cutter.find_perimeter_edges()
+        for patch in self.network_cutter.face_patches:
+            patch.grow_seed(self.input_net.bme, self.network_cutter.boundary_edges)
+            patch.color_patch()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         
+        self._sate_next = 'seed'
         
     def enter_seed_select_button(self):    
         self._state_next = 'seed'
@@ -765,7 +884,7 @@ class Polytrim_UI_Tools():
         new_points = []
         for i in range(0, len(points) - 1):
             L = (points[i+1].world_loc - points[i].world_loc).length
-            n_steps = math.floor(L/res)
+            n_steps = round(L/res)
             
             if n_steps == 0: #don't loose points at closer resolution
                 new_points += [points[i].duplicate()]

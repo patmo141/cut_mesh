@@ -35,6 +35,7 @@ __all__ = [
     'metaclasses',
     'profiler',
     'shaders',
+    'simplify',
     'ui',
     'useractions',
     'utils',

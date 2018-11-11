@@ -26,6 +26,7 @@ from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
 from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
+from ..bmesh_fns import face_region_boundary_loops, bmesh_loose_parts_faces
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points, path_between_2_points_clean, find_bmedges_crossing_plane
 from ..geodesic import GeoPath, geodesic_walk, continue_geodesic_walk, gradient_descent
 from .. import common_drawing
@@ -34,9 +35,12 @@ from ..common.blender import bversion
 from ..common.utils import get_matrices
 from ..common.bezier import CubicBezier, CubicBezierSpline
 from ..common.shaders import circleShader
+from ..common.simplify import simplify_RDP, relax_vert_chain
 from ..common.profiler import profiler
 
 from concurrent.futures.thread import ThreadPoolExecutor
+from test.test_dis import simple
+
 
 
 
@@ -178,30 +182,113 @@ def split_face_by_verts(bme, f, ed_enter, ed_exit, bmvert_chain):
 class BMFacePatch(object):
     '''
     Data Structure for managing patches on BMeshes meant to help
-    in segmentation of surface patcehs
+    in segmentation of surface patches
     '''
-    def __init__(self, bmface, local_loc, world_loc, color = (1.0, .7, 0)):
+    def __init__(self, bmface, local_loc, world_loc, vcol_layer, color = (1.0, .7, 0)):
         self.seed_face = bmface
         self.local_loc = local_loc
         self.world_loc = world_loc
         
         self.patch_faces = set()  #will find these
-        self.boundary_edges = set() #set of BMEdges
+        self.boundary_edges = set() #set of BMEdges will be calculated
         self.color = Color(color)
+        self.color_layer = vcol_layer
         
         
-    def grow_seed(self, bme, boundary_edges):  
+        self.input_net_segments = []
+        self.ip_points = []
+        self.perimeter_path = []
+        
+        self.paint_modified = False  #flag for when boundary needs to be updated when re-entering stroke modes
+        
+    def set_color(self, color): 
+        self.color = Color(color)
+           
+    def grow_seed(self, bme, boundary_edges):
+        #if we are re-growing our seed,
+        if len(self.patch_faces)  != 0:
+            self.un_color_patch()
         island = flood_selection_edge_loop(bme, boundary_edges, self.seed_face, max_iters = 10000)
         self.patch_faces = island
         
-    def color_patch(self, color_layer):
+    def grow_seed_faces(self, bme, boundary_faces):
+        island = flood_selection_faces(bme, boundary_faces, self.seed_face)
+        island -= boundary_faces  #because boundary_faces are between all segments
+        self.patch_faces = island
+    
+    def adjacent_faces(self):
+        '''
+        the set of the one ring neighbors of this patch
+        used for adjacency testing
+        TODO, cache and use for later, know when to update
+        '''
+        def face_neighbors_by_vert(bmface):
+            neighbors = []
+            for v in bmface.verts:
+                neighbors += [f for f in v.link_faces if f != bmface]
+        
+            return neighbors
+        
+        expanded_faces = set()
+        if len(self.boundary_edges) == 0:
+            for f in self.patch_faces:
+                expanded_faces.update(face_neighbors_by_vert(f))
+        else:
+            for ed in self.boundary_edges:
+                for v in ed.verts:
+                    expanded_faces.update([f for f in v.link_faces])
+                    
+        expanded_faces.difference_update(self.patch_faces)
+        
+        return expanded_faces
+            
+            
+    def color_patch(self, color_layer = None):
+        
+        if color_layer == None:
+            color_layer = self.color_layer
+            
         for f in self.patch_faces:
             for loop in f.loops:
                 loop[color_layer] = self.color
 
-
+    def un_color_patch(self, color_layer = None):
+        color = Color((1,1,1))
+        if color_layer == None:
+            color_layer = self.color_layer
+            
+        for f in self.patch_faces:
+            if not f.is_valid: continue
+            for loop in f.loops:
+                loop[color_layer] = color
+                
+    def find_boundary_edges(self, bme):
+        #TODO refactor bmesh_fns to not use indices
+        #for now, only biggest patch
+        if len(self.patch_faces) == 0: return
+        
+        islands = bmesh_loose_parts_faces(bme, self.patch_faces)
+        self.perimeter_path = []
+        self.boundary_edges.clear()
+        if len(islands) > 1:
+            mainland = max(islands, key = len)
+            geom = face_region_boundary_loops(bme, [f.idnex for f in mainland])
+        
+            for island in islands:
+                if island == mainland: continue
+                self.patch_faces.difference_update(island)
+        else:
+            geom = face_region_boundary_loops(bme, [f.index for f in self.patch_faces])
+        
+        loop = geom['EDGES'][0]
+        for ind in loop:
+            self.boundary_edges.add(bme.edges[ind])
+        
+        loop = geom['VERTS'][0]
+        for ind in loop:
+            self.perimeter_path += [bme.verts[ind].co.copy()]
+        
 #Input Net Topolocy Functons to help
-
 def next_segment(ip, current_seg): #TODO Code golf this
     if len(ip.link_segments) != 2: return None  #TODO, the the segment to right
     return [seg for seg in ip.link_segments if seg != current_seg][0]
@@ -240,12 +327,17 @@ class NetworkCutter(object):
         self.old_face_indices = {}
         for f in self.input_net.bme.faces:
             self.old_face_indices[f.index] = f
-            
-            
-        self.boundary_edges = set()  #this is a list of the newly created cut edges (the seams)
+          
+        
+        #list of BMFacePatch 
         self.face_patches = []
+        self.active_patch = None  #used when painting
+            
+        #this is used to create coars boudaries from the input segments
+        self.boundary_faces = set()
         
-        
+        self.knife_complete = False
+        self.boundary_edges = set()  #this is a list of the newly created cut edges (the seams)
         self.the_bad_segment = None
         self.seg_enter = None
         self.seg_exit = None
@@ -253,9 +345,15 @@ class NetworkCutter(object):
         self.ip_chain = []
         self.ip_set = set()
         
+        #temporary stuff to draw
+        self.simple_paths = []
+    
+    
+    ###########################################
+    ####### Pre Cut Commit Functions  #########
+    ###########################################
         
     def update_segments(self):
-        
         for seg in self.input_net.segments:
             
             if seg.needs_calculation and not seg.calculation_complete:
@@ -517,6 +615,80 @@ class NetworkCutter(object):
                 self.pre_vis_geo(seg, self.input_net.bme, self.net_ui_context.bvh, self.net_ui_context.mx)   
 
 
+    def find_boundary_faces(self):
+        self.boundary_faces = set()
+        #find network cycles
+        #this prevents open cycles from messing up things
+        ip_cycles, seg_cycles = self.input_net.find_network_cycles()
+        for seg_cyc in seg_cycles:
+            for seg in seg_cyc:
+                if seg not in self.cut_data: continue
+                self.boundary_faces.update(self.cut_data[seg]['face_crosses'])
+        for ip_cyc in ip_cycles:
+            for ip in ip_cyc:
+                self.boundary_faces.add(ip.bmface)   
+
+                
+    def create_network_from_face_patches(self):
+        
+        if len(self.face_patches) == 0:
+            print('no face patches yet')
+            return
+        
+        self.simple_paths = []  #clear the old data
+        for patch in self.face_patches:
+            if not patch.paint_modified: continue
+            #TODO how to handle patches on non manifold boundary
+            #TODO how to ensure non-tangentional patches (patches with a border)
+            patch.find_boundary_edges(self.input_net.bme)
+            raw_boundary = patch.perimeter_path
+            
+            #relaxed_boundary = relax_vert_chain(raw_boundary, in_place = False)
+            #simple_path_inds = simplify_RDP(relaxed_boundary, .25)
+            simple_path_inds = simplify_RDP(raw_boundary, .4)
+            simple_path = [self.net_ui_context.mx * raw_boundary[i] for i in simple_path_inds]
+            
+            #self.simple_paths += [simple_path]
+            patch.paint_modified = False
+            patch.input_net_segments = []
+            patch.ip_points = []
+            prev_pnt = None
+            for ind in range(0, len(simple_path) -1):
+                pt = simple_path[ind]
+                #intersects that ray with the geometry
+                delta = Vector((random.random(), random.random(), random.random()))
+                delta.normalize()
+                
+                loc, no, face_ind, d =  self.net_ui_context.bvh.find_nearest(self.net_ui_context.imx * (pt + .1 * delta))
+                if face_ind != None:
+                    new_pnt = self.input_net.create_point(self.net_ui_context.mx * loc, loc, self.net_ui_context.mx_norm * no, face_ind)
+                    patch.ip_points.append(new_pnt)
+                if prev_pnt:
+                    print(prev_pnt)
+                    seg = InputSegment(prev_pnt,new_pnt)
+                    self.input_net.segments.append(seg)
+                    patch.input_net_segments.append(seg)
+                    #self.network_cutter.precompute_cut(seg)
+                    #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
+                prev_pnt = new_pnt
+            
+            #seal the tail
+            seg = InputSegment(prev_pnt,patch.ip_points[0])
+            self.input_net.segments.append(seg)
+            patch.input_net_segments.append(seg)
+            
+            print('the distance between p0 and p-1 is %f' % (simple_path[0] - simple_path[-1]).length)
+            
+            #check cyclic
+            
+            #check edge points or non man edges in patch.find_boundary
+            
+            
+            
+        self.update_segments()   
+        print('there are %i simplfied paths' % len(self.simple_paths))
+        for p in self.simple_paths:
+            print('path is %i long' % len(p))
     #########################################################
     #### Helper Functions for committing cut to BMesh #######
     #########################################################
@@ -1184,7 +1356,6 @@ class NetworkCutter(object):
               
         return False  
     
-    
     def find_perimeter_edges(self):
         perim_edges = set()    
         for ed in self.input_net.bme.edges: #TODO, is there a faster way to collect these edges from the strokes? Yes
@@ -1206,7 +1377,8 @@ class NetworkCutter(object):
 
         self.boundary_edges = perim_edges    
         
-        
+    
+       
     def knife_gometry_stepper_prepare(self):
         
         self.new_bmverts = set()
@@ -1303,6 +1475,7 @@ class NetworkCutter(object):
         self.seg_enter = None
         self.seg_exit = None
         self.active_ip = None
+        self.knife_complete = True
         
         self.input_net.bme.faces.ensure_lookup_table()
         self.input_net.bme.edges.ensure_lookup_table()
@@ -2322,7 +2495,18 @@ class NetworkCutter(object):
         print('Executed the cut in %f seconds' % (knife_finish - knife_sart))
         return    
         
+    
+    
+    
     def add_seed(self, face_ind, world_loc, local_loc):
+        
+        if self.knife_complete:
+            self.add_seed_post_cut(face_ind, world_loc, local_loc)
+        else:
+            self.add_seed_pre_cut(face_ind, world_loc, local_loc)
+            
+            
+    def add_seed_post_cut(self, face_ind, world_loc, local_loc):
         #dictionaries to map newly created faces to their original faces and vice versa
         original_face_indices = self.original_indices_map
         new_to_old_face_map = self.new_to_old_face_map
@@ -2419,13 +2603,90 @@ class NetworkCutter(object):
             print('failed to find the new face')
             return
         
-        new_patch = BMFacePatch(f, local_loc, world_loc, (random.random(), random.random(), random.random()))
+        
+        for patch in self.face_patches:
+            if f in patch.patch_faces:  #just change the color but don't add a duplicate
+                patch.set_color((random.random(), random.random(), random.random()))
+                patch.color_patch()
+                return
+                            
+        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, (random.random(), random.random(), random.random()))
         new_patch.grow_seed(self.input_net.bme, self.boundary_edges)
-        new_patch.color_patch(vcol_layer)
+        new_patch.color_patch()
         self.face_patches += [new_patch]
         
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+
+
+    def add_seed_pre_cut(self, face_ind, world_loc, local_loc):
+        '''
+        to be used when painting/corse patches before
+        knife_geometry has committed geometry chagnes to BMesh
+        '''
+    
+        if "patches" not in self.input_net.bme.loops.layers.color:
+            vcol_layer = self.input_net.bme.loops.layers.color.new("patches")
+        else:
+            vcol_layer = self.input_net.bme.loops.layers.color["patches"]
+            
+            
+        f= self.net_ui_context.bme.faces[face_ind]  
         
+        for patch in self.face_patches:
+            if f in patch.patch_faces:  #just change the color but don't add a duplicate
+                patch.set_color((random.random(), random.random(), random.random()))
+                patch.color_patch()
+                return
+                            
+        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, (random.random(), random.random(), random.random()))
+        new_patch.grow_seed_faces(self.input_net.bme, self.boundary_faces)
+        new_patch.color_patch()
+        self.face_patches += [new_patch]
+        
+        
+        ip_cycles, seg_cycles = self.input_net.find_network_cycles()
+        
+        border_faces = new_patch.adjacent_faces()
+        def calc_overlap(seg_cycle, ip_cycle):
+            overlap = 0
+            for seg in seg_cycle:
+                if seg not in self.cut_data: continue
+                overlap += len(self.cut_data[seg]['face_set'].intersection(border_faces))
+            for ip in ip_cycle:
+                if ip.bmface in border_faces:
+                    overlap += 1
+            return overlap
+        
+        best_overlap = 0
+        best_cycle = None
+        best_ip_cycle = None
+        for seg_cyc, ip_cyc in zip(seg_cycles, ip_cycles):
+            over = calc_overlap(seg_cyc, ip_cyc)
+            if over > best_overlap:
+                best_overlap = over
+                best_cycle = seg_cyc
+                best_ip_cycle = ip_cyc
+                
+        if best_overlap > 10: #TODO this needs to be more robust
+            print('assigned the input cycles to this patch')
+            new_patch.input_net_segments = best_cycle
+            new_patch.ip_points = best_ip_cycle
+        
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+    
+    
+    def add_patch_start_paint(self, face_ind, world_loc, local_loc):
+        if "patches" not in self.input_net.bme.loops.layers.color:
+            vcol_layer = self.input_net.bme.loops.layers.color.new("patches")
+        else:
+            vcol_layer = self.input_net.bme.loops.layers.color["patches"]
+            
+            
+        f= self.net_ui_context.bme.faces[face_ind]                   
+        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, (random.random(), random.random(), random.random()))
+        self.face_patches += [new_patch]
+        self.active_patch = new_patch
+                 
 class InputPoint(object):  # NetworkNode
     '''
     Representation of an input point
@@ -2552,7 +2813,7 @@ class InputSegment(object): #NetworkSegment
         ip0.link_segments.append(self)
         ip1.link_segments.append(self)
 
-        self.face_chain = []   #TODO, get a better structure within Netork Cutter
+        self.face_chain = []   #TODO, get a better structure within Network Cutter
 
         self.calculation_complete = False #this is a NetworkCutter Flag
         self.needs_calculation = True
