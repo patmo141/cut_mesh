@@ -110,12 +110,12 @@ class Polytrim_UI_Tools():
                 if face_ind != None:
                     stroke3d += [self.net_ui_context.mx * loc]
                     
-            print(stroke3d)
-            cbs = CubicBezierSpline.create_from_points([stroke3d], .2)
+            #print(stroke3d)
+            cbs = CubicBezierSpline.create_from_points([stroke3d], .05)
             cbs.tessellate_uniform(lambda p,q:(p-q).length, split=20)
             L = cbs.approximate_totlength_tessellation()
             n = L/2  #2mm spacing long strokes?
-            print(cbs.tessellation)
+            #print(cbs.tessellation)
             
             self.bez_data = []
             for btess in cbs.tessellation:
@@ -670,6 +670,14 @@ class Polytrim_UI_Tools():
             
     def enter_paint_mode(self):
         if self._state == 'paint_wait': return
+        
+        if self._state == 'main': #TODO polydraw
+            self.network_cutter.find_boundary_faces()
+            for patch in self.network_cutter.face_patches:
+                patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
+                patch.color_patch()
+            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+            
         self._state_next = 'paint_wait'
                
     def find_network_cycles_button(self):

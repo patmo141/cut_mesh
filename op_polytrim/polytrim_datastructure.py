@@ -33,15 +33,13 @@ from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
 from ..common.blender import bversion
 from ..common.utils import get_matrices
-from ..common.bezier import CubicBezier, CubicBezierSpline
+from ..common.bezier import CubicBezier, CubicBezierSpline, CompositeSmoothCubicBezierSpline
 from ..common.shaders import circleShader
 from ..common.simplify import simplify_RDP, relax_vert_chain
 from ..common.profiler import profiler
 
 from concurrent.futures.thread import ThreadPoolExecutor
 from test.test_dis import simple
-
-
 
 
 
@@ -198,6 +196,8 @@ class BMFacePatch(object):
         self.input_net_segments = []
         self.ip_points = []
         self.perimeter_path = []
+        self.bez_data = []
+        
         
         self.paint_modified = False  #flag for when boundary needs to be updated when re-entering stroke modes
         
@@ -212,6 +212,8 @@ class BMFacePatch(object):
         self.patch_faces = island
         
     def grow_seed_faces(self, bme, boundary_faces):
+        if len(self.patch_faces)  != 0:
+            self.un_color_patch()
         island = flood_selection_faces(bme, boundary_faces, self.seed_face)
         island -= boundary_faces  #because boundary_faces are between all segments
         self.patch_faces = island
@@ -648,6 +650,19 @@ class NetworkCutter(object):
             simple_path_inds = simplify_RDP(raw_boundary, .4)
             simple_path = [self.net_ui_context.mx * raw_boundary[i] for i in simple_path_inds]
             
+            
+            #TEST OUT A COMPOSITE BEZIER TESSELATION
+            cbs = CompositeSmoothCubicBezierSpline(simple_path[0:len(simple_path)-1], cyclic = True)
+            cbs.bez_spline.tessellate_uniform(lambda p,q:(p-q).length, split=100)
+            L = cbs.bez_spline.approximate_totlength_tessellation()
+            #n = L/2  #2mm spacing long strokes?
+            #print(cbs.tessellation)
+            
+            patch.bez_data = []
+            for btess in cbs.bez_spline.tessellation:
+                patch.bez_data += [pt.as_vector() for i,pt,d in btess]
+                
+                
             #self.simple_paths += [simple_path]
             patch.paint_modified = False
             patch.input_net_segments = []
@@ -672,12 +687,14 @@ class NetworkCutter(object):
                     #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
                 prev_pnt = new_pnt
             
+            
             #seal the tail
             seg = InputSegment(prev_pnt,patch.ip_points[0])
             self.input_net.segments.append(seg)
             patch.input_net_segments.append(seg)
             
-            print('the distance between p0 and p-1 is %f' % (simple_path[0] - simple_path[-1]).length)
+            
+            
             
             #check cyclic
             

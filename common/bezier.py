@@ -600,7 +600,80 @@ class CubicBezierSpline:
                     bd, bt = d, i+t
         return bt
 
-
+class CompositeSmoothCubicBezierSpline:
+    
+    def __init__(self, control_points, cyclic = False):
+        
+        self.control_points = control_points
+        self.cbs = []  #list of CubicBeziers
+        self.cyclic = cyclic
+        
+        self.blend_factor = 3  #is this how?
+        
+        self.handles = {}
+        self.bez_spline = None  #Uses the CubicBezierSpline and it's convenience
+        self.build_CB_segments()
+        
+        
+    def calc_handles(self, ind):
+        
+        if ind > len(self.control_points): return
+        
+        cp = self.control_points[ind]
+        
+        ind_ahead = int(math.fmod(ind + 1, len(self.control_points)))
+        ind_behind = int(math.fmod(ind - 1, len(self.control_points)))
+        
+        cp_ahead = self.control_points[ind_ahead]
+        cp_behind = self.control_points[ind_behind]
+        
+        v_forward = cp_ahead - cp
+        v_behind = cp_behind - cp
+        
+        r_ahead = v_forward.length * 1/self.blend_factor
+        r_behind = v_behind.length * 1/self.blend_factor
+        
+        if (ind == 0 or ind == (len(self.control_points) - 1))and self.cyclic:
+            tangent = cp_ahead - cp_behind
+            tangent.normalize()
+        elif ind == (len(self.control_points) - 1)  and not self.cyclic:
+            tangent = cp - cp_behind
+            tangent.normalize()
+        elif ind == 0  and not self.cyclic:
+            tangent = cp_ahead - cp
+            tangent.normalize()
+        else:  #TODO, or with first if
+            tangent = cp_ahead - cp_behind
+            tangent.normalize()    
+        
+        
+        handle_ahead = cp + r_ahead * tangent
+        handle_behind = cp - r_behind * tangent
+        self.handles[ind] = (handle_ahead, handle_behind)
+        return handle_ahead, handle_behind
+    
+    def build_CB_segments(self):
+        N = len(self.control_points)
+        for i in range(0, N):
+            self.calc_handles(i)
+           
+        for i in range(0, N -1):
+            p0 = self.control_points[i]
+            p1, _ = self.handles[i]
+            _, p2 = self.handles[i+1]
+            p3 = self.control_points[i+1]
+            self.cbs += [CubicBezier(p0, p1, p2, p3)]
+            
+        if self.cyclic:
+            p0 = self.control_points[N-1]
+            p1, _ = self.handles[N-1]
+            _, p2 = self.handles[0]
+            p3 = self.control_points[0]
+            self.cbs += [CubicBezier(p0, p1, p2, p3)]
+        
+        self.bez_spline = CubicBezierSpline(cbs = self.cbs)   
+        
+        
 class GenVector(list):
     '''
     Generalized Vector, allows for some simple ordered items to be linearly combined
