@@ -425,10 +425,22 @@ class Polytrim_UI_Tools():
                 self.network_cutter.precompute_cut(seg)
                 #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
         
+        #Add a New Point at end
         elif (self.net_ui_context.hovered_near[0] == None) and (self.net_ui_context.snap_element == None):  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             print("Here 11")
             closest_endpoint = self.closest_endpoint(self.net_ui_context.mx * loc)
             self.net_ui_context.selected = self.input_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
+            print('create new point')
+            
+            if len(self.spline_net.points):
+                last_node = self.spline_net.points[-1]
+                new_node = self.spline_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
+                self.spline_net.connect_points(new_node, last_node)
+                new_node.update_splines()
+                last_node.update_splines()  #this is going to update the spline twice?
+            else:
+                new_node = self.spline_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
+                   
             if closest_endpoint and connect:
                 self.input_net.connect_points(self.net_ui_context.selected, closest_endpoint)
                 self.network_cutter.precompute_cut(self.input_net.segments[-1])  #<  Hmm...not very clean.  

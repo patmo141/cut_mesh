@@ -2846,9 +2846,6 @@ class InputSegment(object): #NetworkSegment
         #TODO safety?  Check if in ip0.link_sgements?
         self.ip0.link_segments.remove(self)
         self.ip1.link_segments.remove(self)
-
-
-    
     
 class InputNetwork(object): #InputNetwork
     '''
@@ -2946,6 +2943,442 @@ class InputNetwork(object): #InputNetwork
         
         edge_points = [ip for ip in self.points if ip.is_edgepoint()]
         
+        return edge_points
+     
+    def find_network_cycles(self):  #TODO
+        #this is the equivalent of "edge_loops"
+        #TODO, mirror the get_cycle method from polystrips
+        #right now ther eare no T or X junctions, only cuts across mesh or loops within mesh
+        #will need to implement "IputNode.get_segment_to_right(InputSegment) to take care this
+        
+        
+        ip_set = set(self.points)
+        endpoints = set(self.get_endpoints())
+        
+        closed_edgepoints = set(self.get_edgepoints()) - endpoints
+        
+        
+        print('There are %i endpoints' % len(endpoints))
+        print('there are %i input points' % len(ip_set))
+        print('there are %i closed edge_points' % len(closed_edgepoints))
+        
+        unclosed_ip_cycles = []
+        unclosed_seg_cycles = []
+        
+        def next_segment(ip, current_seg): #TODO Code golf this
+            if len(ip.link_segments) != 2: return None  #TODO, the the segment to right
+            return [seg for seg in ip.link_segments if seg != current_seg][0]
+              
+        while len(endpoints):
+            current_ip = endpoints.pop()
+            ip_start = current_ip
+            ip_set.remove(current_ip)
+            
+            node_cycle = [current_ip]
+            if len(current_ip.link_segments) == 0: continue #Lonely Input Point, ingore it
+            
+            current_seg = current_ip.link_segments[0]
+            seg_cycle = [current_seg]
+            
+            while current_seg:
+                next_ip = current_seg.other_point(current_ip)  #always true
+                
+                if next_ip == ip_start: break  #we have found the end, no need to get the next segment
+                
+                #take care of sets
+                if next_ip in ip_set: ip_set.remove(next_ip)
+                if next_ip in endpoints: endpoints.remove(next_ip)
+                node_cycle += [next_ip]
+                
+                #find next segment
+                next_seg = next_segment(next_ip, current_seg)
+                if not next_seg:  break  #we have found an endpoint
+                seg_cycle += [next_seg]
+               
+                #reset variable for next iteration
+                current_ip = next_ip
+                current_seg = next_seg
+                
+            unclosed_ip_cycles += [node_cycle] 
+            unclosed_seg_cycles += [seg_cycle] 
+         
+            
+        print('there are %i unclosed cycles' % len(unclosed_ip_cycles))
+        print('there are %i ip points in ip set' % len(ip_set))
+        for i, cyc in enumerate(unclosed_ip_cycles):
+            print('There are %i nodes in %i unclosed cycle' % (len(cyc), i))
+        
+        ip_cycles = []
+        seg_cycles = []   #<<this basicaly becomes a PolyLineKine
+        while len(ip_set):
+            
+            if len(closed_edgepoints):  #this makes sure we start with a closed edge point
+                current_ip = closed_edgepoints.pop()
+                ip_set.remove(current_ip)
+            else:
+                current_ip = ip_set.pop()
+            
+            ip_start = current_ip
+                
+            node_cycle = [current_ip]
+            if len(current_ip.link_segments) == 0: continue #Lonely Input Point, ingore it
+            
+            current_seg = current_ip.link_segments[0]
+            seg_cycle = [current_seg]
+            
+            while current_seg:
+                next_ip = current_seg.other_point(current_ip)  #always true
+                
+                if next_ip == ip_start: break  #we have found the end, no need to get the next segment
+                
+                #take care of sets
+                if next_ip in ip_set: ip_set.remove(next_ip)  #<-- i what circumstance would this not be true?
+                if next_ip in closed_edgepoints: closed_edgepoints.remove(next_ip)
+                node_cycle += [next_ip]
+                
+                #find next segment
+                next_seg = next_segment(next_ip, current_seg)
+                if not next_seg:  break  #we have found an endpoint
+                seg_cycle += [next_seg]
+               
+                #reset variable for next iteration
+                current_ip = next_ip
+                current_seg = next_seg
+                
+            ip_cycles += [node_cycle] 
+            seg_cycles += [seg_cycle] 
+        
+        
+        print('there are %i closed seg cycles' % len(seg_cycles))
+        for i, cyc in enumerate(ip_cycles):
+            print('There are %i nodes in %i closed cycle' % (len(cyc), i))
+        
+        return ip_cycles, seg_cycles
+    
+    
+    
+    
+class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
+    '''
+    Representation of an input point
+    '''
+    def __init__(self, world, local, view, face_ind, seed_geom = None, bmface = None, bmedge = None, bmvert = None):
+        self.world_loc = world
+        self.local_loc = local
+        self.view = view
+        self.face_index = face_ind
+        self.link_segments = []
+        #dictionary mapping hanlde to link_segments
+        self.handles = {}
+        
+        #SETTING UP FOR MORE COMPLEX MESH CUTTING    ## SHould this exist in InputPoint??
+        self.seed_geom = seed_geom #UNUSED, but will be needed if input point exists on an EDGE or VERT in the source mesh
+
+        self.bmface = bmface
+        self.bmedge = bmedge
+        self.bmvert = bmvert
+        
+        
+    def is_endpoint(self):
+        if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
+        if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
+
+    def is_edgepoint(self):
+        '''
+        defines whether this InputPoint lies on the non_manifold edge 
+        of the source mesh
+        '''
+        if isinstance(self.seed_geom, bmesh.types.BMEdge):
+            return True
+        else:
+            return False
+
+    def num_linked_segs(self): return len(self.link_segments)
+
+    is_endpoint = property(is_endpoint)
+
+    num_linked_segs = property(num_linked_segs)
+
+    def set_world_loc(self, loc): self.world_loc = loc
+    def set_local_loc(self, loc): self.local_loc = loc
+    def set_view(self, view): self.view = view
+    def set_face_ind(self, face_ind): self.face_index = face_ind
+
+    def set_values(self, world, local, view, face_ind):
+        self.world_loc = world
+        self.local_loc = local
+        self.view = view
+        self.face_index = face_ind
+
+
+    def calc_handles(self):
+        #TODO, consider plane fit to all connecting points?
+        if len(self.link_segments) != 2:
+            for seg in self.link_segments:
+                other = seg.other_point(self)
+                v = other.world_loc - self.world_loc
+                self.handles[seg] = self.world_loc + 1/3 * v  #TODO coefficient for this?
+        else:
+            seg0, seg1 =  self.link_segments[0],  self.link_segments[1]
+            n0, n1 = seg0.other_point(self), seg1.other_point(self)
+            
+            r0 = (n0.world_loc - self.world_loc).length
+            r1 = (n1.world_loc - self.world_loc).length
+
+            tangent = n1.world_loc - n0.world_loc
+            tangent.normalize()
+            
+            self.handles[seg0] = self.world_loc - r0/3 * tangent
+            self.handles[seg1] = self.world_loc + r1/3 * tangent
+            
+        #TODO if self.handles == 4
+            #calc handles 0/2 as smooth (tangent)
+            #calc handles 1/3 as smooth (tangent)
+            #ASSUMES SEGMENTS SORTED CCW AROUND
+            #seg0, seg1, seg2, seg3 =  self.segments_ccw()
+            
+            #n0, n2 = seg0.other_poitn(self), seg2.other_point(self)
+            
+            #r0 = (n0.world_loc - self.world_loc).length
+            #r2 = (n2.world_loc - self.world_loc).length
+
+            #tangent = n1.world_loc - n0.world_loc
+            #tangent.normalize()
+            
+            #self.handles[seg0] = self.world_loc + r0/3 * tangent
+            #self.handles[seg2] = self.world_loc + r2/3 * tangent
+            
+            
+            #n1, n3 = seg1.other_poitn(self), seg3.other_point(self)
+            
+            #r1 = (n1.world_loc - self.world_loc).length
+            #r3 = (n3.world_loc - self.world_loc).length
+
+            #tangent = n3.world_loc - n1.world_loc #tangent points 1 to 3
+            #tangent.normalize()
+            
+            #self.handles[seg1] = self.world_loc - r1/3 * tangent
+            #self.handles[seg3] = self.world_loc + r3/3 * tangent
+            
+    def update_splines(self):
+        for seg in self.link_segments:
+            seg.calc_bezier()
+            seg.tessellate()
+              
+    #note, does not duplicate connectivity data
+    def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
+
+    def duplicate_data(self):
+        data = {}
+        data["world_loc"] = self.world_loc
+        data["local_loc"] = self.local_loc
+        data["view"] = self.view
+        data["face_index"] = self.face_index
+        data["seed_geom"] = self.seed_geom
+        data["bmface"] = self.bmface
+        data["bmedge"] = self.bmedge
+        data["bmvert"] = self.bmvert
+        
+        return data
+    
+    def are_connected(self, point):
+        '''
+        takes another input point, and returns InputSegment if they are connected
+        returns False if they are not connected
+        '''
+        for seg in self.link_segments:
+            if seg.other_point(self) == point:
+                return seg
+            
+        return False
+
+    def print_data(self): # for debugging
+        print('\n', "POINT DATA", '\n')
+        print("world location:", self.world_loc, '\n')
+        print("local location:", self.local_loc, '\n')
+        print("view direction:", self.view, '\n')
+        print("face index:", self.face_index, '\n')
+        
+    def validate_bme_references(self):
+        
+        if self.bmvert and self.bmvert.is_valid:
+            bmvalid = True
+        elif self.bmvert == None:
+            bmvalid = True   
+        else:
+            bmvalid = False
+            
+        if self.bmedge and self.bmedge.is_valid:
+            bmedvalid = True
+        elif self.bmedge == None:
+            bmedvalid = True   
+        else:
+            bmedvalid = False
+            
+        if self.bmvert and self.bmvert.is_valid:
+            bmvalid = True
+        elif self.bmver == None:
+            bmvalid = True   
+        else:
+            bmvalid = False    
+
+##########################################
+#Input Segment ToDos
+#TODO - method to clean segments with unused Input Points
+
+##########################################
+class SplineSegment(object): #NetworkSegment
+    '''
+    Representation of a connection between 2 curve nodes
+    Interpolated by a Cubic Bezier Spline
+    '''
+    def __init__(self, n0, n1):
+        self.n0 = n0
+        self.n1 = n1
+        self.points = [n0, n1]
+        self.path = []  #list of 3d points for previsualization
+        self.bad_segment = False
+        n0.link_segments.append(self)
+        n1.link_segments.append(self)
+
+
+        self.cb = None #CubicBezier
+        #Calculation, Tessellation and update flags here
+
+        self.input_points = []  #mapping to the tesselated InputPoints
+        
+        self.draw_tessellation = []  #higher res tesselation
+        
+    def is_bad(self): return self.bad_segment
+    is_bad = property(is_bad)
+
+    def other_point(self, p):
+        if p not in self.points: return None
+        return self.n0 if p == self.n1 else self.n1
+
+    def detach(self):
+        #TODO safety?  Check if in ip0.link_sgements?
+        self.ip0.link_segments.remove(self)
+        self.ip1.link_segments.remove(self)
+    
+    def calc_bezier(self):
+        if self not in self.n0.handles:
+            self.n0.calc_handles()
+        if self not in self.n1.handles:
+            self.n1.calc_handles()
+        p0 = self.n0.world_loc
+        p1 = self.n0.handles[self]
+        p2 = self.n1.handles[self]
+        p3 = self.n1.world_loc
+        
+        self.cb = CubicBezier(p0, p1, p2, p3)
+    
+    def tessellate(self):
+        
+        if self.cb == None: return
+        
+        self.cb.tessellate_uniform(lambda p,q:(p-q).length, split=30)  #INITIAL TESSELATION
+        #L = cbs.approximate_totlength_tessellation()
+        #n = L/2  #2mm spacing long strokes?
+        self.draw_tessellation = [pt.as_vector() for i,pt,d in self.cb.tessellation]
+        
+class SplineNetwork(object): #InputNetwork
+    '''
+    Data structure that stores a set of CurveNodes that are
+    connected with SplineSegments.
+
+    Curve Nodes have Equivalent InputPoints store a mapping to the source mesh.
+    InputPoints and Input segments, analogous to Verts and Edges
+
+    Collection of all InputPoints and Input Segments
+    '''
+    def __init__(self, net_ui_context, ui_type="DENSE_POLY"):
+        self.net_ui_context = net_ui_context
+        self.net_ui_context.set_network(self)
+        #self.bvh = self.net_ui_context.bvh   #this should go into net context.  DONE
+        self.bme = self.net_ui_context.bme  #the network exists on the BMesh, it is fundamental
+        self.points = []
+        self.segments = []  #order not important, but maintain order in this list for indexing?
+
+    def is_empty(self): return (not(self.points or self.segments))
+    def num_points(self): return len(self.points)
+    def num_segs(self): return len(self.segments)
+    is_empty = property(is_empty)
+    num_points = property(num_points)
+    num_segs = property(num_segs)
+
+    def point_world_locs(self): return [p.world_loc for p in self.points]
+    def point_local_locs(self): return [p.local_loc for p in self.points]
+    def point_views(self): return [p.view for p in self.points]
+    def point_face_indices(self): return [p.face_index for p in self.points]
+    point_world_locs = property(point_world_locs)
+    point_local_locs = property(point_local_locs)
+    point_views = property(point_views)
+    point_face_indices = property(point_face_indices)
+
+    def create_point(self, world_loc, local_loc, view, face_ind):
+        ''' create an InputPoint '''
+        self.points.append(CurveNode(world_loc, local_loc, view, face_ind, bmface = self.bme.faces[face_ind]))
+        return self.points[-1]
+
+    def connect_points(self, p1, p2, make_path=True):
+        ''' connect 2 points with a segment '''
+        new_seg = SplineSegment(p1, p2)
+        self.segments.append(new_seg)
+        return new_seg
+        #TODO  need to update auto handles for all affected adjacent splines
+        
+    def disconnect_points(self, p1, p2):
+        seg = self.are_connected(p1, p2)
+        if seg:
+            self.segments.remove(seg)
+            p1.link_segments.remove(seg)
+            p2.link_segments.remove(seg)
+
+    def are_connected(self, p1, p2): #TODO: Needs to be in InputPoint 
+        ''' Sees if 2 points are connected, returns connecting segment if True '''
+        for seg in p1.link_segments:
+            if seg.other_point(p1) == p2:
+                return seg
+        return False
+
+    def connected_points(self, p):
+        return [seg.other_point(p) for seg in p.link_segments]
+
+    def insert_point(self, new_p, seg):
+        p1 = seg.n0
+        p2 = seg.n1
+        self.disconnect_points(p1,p2)
+        self.connect_points(p1, new_p)
+        self.connect_points(p2, new_p)
+
+    def remove_point(self, point, disconnect = False):
+        connected_points = self.connected_points(point)
+        for cp in connected_points:
+            self.disconnect_points(cp, point)
+
+        if len(connected_points) == 2 and not disconnect:
+            self.connect_points(connected_points[0], connected_points[1])
+
+        self.points.remove(point)
+
+    #def duplicate(self):
+    #    new = InputNetwork(self.source_ob)
+    #    new.points = self.points
+    #    new.segments = self.segments
+    #    return new
+
+    def get_endpoints(self):
+        #maybe later...be smart and carefully add/remove endpoints
+        #as they are inserted/created/removed etc
+        #probably not necessary
+        endpoints = [ip for ip in self.points if ip.is_endpoint] #TODO self.endpoints?
+        return endpoints
+    
+    
+    def get_edgepoints(self):
+        
+        edge_points = [ip for ip in self.points if ip.is_edgepoint()]
         return edge_points
      
     def find_network_cycles(self):  #TODO

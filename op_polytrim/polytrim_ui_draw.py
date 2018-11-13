@@ -187,8 +187,13 @@ class Polytrim_UI_Draw():
         bgl.glLineWidth(1)  # Why are these two lines down here?
         bgl.glDepthRange(0.0, 1.0)
 
-        # Polylines...InputSegments
 
+        #CurveNetwork, Bezier
+        for seg in self.spline_net.segments:
+            if len(seg.draw_tessellation) == 0: continue
+            draw3d_polyline(context, seg.draw_tessellation,  orange, 3, 'GL_LINE_STRIP' )
+            
+        # Polylines...InputSegments
         for seg in self.input_net.segments:
             
             #bad segment with a preview path provided by geodesic

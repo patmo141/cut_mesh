@@ -12,7 +12,7 @@ from ..common.ui import Drawing
 from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
-from .polytrim_datastructure import InputNetwork, NetworkCutter
+from .polytrim_datastructure import InputNetwork, NetworkCutter, SplineNetwork
 
 
 #ModalOperator
@@ -106,6 +106,8 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         self.net_ui_context = self.NetworkUIContext(self.context)
 
         self.input_net = InputNetwork(self.net_ui_context)
+        self.spline_net = SplineNetwork(self.net_ui_context)
+        
         self.network_cutter = NetworkCutter(self.input_net, self.net_ui_context)
 
         self.sketcher = self.SketchManager(self.input_net, self.net_ui_context, self.network_cutter)
