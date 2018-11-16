@@ -13,7 +13,7 @@ from .. import common_drawing
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.shaders import circleShader
 
-from .polytrim_datastructure import InputPoint
+from .polytrim_datastructure import InputPoint, CurveNode, SplineSegment
 
 
 
@@ -69,13 +69,15 @@ class Polytrim_UI_Draw():
             ed, pt = self.net_ui_context.hovered_near[1]
             common_drawing.draw_3d_points(context,[pt], 6, green)
 
-        if  self.input_net.is_empty: return
+        #if  self.input_net.is_empty: return
 
         ## Selected Point
         if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint):
             common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
 
-
+        if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, CurveNode):
+            common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
+             
         # Grab Location Dot and Lines XXX:This part is gross..
         if self.grabber.grab_point:
             # Dot
@@ -97,8 +99,12 @@ class Polytrim_UI_Draw():
             # Insertion Lines (for adding in a point to edge)
             elif self.net_ui_context.hovered_near[0] == 'EDGE':
                 seg = self.net_ui_context.hovered_near[1]
-                a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
-                b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
+                if isinstance(seg, SplineSegment):
+                    a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.n0.world_loc)
+                    b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.n1.world_loc)
+                else:
+                    a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
+                    b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
                 if a and b:
                     common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
             # Insertion Lines (for adding closing loop)
@@ -192,6 +198,8 @@ class Polytrim_UI_Draw():
         for seg in self.spline_net.segments:
             if len(seg.draw_tessellation) == 0: continue
             draw3d_polyline(context, seg.draw_tessellation,  orange, 3, 'GL_LINE_STRIP' )
+        draw3d_points(context, self.spline_net.point_world_locs, blue, 6)
+        
             
         # Polylines...InputSegments
         for seg in self.input_net.segments:
@@ -238,8 +246,8 @@ class Polytrim_UI_Draw():
         if self.network_cutter.seg_exit:
             draw3d_polyline(context, self.network_cutter.seg_exit.path,  red, 4, 'GL_LINE_STRIP' )
         
-        if len(self.sketcher.bez_data):
-            draw3d_polyline(context, self.sketcher.bez_data,  (.3, .3, .3, .75), 4, 'GL_LINE_STRIP' )
+        #if len(self.sketcher.bez_data):
+        #    draw3d_polyline(context, self.sketcher.bez_data,  (.3, .3, .3, .75), 4, 'GL_LINE_STRIP' )
              
         if len(self.network_cutter.simple_paths):
             for path in self.network_cutter.simple_paths:

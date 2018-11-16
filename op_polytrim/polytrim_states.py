@@ -10,12 +10,79 @@ from bpy_extras import view3d_utils
 
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.blender import show_error_message
-from .polytrim_datastructure import InputPoint
+from .polytrim_datastructure import InputPoint, SplineSegment
 
 
 class Polytrim_States():
-    @CookieCutter.FSM_State('main')
+    @CookieCutter.FSM_State('main')  #now spline mode
     def modal_main(self):
+        context = self.context
+        self.cursor_modal_set('CROSSHAIR')
+
+        # test code that will break operator :)
+        #if self.actions.pressed('F9'): bad = 3.14 / 0
+        #if self.actions.pressed('F10'): assert False
+
+        if self.actions.mousemove:
+            return
+        if self.actions.mousemove_prev:
+            self.net_ui_context.update(self.actions.mouse)
+            #TODO: Bring hover into NetworkUiContext
+            self.hover_spline()
+            #self.net_ui_context.inspect_print()
+            
+        #after navigation filter, these are relevant events in this state
+        if self.actions.pressed('grab'): 
+            self.ui_text_update()
+            return 'grab'
+
+        if self.actions.pressed('sketch'): 
+            self.ui_text_update()
+            return 'sketch'
+
+        if self.actions.pressed('add point (disconnected)'):
+            self.click_add_spline_point(context, self.actions.mouse, False)
+            self.ui_text_update()
+            #self.net_ui_context.inspect_print()
+            return
+
+        if self.actions.pressed('delete'):
+            self.click_delete_spline_point(mode='mouse')
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover_spline()
+            self.ui_text_update()
+            return
+        
+        if self.actions.pressed('delete (disconnect)'):
+            self.click_delete_spline_point('mouse', True)
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover_spline()
+            self.ui_text_update()
+            return
+
+        if self.actions.pressed('S'):
+            #TODO what about a button?
+            #What about can_enter?
+            return 'seed'
+        
+        if self.actions.pressed('P'):
+            #TODO what about a button?
+            #What about can_enter?
+            return 'paint_wait'
+             
+        if self.actions.pressed('RET'):
+            self.done()
+            return
+            #return 'finish'
+
+        elif self.actions.pressed('ESC'):
+            self.done(cancel=True)
+            return
+            #return 'cancel'
+
+
+    @CookieCutter.FSM_State('point_edit')
+    def modal_point_edit(self):
         context = self.context
         self.cursor_modal_set('CROSSHAIR')
 
@@ -31,7 +98,6 @@ class Polytrim_States():
             self.hover()
 
         #after navigation filter, these are relevant events in this state
-
         if self.actions.pressed('grab'): 
             self.ui_text_update()
             return 'grab'
@@ -69,36 +135,16 @@ class Polytrim_States():
             #What about can_enter?
             return 'paint_wait'
         
-        #re-tesselate at 3mm resolution
-        if self.actions.pressed('T'):
-            n_pts = self.input_net.num_points
-            self.linear_re_tesselate_segment(self.input_net.points[0],
-                                                         self.input_net.points[n_pts-1],
-                                                         res = 3.0)
-
-        if self.actions.pressed('F1'):
-            self.input_net.find_network_cycles()
-
-
-        if self.actions.pressed('F2'):
-            self.network_cutter.knife_geometry2()
-            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-
-
-        if self.actions.pressed('F3'):
-            self.network_cutter.knife_geometry3()
-            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-
-            
+           
         if self.actions.pressed('RET'):
-            self.done()
-            return
+            #self.done()
+            return 'main'
             #return 'finish'
 
         elif self.actions.pressed('ESC'):
-            self.done(cancel=True)
-            return
-            #return 'cancel'
+            #self.done(cancel=True)
+            return 'main'
+            #return 'cancel
 
 
     ######################################################
@@ -107,7 +153,11 @@ class Polytrim_States():
     @CookieCutter.FSM_State('grab', 'can enter')
     def grab_can_enter(self):
         can_enter = (not self.input_net.is_empty and self.net_ui_context.selected != None)
-        return can_enter
+        can_enter_spline = (not self.spline_net.is_empty and self.net_ui_context.selected != None)
+        if self._state == 'main':
+            return can_enter_spline
+        else:    
+            return can_enter
 
     @CookieCutter.FSM_State('grab', 'enter')
     def grab_enter(self):
@@ -158,9 +208,14 @@ class Polytrim_States():
         print("selected", self.net_ui_context.selected)
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
-        self.click_add_point(context, mouse)  #Send the 2D coordinates to Knife Class
-        print("selected 2", self.net_ui_context.selected)
-        return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
+        if self._state == 'main':
+            self.click_add_spline_point(context, mouse)  #Send the 2D coordinates to Knife Class
+            return  self.net_ui_context.hovered_near[0] == 'POINT' or self.input_net.num_points == 1
+        elif self._state == 'point_edit':
+            self.click_add_point(context, mouse)
+            
+            print("selected 2", self.net_ui_context.selected)
+            return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
 
     @CookieCutter.FSM_State('sketch', 'enter')
     def sketch_enter(self):
@@ -186,7 +241,7 @@ class Polytrim_States():
                 print("NEW:",self.net_ui_context.hovered_near)
                 print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
-                self.sketcher.finalize_bezier(self.context)
+                #self.sketcher.finalize_bezier(self.context)
                 self.network_cutter.update_segments_async()
             self.ui_text_update()
             self.sketcher.reset()

@@ -110,7 +110,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         
         self.network_cutter = NetworkCutter(self.input_net, self.net_ui_context)
 
-        self.sketcher = self.SketchManager(self.input_net, self.net_ui_context, self.network_cutter)
+        self.sketcher = self.SketchManager(self.input_net, self.spline_net, self.net_ui_context, self.network_cutter)
         self.grabber = self.GrabManager(self.input_net, self.net_ui_context, self.network_cutter)
         self.brush = None
 
