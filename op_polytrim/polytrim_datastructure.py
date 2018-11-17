@@ -636,7 +636,7 @@ class NetworkCutter(object):
                 self.boundary_faces.add(ip.bmface)   
 
                 
-    def create_spline_network_from_face_patches(self, spline_net):
+    def create_spline_network_from_face_patches(self, spline_net):  #maybe this should be a tool instead of datastructure
         
         if len(self.face_patches) == 0:
             print('no face patches yet')
@@ -653,7 +653,7 @@ class NetworkCutter(object):
             
             #relaxed_boundary = relax_vert_chain(raw_boundary, in_place = False)
             #simple_path_inds = simplify_RDP(relaxed_boundary, .25)
-            feature_inds = simplify_RDP(raw_boundary, .3)
+            feature_inds = simplify_RDP(raw_boundary, .35)
             simple_path = [self.net_ui_context.mx * raw_boundary[i] for i in feature_inds]
             
             
@@ -694,11 +694,7 @@ class NetworkCutter(object):
                 seg.tessellate_IP_error(.1)
             
         self.update_segments_async()   
-        print('there are %i simplfied paths' % len(self.simple_paths))
-        for p in self.simple_paths:
-            print('path is %i long' % len(p))
-    
-    
+        
     def create_network_from_face_patches(self):
         
         if len(self.face_patches) == 0:
