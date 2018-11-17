@@ -241,7 +241,7 @@ class Polytrim_States():
                 last_hovered_point = self.net_ui_context.hovered_near[1]
                 print("LAST:",self.net_ui_context.hovered_near)
                 self.net_ui_context.update(self.actions.mouse)
-                self.hover()
+                self.hover_spline()  
                 new_hovered_point = self.net_ui_context.hovered_near[1]   
                 print("NEW:",self.net_ui_context.hovered_near)
                 print(last_hovered_point, new_hovered_point)
@@ -363,7 +363,8 @@ class Polytrim_States():
             #use brush radius to find all geometry within
             #add that geometry to the "stroke region"
             #color it as the "interim" strokeregion color
-            self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
+            #self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
+            self.brush.absorb_geom(self.context, self.actions.mouse)
             self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
             return 'paint'
         

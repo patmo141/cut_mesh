@@ -189,12 +189,17 @@ class BMFacePatch(object):
         self.color = Color(color)
         self.color_layer = vcol_layer
         
-        
+        #mapptin got DiscreteNetwork
         self.input_net_segments = []
         self.ip_points = []
+        
+        #mapping to SplineNetwork
+        self.spline_net_segments = []
+        self.curve_nodes = []
+        
+        #depricated
         self.perimeter_path = []
         self.bez_data = []
-        
         
         self.paint_modified = False  #flag for when boundary needs to be updated when re-entering stroke modes
         
@@ -631,7 +636,7 @@ class NetworkCutter(object):
                 self.boundary_faces.add(ip.bmface)   
 
                 
-    def create_network_from_face_patches(self):
+    def create_spline_network_from_face_patches(self, spline_net):
         
         if len(self.face_patches) == 0:
             print('no face patches yet')
@@ -640,6 +645,7 @@ class NetworkCutter(object):
         self.simple_paths = []  #clear the old data
         for patch in self.face_patches:
             if not patch.paint_modified: continue
+            #TODO patch.is_inet_dirty?
             #TODO how to handle patches on non manifold boundary
             #TODO how to ensure non-tangentional patches (patches with a border)
             patch.find_boundary_edges(self.input_net.bme)
@@ -647,26 +653,74 @@ class NetworkCutter(object):
             
             #relaxed_boundary = relax_vert_chain(raw_boundary, in_place = False)
             #simple_path_inds = simplify_RDP(relaxed_boundary, .25)
+            feature_inds = simplify_RDP(raw_boundary, .3)
+            simple_path = [self.net_ui_context.mx * raw_boundary[i] for i in feature_inds]
+            
+            
+            new_points = []
+            new_segs = []
+            prev_pnt = None
+            
+            for pt in simple_path[0:len(simple_path)-1]:
+                delta = Vector((random.random(), random.random(), random.random()))
+                delta.normalize()
+                loc, no, face_ind, d =  self.net_ui_context.bvh.find_nearest(self.net_ui_context.imx * (pt + .1 * delta))
+                if face_ind == None: continue
+                #TODO store a view dictionary from the brush
+                new_pnt = spline_net.create_point(self.net_ui_context.mx * loc, loc, self.net_ui_context.mx_norm * no, face_ind)
+                #patch.ip_points.append(new_pnt)
+                #new_pnt = self.spline_net.create_point(loc3d, loc, view_vector, face_ind)
+                new_points += [new_pnt]
+                if prev_pnt:
+                    seg = SplineSegment(prev_pnt,new_pnt)
+                    spline_net.segments.append(seg)
+                    new_segs += [seg]
+                #self.network_cutter.precompute_cut(seg)
+                #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
+                prev_pnt = new_pnt
+            
+            #TODO non manifold boundaries
+            #Close the loop
+            seg = SplineSegment(prev_pnt,new_points[0])
+            spline_net.segments.append(seg)  
+            new_segs += [seg]
+            
+            
+            for p in new_points:
+                p.calc_handles()
+            for seg in new_segs:
+                seg.calc_bezier()
+                seg.tessellate()
+                seg.tessellate_IP_error(.1)
+            
+        self.update_segments_async()   
+        print('there are %i simplfied paths' % len(self.simple_paths))
+        for p in self.simple_paths:
+            print('path is %i long' % len(p))
+    
+    
+    def create_network_from_face_patches(self):
+        
+        if len(self.face_patches) == 0:
+            print('no face patches yet')
+            return
+        
+        for patch in self.face_patches:
+            if not patch.paint_modified: continue
+            
+            patch.find_boundary_edges(self.input_net.bme)
+            raw_boundary = patch.perimeter_path
+        
             simple_path_inds = simplify_RDP(raw_boundary, .4)
             simple_path = [self.net_ui_context.mx * raw_boundary[i] for i in simple_path_inds]
             
-            
-            #TEST OUT A COMPOSITE BEZIER TESSELATION
-            cbs = CompositeSmoothCubicBezierSpline(simple_path[0:len(simple_path)-1], cyclic = True)
-            cbs.bez_spline.tessellate_uniform(lambda p,q:(p-q).length, split=100)
-            L = cbs.bez_spline.approximate_totlength_tessellation()
-            #n = L/2  #2mm spacing long strokes?
-            #print(cbs.tessellation)
-            
-            patch.bez_data = []
-            for btess in cbs.bez_spline.tessellation:
-                patch.bez_data += [pt.as_vector() for i,pt,d in btess]
-                
-                
+     
             #self.simple_paths += [simple_path]
             patch.paint_modified = False
             patch.input_net_segments = []
             patch.ip_points = []
+            new_points = []
+            new_segs = []
             prev_pnt = None
             for ind in range(0, len(simple_path) -1):
                 pt = simple_path[ind]
@@ -678,34 +732,32 @@ class NetworkCutter(object):
                 if face_ind != None:
                     new_pnt = self.input_net.create_point(self.net_ui_context.mx * loc, loc, self.net_ui_context.mx_norm * no, face_ind)
                     patch.ip_points.append(new_pnt)
+                if face_ind == None: continue
+                #TODO store a view dictionary from the brush
+                new_pnt = self.input_net.create_point(self.net_ui_context.mx * loc, loc, self.net_ui_context.mx_norm * no, face_ind)
+                #patch.ip_points.append(new_pnt)
+                #new_pnt = self.spline_net.create_point(loc3d, loc, view_vector, face_ind)
+                new_points += [new_pnt]
                 if prev_pnt:
                     print(prev_pnt)
                     seg = InputSegment(prev_pnt,new_pnt)
                     self.input_net.segments.append(seg)
                     patch.input_net_segments.append(seg)
-                    #self.network_cutter.precompute_cut(seg)
-                    #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
+                    
+                    new_segs += [seg]
+                #self.network_cutter.precompute_cut(seg)
+                #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
                 prev_pnt = new_pnt
-            
-            
+             
+             
             #seal the tail
             seg = InputSegment(prev_pnt,patch.ip_points[0])
             self.input_net.segments.append(seg)
             patch.input_net_segments.append(seg)
-            
-            
-            
-            
-            #check cyclic
-            
-            #check edge points or non man edges in patch.find_boundary
-            
-            
-            
-        self.update_segments()   
-        print('there are %i simplfied paths' % len(self.simple_paths))
-        for p in self.simple_paths:
-            print('path is %i long' % len(p))
+    
+        self.update_segments_async()
+    
+    
     #########################################################
     #### Helper Functions for committing cut to BMesh #######
     #########################################################

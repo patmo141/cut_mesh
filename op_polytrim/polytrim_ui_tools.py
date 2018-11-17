@@ -757,8 +757,15 @@ class Polytrim_UI_Tools():
         
         
     def paint_exit(self):
-        self.network_cutter.create_network_from_face_patches()
-         
+        print('paint exit')
+        self.network_cutter.create_spline_network_from_face_patches(self.spline_net)
+        
+        #TODO why is _state_next not working
+        #if self._state_next == 'main':
+        #    print('create spline network')
+        #    self.network_cutter.create_spline_network_from_face_patches(self.spline_net)
+        #elif self._state_next == 'point_edit' :
+        #    self.network_cutter.create_network_from_face_patches()
     # TODO: Make this a NetworkUIContext function
     def closest_endpoint(self, pt3d):
         def dist3d(point):
