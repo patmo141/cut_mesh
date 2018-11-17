@@ -6,6 +6,7 @@ Created on Oct 10, 2015
 import bmesh
 import bpy
 import time
+import math
 
 from ..bmesh_fns import edge_loops_from_bmedges_old, ensure_lookup
 from ..common.utils import get_matrices
@@ -13,11 +14,13 @@ from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path, ray_cast_b
 
 from .polytrim_datastructure import InputNetwork, InputPoint, InputSegment, SplineSegment, CurveNode
 
+import bgl
 from bpy_extras import view3d_utils
 from mathutils import Vector, kdtree, Color
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
 from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
+from ..common.maths import Direction
 from ..common.bezier import CubicBezierSpline
 from ..common.simplify import simplify_RDP
 from ..geodesic import geodesic_walk
@@ -167,26 +170,25 @@ class Polytrim_UI_Tools():
             self.bez_data = []
             for btess in cbs.tessellation:
                 self.bez_data += [pt.as_vector() for i,pt,d in btess]
-            
-            
+
+
     class PaintBrush():  #TODO replace with widget, this is a coars placeholder
-        
         #active patch?  meaning we are updating a selection
-        def __init__(self, net_ui_context, radius = 1.5, color = (.8, .1, .3)):
+        def __init__(self, net_ui_context, radius=1.5, color=(0.8, 0.1, 0.3)):
             self.net_ui_context = net_ui_context
             self.radius = radius
             self.brush_color = Color(color)
             #self.brush_rad_pixel = 40
-            
             self.geom_accum = set()  #FACES
-        
+
             #TODO....figure out if we need a dual color layer?
             if "patches" not in self.net_ui_context.bme.loops.layers.color:
                 vcol_layer = self.net_ui_context.bme.loops.layers.color.new("patches")
             else:
                 vcol_layer = self.net_ui_context.bme.loops.layers.color["patches"]
-            
+
             self.vcol = vcol_layer
+            self.points = [(math.cos(math.radians(t)), math.sin(math.radians(t))) for t in range(0,361,10)]
 
         def ray_hit(self, pt_screen, context):
             view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen)  #a location and direction in WORLD coordinates
@@ -204,12 +206,10 @@ class Polytrim_UI_Tools():
         def absorb_geom_geodesic(self, context, pt_screen_loc):
             loc, no, face_ind = self.ray_hit(pt_screen_loc, context)
             if not loc: return
-            
+
             #can do old mapping if bme has been altered
             seed = self.net_ui_context.bme.faces[face_ind]
-            
-            geos, fixed_vs, close, far = geodesic_walk(self.net_ui_context.bme, seed, loc, min_dist = self.radius)
-            
+            geos, fixed_vs, close, far = geodesic_walk(self.net_ui_context.bme, seed, loc, min_dist=self.radius)
             fs_in = set()
             fs_out = set()
             for v in fixed_vs:
@@ -219,22 +219,86 @@ class Polytrim_UI_Tools():
                         fs_in.add(f)
                     else:
                         fs_out.add(f)
-                                  
-            self.color_geom(fs_in)  
-            self.geom_accum.update(fs_in) 
 
+            self.color_geom(fs_in)
+            self.geom_accum.update(fs_in)
 
         def color_geom(self, faces):
             for f in faces:
                 for loop in f.loops:
                     loop[self.vcol] = self.brush_color
-                 
+
         def color_all_geom(self):
-            for f in self.geom_accum:
-                for loop in f.loops:
-                    loop[self.vcol] = self.brush_color
-                    
-                    
+            self.color_geom(self.geom_accum)
+
+        def draw_postview(self, context, pt_screen):
+            loc,no,_ = self.ray_hit(pt_screen, context)
+            if not loc: return
+            tr = Vector((0,0,1)) if abs(no.z) < 0.9 else Vector((1,0,0))
+            tx = Direction(no.cross(tr))
+            ty = Direction(no.cross(tx))
+            cr,cg,cb = self.brush_color
+
+            bgl.glDepthRange(0, 0.99999)    # squeeze depth just a bit
+            bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
+            bgl.glLineWidth(2.0) # self.drawing.line_width(2.0)
+            bgl.glPointSize(3.0) # self.drawing.point_size(3.0)
+
+            ######################################
+            # draw in front of geometry
+
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+
+            bgl.glColor4f(cr, cg, cb, 1.0)       # outer ring
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for mx,my in self.points:
+                p = loc + (tx * mx + ty * my) * self.radius
+                bgl.glVertex3f(*p)
+            bgl.glEnd()
+
+            bgl.glColor4f(cr, cg, cb, 0.1)     # inner ring
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for mx,my in self.points:
+                p = loc + (tx * mx + ty * my) * (self.radius * 0.5)
+                bgl.glVertex3f(*p)
+            bgl.glEnd()
+
+            bgl.glColor4f(1, 1, 1, 0.25)    # center point
+            bgl.glBegin(bgl.GL_POINTS)
+            bgl.glVertex3f(*loc)
+            bgl.glEnd()
+
+            ######################################
+            # draw behind geometry (hidden below)
+
+            bgl.glDepthFunc(bgl.GL_GREATER)
+
+            bgl.glColor4f(cr, cg, cb, 0.05)    # outer ring
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for mx,my in self.points:
+                p = loc + (tx * mx + ty * my) * self.radius
+                bgl.glVertex3f(*p)
+            bgl.glEnd()
+
+            bgl.glColor4f(cr, cg, cb, 0.01)   # inner ring
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            for mx,my in self.points:
+                p = loc + (tx * mx + ty * my) * (self.radius * 0.5)
+                bgl.glVertex3f(*p)
+            bgl.glEnd()
+
+            ######################################
+            # reset to defaults
+
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            bgl.glDepthMask(bgl.GL_TRUE)
+            bgl.glDepthRange(0, 1)
+
+
+
+
     class GrabManager():
         '''
         UI tool for managing input point grabbing/moving made by user.
