@@ -10,7 +10,7 @@ from bpy_extras import view3d_utils
 
 from ..cookiecutter.cookiecutter import CookieCutter
 from ..common.blender import show_error_message
-from .polytrim_datastructure import InputPoint, SplineSegment
+from .polytrim_datastructure import InputPoint, SplineSegment, CurveNode
 
 
 class Polytrim_States():
@@ -175,9 +175,14 @@ class Polytrim_States():
             #confirm location
             x,y = self.actions.mouse
             self.grabber.finalize(self.context)
-            self.network_cutter.update_segments()
-            if self.net_ui_context.selected not in self.input_net.points:
-                self.net_ui_context.selected = None
+            
+            if isinstance(self.net_ui_context.selected, CurveNode):
+                self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+                                                  
+                self.network_cutter.update_segments_async()
+            else:
+                self.network_cutter.update_segments()
+            
             return 'main'
 
         if self.actions.pressed('cancel'):
@@ -241,7 +246,8 @@ class Polytrim_States():
                 print("NEW:",self.net_ui_context.hovered_near)
                 print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
-                #self.sketcher.finalize_bezier(self.context)
+                self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+                
                 self.network_cutter.update_segments_async()
             self.ui_text_update()
             self.sketcher.reset()

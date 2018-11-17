@@ -357,13 +357,15 @@ class NetworkCutter(object):
         
     def update_segments(self):
         for seg in self.input_net.segments:
-            
             if seg.needs_calculation and not seg.calculation_complete:
                 self.precompute_cut(seg)
                 
         return
     
     def update_segments_async(self):
+        
+        self.validate_cdata()
+        
         for seg in self.input_net.segments:
             
             if seg.needs_calculation and not seg.calculation_complete:
@@ -383,6 +385,7 @@ class NetworkCutter(object):
             if seg not in self.input_net.segments:
                 old_cdata.append(seg)
         
+        print('deleting %i old seg cut data' % len(old_cdata))
         for seg in old_cdata:
             self.cut_data.pop(seg, None)
                         
@@ -2757,6 +2760,11 @@ class InputPoint(object):  # NetworkNode
         self.view = view
         self.face_index = face_ind
 
+    def set_data(self, data):
+        for key in data:
+            if hasattr(self, key):
+                setattr(self, key, data[key])
+             
     #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
 
@@ -2891,8 +2899,10 @@ class InputNetwork(object): #InputNetwork
 
     def connect_points(self, p1, p2, make_path=True):
         ''' connect 2 points with a segment '''
-        self.segments.append(InputSegment(p1, p2))
-
+        seg = InputSegment(p1, p2)
+        self.segments.append(seg)
+        return seg
+    
     def disconnect_points(self, p1, p2):
         seg = self.are_connected(p1, p2)
         if seg:
@@ -2900,6 +2910,18 @@ class InputNetwork(object): #InputNetwork
             p1.link_segments.remove(seg)
             p2.link_segments.remove(seg)
 
+    def remove_segment(self, seg):
+        if seg in self.segments:
+            self.segments.remove(seg)
+        
+        #remove references in the IPs
+        #occasionally has been removed if adjacent point already gone
+        if seg in seg.ip0.link_segments:
+            seg.ip0.link_segments.remove(seg)
+        if seg in seg.ip1.link_segments:
+            seg.ip1.link_segments.remove(seg)
+        
+        
     def are_connected(self, p1, p2): #TODO: Needs to be in InputPoint 
         ''' Sees if 2 points are connected, returns connecting segment if True '''
         for seg in p1.link_segments:
@@ -3059,8 +3081,6 @@ class InputNetwork(object): #InputNetwork
         return ip_cycles, seg_cycles
     
     
-    
-    
 class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
     '''
     Representation of an input point
@@ -3071,7 +3091,9 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
         self.view = view
         self.face_index = face_ind
         self.link_segments = []
-        #dictionary mapping hanlde to link_segments
+        self.input_point = None
+    
+        #dictionary mapping handle to link_segments
         self.handles = {}
         
         #SETTING UP FOR MORE COMPLEX MESH CUTTING    ## SHould this exist in InputPoint??
@@ -3081,7 +3103,28 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
         self.bmedge = bmedge
         self.bmvert = bmvert
         
+    def spawn_input_point(self, input_network):
+        if self.input_point and self.input_point in input_network.points: return  #don't duplicate
         
+        ip = InputPoint(self.world_loc, 
+                        self.local_loc, 
+                        self.view, 
+                        self.face_index, 
+                        self.seed_geom, 
+                        bmface = self.bmface,
+                        bmedge = self.bmedge,
+                        bmvert = self.bmvert)
+        
+        input_network.points.append(ip)
+        self.input_point = ip
+        
+    
+    def update_input_point(self, input_network):
+        if self.input_point == None:
+            self.spawn_input_point(input_network)
+            
+        self.input_point.set_data(self.duplicate_data())    
+            
     def is_endpoint(self):
         if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
         if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
@@ -3113,7 +3156,11 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
         self.view = view
         self.face_index = face_ind
 
-
+    def set_data(self, data):
+        for key in data:
+            if hasattr(self, key):
+                setattr(self, key, data[key])
+                
     def calc_handles(self):
         #TODO, consider plane fit to all connecting points?
         if len(self.link_segments) != 2:
@@ -3168,6 +3215,8 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
             seg.calc_bezier()
             seg.tessellate()
             seg.tessellate_IP_error(.1)
+            
+            seg.is_inet_dirty = True
               
     #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
@@ -3250,10 +3299,12 @@ class SplineSegment(object): #NetworkSegment
         #Calculation, Tessellation and update flags here
 
         self.input_points = []  #mapping to the tesselated InputPoints
+        self.input_segments = []  #mapping to the tesselated InputSegments
+        self.is_inet_dirty = False  #flag when needs to be re-tesslated and
         
-        self.draw_tessellation = []  #higher res tesselation
+        self.draw_tessellation = []  #higher res tesselation for draw and for furthe use
         self.ip_tesselation = []  #error based or length based tesselation to create InputPoints
-        self.ip_vies = []  #interpolated view_direction from n0 to n1
+        self.ip_views = []  #interpolated view_direction from n0 to n1
         
     def is_bad(self): return self.bad_segment
     is_bad = property(is_bad)
@@ -3306,7 +3357,58 @@ class SplineSegment(object): #NetworkSegment
             self.ip_tesselation += [self.draw_tessellation[ind]]
             blend = ind/(len(self.draw_tessellation) - 1)
             self.ip_views += [self.n0.view.lerp(self.n1.view, blend)]
+    
+        self.is_inet_dirty = True
         
+    def clear_input_net_references(self, input_network):
+        for seg in self.input_segments:
+            input_network.remove_segment(seg)    
+        for ip in self.input_points:
+            if ip in input_network.points:
+                input_network.remove_point(ip, disconnect = True)
+                        
+    def convert_tessellation_to_network(self, net_ui_context, input_network):
+        
+        #first clear out any existing tessellation
+        self.clear_input_net_references(input_network)
+        if self.n0.input_point == None:
+            self.n0.spawn_input_point(input_network)
+        if self.n1.input_point == None:
+            self.n1.spawn_input_point(input_network)
+        
+        ip0 = self.n0.input_point
+        ip1 = self.n1.input_point
+        
+        if len(self.ip_tesselation) <= 2:
+            if not ip0.are_connected(ip1):
+                seg = input_network.connect_points(ip0, ip1)
+                self.input_segments += [seg]
+            self.is_inet_dirty = False    
+            return
+        prev_pnt = ip0
+        end_pnt = ip1
+        mx = net_ui_context.mx
+        imx = net_ui_context.imx
+        for ind in range(1,len(self.ip_tesselation)-1):
+            pt = self.ip_tesselation[ind]
+            view = self.ip_views[ind]
+            loc, no, face_ind, d = net_ui_context.bvh.find_nearest(imx * pt)
+            f = input_network.bme.faces[face_ind]
+            new_pnt = InputPoint(mx * loc, loc, view, face_ind, seed_geom = f, bmface = f)
+            input_network.points.append(new_pnt)
+            self.input_points += [new_pnt]
+            
+            seg = InputSegment(prev_pnt,new_pnt)
+            self.input_segments += [seg]
+            input_network.segments.append(seg)
+            
+            prev_pnt = new_pnt
+        
+        seg = InputSegment(prev_pnt,end_pnt)
+        self.input_segments += [seg]
+        input_network.segments.append(seg)    
+        self.is_inet_dirty = False
+         
 class SplineNetwork(object): #InputNetwork
     '''
     Data structure that stores a set of CurveNodes that are
@@ -3341,6 +3443,13 @@ class SplineNetwork(object): #InputNetwork
     point_views = property(point_views)
     point_face_indices = property(point_face_indices)
 
+
+    def push_to_input_net(self, net_ui_context, input_net, all_segs = False):
+        for seg in self.segments:
+            if seg.is_inet_dirty or all_segs:
+                seg.convert_tessellation_to_network(net_ui_context, input_net)
+        
+        
     def create_point(self, world_loc, local_loc, view, face_ind):
         ''' create an InputPoint '''
         self.points.append(CurveNode(world_loc, local_loc, view, face_ind, bmface = self.bme.faces[face_ind]))
@@ -3355,11 +3464,23 @@ class SplineNetwork(object): #InputNetwork
         
     def disconnect_points(self, p1, p2):
         seg = self.are_connected(p1, p2)
-        if seg:
+        if seg: 
             self.segments.remove(seg)
             p1.link_segments.remove(seg)
             p2.link_segments.remove(seg)
 
+    def remove_segment(self, seg):
+        '''
+        delete segment but leave nodes
+        '''
+        if seg in self.segments:
+            self.segments.remove(seg)
+        
+        #remove references in the IPs   
+        seg.n0.link_segments.remove(seg)
+        seg.n1.link_segments.remove(seg)
+        
+        
     def are_connected(self, p1, p2): #TODO: Needs to be in InputPoint 
         ''' Sees if 2 points are connected, returns connecting segment if True '''
         for seg in p1.link_segments:
@@ -3377,6 +3498,7 @@ class SplineNetwork(object): #InputNetwork
         self.connect_points(p1, new_p)
         self.connect_points(p2, new_p)
 
+
     def remove_point(self, point, disconnect = False):
         connected_points = self.connected_points(point)
         for cp in connected_points:
@@ -3385,6 +3507,7 @@ class SplineNetwork(object): #InputNetwork
         if len(connected_points) == 2 and not disconnect:
             self.connect_points(connected_points[0], connected_points[1])
 
+        
         self.points.remove(point)
 
     #def duplicate(self):

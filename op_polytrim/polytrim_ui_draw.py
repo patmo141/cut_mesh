@@ -137,6 +137,7 @@ class Polytrim_UI_Draw():
         orange = (1,.65,.2,1)
         red = (1,0,0,1)
         purple = (.8, .1, .8, 1)
+        pink = (1, .8, .8, 1)
 
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
@@ -194,19 +195,21 @@ class Polytrim_UI_Draw():
         bgl.glDepthRange(0.0, 1.0)
 
 
-        #CurveNetwork, Bezier
+        #CurveNetwork, BezierSegments
         for seg in self.spline_net.segments:
             if len(seg.draw_tessellation) == 0: continue
             
-            draw3d_polyline(context, seg.draw_tessellation,  orange, 4, 'GL_LINE_STRIP' )
+            #has not been successfully converted to InputPoints and InputSegments
+            if seg.is_inet_dirty:
+                draw3d_polyline(context, seg.draw_tessellation,  orange, 4, 'GL_LINE_STRIP' )
             
-            if len(seg.ip_tesselation):
-                draw3d_polyline(context, seg.ip_tesselation,  blue, 2, 'GL_LINE_STRIP' )
-                draw3d_points(context, seg.ip_tesselation, green, 4)
+            #if len(seg.ip_tesselation):
+            #    draw3d_polyline(context, seg.ip_tesselation,  blue, 2, 'GL_LINE_STRIP' )
+            #    draw3d_points(context, seg.ip_tesselation, green, 4)
             
                 
                 
-        draw3d_points(context, self.spline_net.point_world_locs, blue, 6)
+        draw3d_points(context, self.spline_net.point_world_locs, green, 6)
         
             
         # Polylines...InputSegments
@@ -214,7 +217,7 @@ class Polytrim_UI_Draw():
             
             #bad segment with a preview path provided by geodesic
             if seg.bad_segment and not len(seg.path) > 2:
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  pink, 2, 'GL_LINE_STRIP' )
             
             #s
             elif len(seg.path) >= 2 and not seg.bad_segment and seg not in self.network_cutter.completed_segments:
@@ -237,7 +240,10 @@ class Polytrim_UI_Draw():
             seg = self.network_cutter.the_bad_segment
             draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, 'GL_LINE_STRIP' )
         
-        draw3d_points(context, self.input_net.point_world_locs, blue, 6)
+        if self._state == 'main':
+            draw3d_points(context, self.input_net.point_world_locs, blue, 2)
+        else:
+            draw3d_points(context, self.input_net.point_world_locs, blue, 6)
 
         #draw the seed/face patch points
         draw3d_points(context, [p.world_loc for p in self.network_cutter.face_patches], orange, 6)

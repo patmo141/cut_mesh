@@ -75,6 +75,7 @@ class Polytrim_UI_Tools():
             else:
                 prev_pnt = start_pnt
             
+            #FINALIZE INPUT NET MODE
             if isinstance(start_pnt, InputPoint):
                 for ind in range(0, len(self.sketch) , 5):
                     if not prev_pnt:
@@ -98,6 +99,8 @@ class Polytrim_UI_Tools():
                 if end_pnt:
                     seg = InputSegment(prev_pnt,end_pnt)
                     self.input_net.segments.append(seg)
+            
+            #FINALIZE CURVE NETWORK MODE
             else:
                 sketch_3d = []
                 other_data = []
@@ -140,7 +143,7 @@ class Polytrim_UI_Tools():
                     seg.calc_bezier()
                     seg.tessellate()
                     seg.tessellate_IP_error(.1)
-                    
+    
                     
         def finalize_bezier(self, context):
             
@@ -234,13 +237,32 @@ class Polytrim_UI_Tools():
             if d and self.grab_point:
                 self.grab_point.set_values(d["world loc"], d["local loc"], d["view"], d["face index"])
                 self.grab_point.bmface = self.input_net.bme.faces[d["face index"]]
-
+                self.grab_point.seed_geom = self.grab_point.bmface
+                
+                #update bezier preview
+                if isinstance(self.grab_point, CurveNode):
+                    self.grab_point.calc_handles()
+                    for seg in self.grab_point.link_segments:
+                        seg.is_inet_dirty = True
+                        node = seg.other_point(self.grab_point)
+                        node.calc_handles()
+                        node.update_splines()
+                        
+                        
         def grab_cancel(self):
             ''' returns variables to their status before grab was initiated '''
             if not self.grab_point: return
             for key in self.backup_data:
                 setattr(self.grab_point, key, self.backup_data[key])
             
+            if isinstance(self.grab_point, CurveNode):
+                self.grab_point.calc_handles()
+                for seg in self.grab_point.link_segments:
+                    seg.is_inet_dirty = False
+                    node = seg.other_point(self.grab_point)
+                    node.calc_handles()
+                    node.update_splines()
+                         
             self.grab_point = None #TODO BROKEN
             return
 
@@ -255,12 +277,13 @@ class Polytrim_UI_Tools():
                     seg.calculation_complete = False
 
             else:
+                self.net_ui_context.selected.update_input_point(self.input_net)
                 self.net_ui_context.selected.calc_handles()
                 for seg in self.net_ui_context.selected.link_segments:
                     node = seg.other_point(self.net_ui_context.selected)
                     node.calc_handles()
                     node.update_splines()
-                
+                    
             self.grab_point = None
 
 
@@ -594,14 +617,16 @@ class Polytrim_UI_Tools():
             point = self.spline_net.create_point(self.net_ui_context.mx * loc, loc, view_vector, face_ind)
             old_seg = self.net_ui_context.hovered_near[1]
             self.spline_net.insert_point(point, old_seg)
+            old_seg.clear_input_net_references(self.input_net)
             self.net_ui_context.selected = point
             
             point.update_splines()
             for node in old_seg.points:
                 node.update_splines()
-            #self.spline_net.update_segments()
             
-    
+            
+        self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+        self.network_cutter.update_segments_async()
     # TODO: Clean this up
     def click_delete_point(self, mode = 'mouse', disconnect=False):
         '''
@@ -620,6 +645,22 @@ class Polytrim_UI_Tools():
             if not self.net_ui_context.selected: return
             self.input_net.remove(self.net_ui_context.selected, disconnect= True)
 
+    def click_delete_spline_point(self, mode = 'mouse', disconnect=False):
+        '''
+        removes point from the trim line
+        '''
+        if mode == 'mouse':
+            if self.net_ui_context.hovered_near[0] != 'POINT': return
+
+            self.spline_net.remove_point(self.net_ui_context.hovered_near[1], disconnect) 
+            #self.network_cutter.update_segments()
+
+            if self.spline_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered_near[1]:
+                self.net_ui_context.selected = None
+
+        else: #hard delete with x key
+            if not self.net_ui_context.selected: return
+            self.spline_net.remove(self.net_ui_context.selected, disconnect= True)
     
     def click_add_seed(self):
         
