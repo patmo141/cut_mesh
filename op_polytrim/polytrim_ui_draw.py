@@ -262,8 +262,6 @@ class Polytrim_UI_Draw():
         if self.network_cutter.seg_exit:
             draw3d_polyline(context, self.network_cutter.seg_exit.path,  red, 4, 'GL_LINE_STRIP' )
 
-        for patch in self.network_cutter.face_patches:
-            draw3d_polyline(context, patch.bez_data,  (.8, .5, .5, 1), 4, 'GL_LINE_STRIP' )   
         
         bgl.glLineWidth(1)     
                 

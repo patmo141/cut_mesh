@@ -686,6 +686,8 @@ class NetworkCutter(object):
             new_segs += [seg]
             
             
+            patch.curve_nodes = new_points
+            patch.spline_net_segments = new_segs
             for p in new_points:
                 p.calc_handles()
             for seg in new_segs:
@@ -3407,8 +3409,13 @@ class SplineSegment(object): #NetworkSegment
         self.is_inet_dirty = True
         
     def clear_input_net_references(self, input_network):
+        print('this spline segment has %i input segments' % len(self.input_segments))
         for seg in self.input_segments:
-            input_network.remove_segment(seg)    
+            input_network.remove_segment(seg)
+            for ip in seg.points:
+                if len(ip.link_segments) == 0 and ip in input_network.points:
+                    input_network.remove_point(ip)
+               
         for ip in self.input_points:
             if ip in input_network.points:
                 input_network.remove_point(ip, disconnect = True)
@@ -3526,9 +3533,15 @@ class SplineNetwork(object): #InputNetwork
         if seg in self.segments:
             self.segments.remove(seg)
         
-        #remove references in the IPs   
-        seg.n0.link_segments.remove(seg)
-        seg.n1.link_segments.remove(seg)
+        #remove references in the IPs
+        if seg in seg.n0.link_segments:
+            seg.n0.link_segments.remove(seg)
+            if len(seg.n0.link_segments) == 0 and seg.n0 in self.points:
+                self.points.remove(seg.n0)
+        if seg in seg.n1.link_segments:
+            seg.n1.link_segments.remove(seg)
+            if len(seg.n1.link_segments) == 0 and seg.n1 in self.points:
+                self.points.remove(seg.n1)
         
         
     def are_connected(self, p1, p2): #TODO: Needs to be in InputPoint 
@@ -3550,17 +3563,17 @@ class SplineNetwork(object): #InputNetwork
 
 
     def remove_point(self, point, disconnect = False):
+        
         connected_points = self.connected_points(point)
         for cp in connected_points:
             self.disconnect_points(cp, point)
 
         if len(connected_points) == 2 and not disconnect:
             self.connect_points(connected_points[0], connected_points[1])
-
+             
+        if point in self.points:
+            self.points.remove(point)
         
-        
-        self.points.remove(point)
-
     #def duplicate(self):
     #    new = InputNetwork(self.source_ob)
     #    new.points = self.points

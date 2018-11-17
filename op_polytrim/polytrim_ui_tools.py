@@ -798,11 +798,7 @@ class Polytrim_UI_Tools():
             patch.patch_faces.difference_update(self.brush.geom_accum)
             if L != len(patch.patch_faces):
                 patch.paint_modified = True
-                for ip in patch.ip_points:
-                    if ip in self.input_net.points:
-                        self.input_net.remove_point(ip, disconnect = True)
-        
-        
+
         #Destroy all Discrete Network Elements touched by brush
         for ip in self.input_net.points:
             if ip.bmface in self.brush.geom_accum:
@@ -823,17 +819,46 @@ class Polytrim_UI_Tools():
             for ip_seg in seg.input_segments:
                 if ip_seg not in self.input_net.segments:
                     self.spline_net.remove_segment(seg)  #remove teh associated SPLINE segment  #TODO get smarter later
-                    break
-                           
-        #TODO, instead of obliterating entire path.... just delete the segments
-        #that are touched by geom_accum and cut_data[face_set] or IP.bmface in
-        #geom_accum
+                    for node in seg.points:
+                        if len(node.link_segments) == 0:
+                            self.spline_net.remove_point(node)
+        
         self.network_cutter.active_patch.patch_faces |= self.brush.geom_accum
         self.network_cutter.active_patch.paint_modified = True
-        for ip in self.network_cutter.active_patch.ip_points:
-            if ip in self.input_net.points:  #TODO, get really smart, only remove the affected discreet or curve network geom?
-                self.input_net.remove_point(ip, disconnect = True)
+        
+        ####### BRUTE FORCE REMOVE PATCH PERIMETER DATA ########
+        for patch in self.network_cutter.face_patches:
+            if not patch.paint_modified: continue
+            
+            print('this patch has %i ip points' % len(patch.ip_points))
+            print('this patch has %i spline points' % len(patch.curve_nodes))
+            #clear out all input points
+            for ip in patch.ip_points:
+                if ip in self.input_net.points:  #TODO, get really smart, only remove the affected discreet or curve network geom?
+                    self.input_net.remove_point(ip, disconnect = True)
+            
+            #clear out all SplinePoints
+            for seg in patch.spline_net_segments:
+                seg.clear_input_net_references(self.input_net) #clear out the InputNet
+                self.spline_net.remove_segment(seg) #clear out the SplineNet
                 
+                print('there are now %i nodes in spline net' % len(self.spline_net.points))
+                print('there are now %i points in input net' % len(self.input_net.points))
+                
+                print('there are now %i segs in input net' % len(self.input_net.segments))
+                print('there are now %i segs in spline net' % len(self.spline_net.segments))
+            
+            for node in patch.curve_nodes:
+                if node in self.spline_net.points:
+                    self.spline_net.remove_point(node)
+            
+            #clear the references
+            patch.ip_points = []
+            patch.input_net_segments = []
+            patch.curve_nodes = []
+            patch.spline_net_segments = []
+            
+                   
         self.network_cutter.active_patch.color_patch()
         self.network_cutter.validate_cdata()
         
