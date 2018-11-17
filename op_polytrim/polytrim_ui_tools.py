@@ -981,7 +981,7 @@ class Polytrim_UI_Tools():
     def enter_poly_mode(self):
         if self._state == 'main': return
         
-        if self._state == 'paint_wait':
+        if self._state == 'paint main':
             del self.brush
             self.brush = None
             self.paint_exit()
@@ -992,12 +992,10 @@ class Polytrim_UI_Tools():
             
             
     def enter_paint_mode(self):
-        if self._state == 'paint_wait': return
-        
-        self.fsm_change('paint_wait')
-        
-        
+        self.fsm_change('paint entering')
                
+        
+        
     def find_network_cycles_button(self):
         self.input_net.find_network_cycles()
     
