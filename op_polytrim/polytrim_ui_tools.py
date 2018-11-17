@@ -749,7 +749,7 @@ class Polytrim_UI_Tools():
         self.network_cutter.active_patch.patch_faces |= self.brush.geom_accum
         self.network_cutter.active_patch.paint_modified = True
         for ip in self.network_cutter.active_patch.ip_points:
-            if ip in self.input_net.points:
+            if ip in self.input_net.points:  #TODO, get really smart, only remove the affected discreet or curve network geom?
                 self.input_net.remove_point(ip, disconnect = True)
                 
         self.network_cutter.active_patch.color_patch()
