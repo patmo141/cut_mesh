@@ -692,8 +692,9 @@ class NetworkCutter(object):
                 seg.calc_bezier()
                 seg.tessellate()
                 seg.tessellate_IP_error(.1)
-            
-        self.update_segments_async()   
+        
+        #self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)    
+        #self.update_segments_async()   
         
     def create_network_from_face_patches(self):
         

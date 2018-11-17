@@ -743,6 +743,28 @@ class Polytrim_UI_Tools():
                         self.input_net.remove_point(ip, disconnect = True)
         
         
+        #Destroy all Discrete Network Elements touched by brush
+        for ip in self.input_net.points:
+            if ip.bmface in self.brush.geom_accum:
+                self.input_net.remove_point(ip, disconnect = True)
+                
+        for seg in self.input_net.segments:
+            if seg not in self.network_cutter.cut_data: continue #uh oh
+            if not self.brush.geom_accum.isdisjoint(self.network_cutter.cut_data[seg]['face_set']):
+                self.input_net.remove_segment(seg)                             
+        
+        #perhaps create new spline endpoints at the discrete endpoints..YES
+        #Destroy all Spline Network Elements touched by brush
+        for ip in self.spline_net.points:
+            if ip.bmface in self.brush.geom_accum:
+                self.spline_net.remove_point(ip, disconnect = True)
+                
+        for seg in self.spline_net.segments:
+            for ip_seg in seg.input_segments:
+                if ip_seg not in self.input_net.segments:
+                    self.spline_net.remove_segment(seg)  #remove teh associated SPLINE segment  #TODO get smarter later
+                    break
+                           
         #TODO, instead of obliterating entire path.... just delete the segments
         #that are touched by geom_accum and cut_data[face_set] or IP.bmface in
         #geom_accum
@@ -760,6 +782,8 @@ class Polytrim_UI_Tools():
         print('paint exit')
         self.network_cutter.create_spline_network_from_face_patches(self.spline_net)
         
+        self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+        self.network_cutter.update_segments_async()
         #TODO why is _state_next not working
         #if self._state_next == 'main':
         #    print('create spline network')
