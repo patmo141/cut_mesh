@@ -1255,13 +1255,14 @@ class UI_Options(UI_Container):
     color_unselect = None
     color_hover = (1.00, 1.00, 1.00, 0.10)
 
-    def __init__(self, fn_get_option, fn_set_option, label=None, vertical=True, margin=2, separation=0, hovercolor=(1,1,1,0.1)):
+    def __init__(self, fn_get_option, fn_set_option, label=None, label_fontsize=None, label_margin=0, label_align=None, vertical=True, margin=2, separation=0, hovercolor=(1,1,1,0.1)):
         super().__init__(vertical=vertical, margin=margin, separation=separation)
         self.defer_recalc = True
         if vertical: align,valign = -1,-1
         else: align,valign = -1,0
-        self.ui_label = super().add(UI_Label('', margin=0, align=align, valign=valign))
-        self.set_label(label)
+        if label_align: align = label_align
+        self.ui_label = super().add(UI_Label('', margin=label_margin, align=align, valign=valign))
+        self.set_label(label, fontsize=label_fontsize, align=align)
         self.container = super().add(UI_EqualContainer(vertical=vertical, margin=0))
         self.fn_get_option = fn_get_option
         self.fn_set_option = fn_set_option
@@ -1271,9 +1272,12 @@ class UI_Options(UI_Container):
         self.mouse_prev = None
         self.defer_recalc = False
 
-    def set_label(self, label):
+    def set_label(self, label, fontsize=None, align=None, margin=None):
         self.ui_label.visible = label is not None
         self.ui_label.set_label(label or '')
+        if fontsize is not None: self.ui_label.fontsize = fontsize
+        if align is not None: self.ui_label.align = align
+        if margin is not None: self.ui_label.margin = margin
 
     class UI_Option(UI_Background):
         def __init__(self, options, label, value, icon=None, tooltip=None, color=(1,1,1,1), align=-1, showlabel=True, margin=2):
