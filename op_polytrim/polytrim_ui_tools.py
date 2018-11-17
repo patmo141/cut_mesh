@@ -393,7 +393,9 @@ class Polytrim_UI_Tools():
             self.input_net = None
 
             self.ob = context.object
-            
+            self.ob.hide = False
+            context.scene.render.engine = 'BLENDER_RENDER'
+            context.space_data.show_manipulator = False
             context.space_data.viewport_shade = 'SOLID'  #TODO until smarter drawing
             context.space_data.show_textured_solid = True #TODO until smarter patch drawing
         
@@ -992,13 +994,9 @@ class Polytrim_UI_Tools():
     def enter_paint_mode(self):
         if self._state == 'paint_wait': return
         
-        if self._state == 'main': #TODO polydraw
-            self.network_cutter.find_boundary_faces()
-            for patch in self.network_cutter.face_patches:
-                patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
-                patch.color_patch()
-            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         self.fsm_change('paint_wait')
+        
+        
                
     def find_network_cycles_button(self):
         self.input_net.find_network_cycles()

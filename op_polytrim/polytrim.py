@@ -57,6 +57,10 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim
         if context.object.type != 'MESH':
             #showErrorMessage('Must select a mesh object')
             return False
+        
+        if context.object.hide:
+            return False
+        
         return True
 
     def start(self):
