@@ -38,18 +38,18 @@ class Polytrim_UI_Init():
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
 
         def mode_getter():
-            if self._state in {'paint_wait', 'paint'}: return 'paint_wait'
+            if self._state in {'paint main', 'paint'}: return 'paint'
             if self._state in {'main', 'grab'}: return 'main'
             return self._state
         def mode_setter(m):
-            if   m == 'main':       self.enter_poly_mode()
-            elif m == 'paint_wait': self.enter_paint_mode()
-            elif m == 'seed':       self.enter_seed_select_button()
+            if   m == 'main':   self.enter_poly_mode()
+            elif m == 'paint':  self.enter_paint_mode()
+            elif m == 'seed':   self.enter_seed_select_button()
         ui_mode = info.add(ui.UI_Options(mode_getter, mode_setter))
         ui_mode.set_label('Pre Cut Tools', fontsize=16, align=0, margin=4)
         ui_mode.add_option('Boundary Edit', value='main', icon=ui.UI_Image('polyline.png'))
         ui_mode.add_option('Boundary > Region', value='seed', icon=ui.UI_Image('seed.png'))
-        ui_mode.add_option('Region Paint', value='paint_wait', icon=ui.UI_Image('paint.png'))
+        ui_mode.add_option('Region Paint', value='paint', icon=ui.UI_Image('paint.png'))
 
         def radius_getter():
             return self.brush_radius

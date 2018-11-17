@@ -32,7 +32,7 @@ class Polytrim_UI_Draw():
             #elif self.net_ui_context.hovered_mesh:
                 #world_loc = self.net_ui_context.hovered_mesh["world_loc"]
             if world_loc: self.draw_circle(world_loc, 20, .7, green_opaque, clear)
-        if not self._nav and self._state in {'paint_wait', 'paint'}:
+        if not self._nav and self._state in {'paint main', 'paint'}:
             self.brush.draw_postview(self.context, self.actions.mouse)
 
     @CookieCutter.Draw('post2d')

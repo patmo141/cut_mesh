@@ -76,7 +76,7 @@ class Polytrim_States():
         if self.actions.pressed('P'):
             #TODO what about a button?
             #What about can_enter?
-            return 'paint_wait'
+            return 'paint entering'
 
         if self.actions.pressed('RET'):
             self.done()
@@ -141,7 +141,7 @@ class Polytrim_States():
         if self.actions.pressed('P'):
             #TODO what about a button?
             #What about can_enter?
-            return 'paint_wait'
+            return 'paint entering'
 
         if self.actions.pressed('RET'):
             #self.done()
@@ -308,28 +308,36 @@ class Polytrim_States():
             return
 
 
-    @CookieCutter.FSM_State('paint_wait', 'can enter')
-    def paintwait_can_enter(self):
+    @CookieCutter.FSM_State('paint entering', 'can enter')
+    def paint_entering_can_enter(self):
         #the cut network has been executed
-        
+
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
-        
+
         print(c1, c2)
         return (c1 and c2)
 
-    @CookieCutter.FSM_State('paint_wait', 'enter')
-    def paintwait_enter(self):
-        self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
-
+    @CookieCutter.FSM_State('paint entering', 'enter')
+    def paint_entering_enter(self):
         #if self._state == 'main': #TODO polydraw
         self.network_cutter.find_boundary_faces()
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
             patch.color_patch()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-    @CookieCutter.FSM_State('paint_wait')
-    def modal_paintwait(self):
+
+    @CookieCutter.FSM_State('paint entering')
+    def paint_entering(self):
+        return 'paint main'
+
+    @CookieCutter.FSM_State('paint main', 'enter')
+    def paint_main_enter(self):
+        self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
+
+
+    @CookieCutter.FSM_State('paint main')
+    def paint_main(self):
         self.cursor_modal_set('PAINT_BRUSH')
 
         if self.actions.mousemove_prev:
@@ -385,7 +393,7 @@ class Polytrim_States():
             #add all geometry (or subtract all geometr) from current patch
             #color it apporpriately
             #reset the paint widget
-            return 'paint_wait'
+            return 'paint main'
 
         loc,_,_ = self.brush.ray_hit(self.actions.mouse, self.context)
         if loc and (not self.last_loc or (self.last_loc - loc).length > self.brush.radius*(0.25)):
