@@ -951,55 +951,6 @@ class Polytrim_UI_Tools():
 
         return (None, None)
 
-    # XXX: Fine for now, but will likely be irrelevant in future
-    def ui_text_update(self):
-        '''
-        updates the text at the bottom of the viewport depending on certain conditions
-        '''
-        self.reset_ui_text()
-        if self.input_net.is_empty:
-            self.set_ui_text_no_points()
-        elif self.grabber.in_use:
-            self.set_ui_text_grab_mode()
-        elif self.input_net.num_points == 1:
-            self.set_ui_text_1_point()
-        elif self.input_net.num_points > 1:
-            self.set_ui_text_multiple_points()
-
-    # XXX: Fine for now, but will likely be irrelevant in future
-    def set_ui_text_no_points(self):
-        ''' sets the viewports text when no points are out '''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add'])
-        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['sketch (anywhere)'])
-
-    def set_ui_text_1_point(self):
-        ''' sets the viewports text when 1 point has been placed'''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (green line)'])
-        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
-        self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch (point)'])
-        self.inst_paragraphs[3].set_markdown('D) ' + self.instructions['grab'])
-        self.inst_paragraphs[4].set_markdown('E) ' + self.instructions['add (disconnect)'])
-        self.inst_paragraphs[5].set_markdown('F) ' + self.instructions['delete (disconnect)'])
-    
-    def set_ui_text_multiple_points(self):
-        ''' sets the viewports text when there are multiple points '''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (green line)'])
-        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
-        self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch (point)'])
-        self.inst_paragraphs[3].set_markdown('C) ' + self.instructions['select'])
-        self.inst_paragraphs[4].set_markdown('D) ' + self.instructions['grab'])
-        self.inst_paragraphs[5].set_markdown('E) ' + self.instructions['add (disconnect)'])
-        self.inst_paragraphs[6].set_markdown('F) ' + self.instructions['delete (disconnect)'])
-
-    def set_ui_text_grab_mode(self):
-        ''' sets the viewports text during general creation of line '''
-        self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['grab confirm'])
-        self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['grab cancel'])
-
-    def reset_ui_text(self):
-        for inst_p in self.inst_paragraphs:
-            inst_p.set_markdown('')
-
     def enter_poly_mode(self):
         if self._state == 'main': return
         

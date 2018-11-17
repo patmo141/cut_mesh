@@ -313,7 +313,7 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('paint_wait', 'enter')
     def paintwait_enter(self):
-        self.brush = self.PaintBrush(self.net_ui_context)
+        self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
 
     @CookieCutter.FSM_State('paint_wait')
     def modal_paintwait(self):
