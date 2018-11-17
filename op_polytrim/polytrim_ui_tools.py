@@ -139,6 +139,9 @@ class Polytrim_UI_Tools():
                 for seg in new_segs:
                     seg.calc_bezier()
                     seg.tessellate()
+                    seg.tessellate_IP_error(.1)
+                    
+                    
         def finalize_bezier(self, context):
             
             stroke3d = []

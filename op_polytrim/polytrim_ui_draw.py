@@ -197,7 +197,15 @@ class Polytrim_UI_Draw():
         #CurveNetwork, Bezier
         for seg in self.spline_net.segments:
             if len(seg.draw_tessellation) == 0: continue
-            draw3d_polyline(context, seg.draw_tessellation,  orange, 3, 'GL_LINE_STRIP' )
+            
+            draw3d_polyline(context, seg.draw_tessellation,  orange, 4, 'GL_LINE_STRIP' )
+            
+            if len(seg.ip_tesselation):
+                draw3d_polyline(context, seg.ip_tesselation,  blue, 2, 'GL_LINE_STRIP' )
+                draw3d_points(context, seg.ip_tesselation, green, 4)
+            
+                
+                
         draw3d_points(context, self.spline_net.point_world_locs, blue, 6)
         
             

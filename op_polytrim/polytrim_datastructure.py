@@ -3167,6 +3167,7 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
         for seg in self.link_segments:
             seg.calc_bezier()
             seg.tessellate()
+            seg.tessellate_IP_error(.1)
               
     #note, does not duplicate connectivity data
     def duplicate(self): return InputPoint(self.world_loc, self.local_loc, self.view, self.face_index)
@@ -3251,6 +3252,8 @@ class SplineSegment(object): #NetworkSegment
         self.input_points = []  #mapping to the tesselated InputPoints
         
         self.draw_tessellation = []  #higher res tesselation
+        self.ip_tesselation = []  #error based or length based tesselation to create InputPoints
+        self.ip_vies = []  #interpolated view_direction from n0 to n1
         
     def is_bad(self): return self.bad_segment
     is_bad = property(is_bad)
@@ -3285,6 +3288,24 @@ class SplineSegment(object): #NetworkSegment
         #n = L/2  #2mm spacing long strokes?
         self.draw_tessellation = [pt.as_vector() for i,pt,d in self.cb.tessellation]
         #print('there are %i points in draw_tesselation' % len(self.draw_tessellation))
+    
+    def tessellate_IP_error(self, error):
+        '''
+        Used RDP simplification on the draw_tess
+        '''
+        if len(self.draw_tessellation) == 0:
+            self.tessellate()
+            
+        
+        feature_inds = simplify_RDP(self.draw_tessellation, error)
+        
+        self.ip_tesselation = []
+        self.ip_views = []
+        
+        for ind in feature_inds:
+            self.ip_tesselation += [self.draw_tessellation[ind]]
+            blend = ind/(len(self.draw_tessellation) - 1)
+            self.ip_views += [self.n0.view.lerp(self.n1.view, blend)]
         
 class SplineNetwork(object): #InputNetwork
     '''
