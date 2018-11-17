@@ -32,6 +32,7 @@ from ..geodesic import GeoPath, geodesic_walk, continue_geodesic_walk, gradient_
 from .. import common_drawing
 from ..common.rays import get_view_ray_data, ray_cast
 from ..common.blender import bversion
+from ..common.colors import get_random_color
 from ..common.utils import get_matrices
 from ..common.bezier import CubicBezier, CubicBezierSpline, CompositeSmoothCubicBezierSpline
 from ..common.shaders import circleShader
@@ -2672,11 +2673,11 @@ class NetworkCutter(object):
         
         for patch in self.face_patches:
             if f in patch.patch_faces:  #just change the color but don't add a duplicate
-                patch.set_color((random.random(), random.random(), random.random()))
+                patch.set_color(get_random_color())
                 patch.color_patch()
                 return
                             
-        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, (random.random(), random.random(), random.random()))
+        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, get_random_color())
         new_patch.grow_seed(self.input_net.bme, self.boundary_edges)
         new_patch.color_patch()
         self.face_patches += [new_patch]
@@ -2700,11 +2701,11 @@ class NetworkCutter(object):
         
         for patch in self.face_patches:
             if f in patch.patch_faces:  #just change the color but don't add a duplicate
-                patch.set_color((random.random(), random.random(), random.random()))
+                patch.set_color(get_random_color())
                 patch.color_patch()
                 return
                             
-        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, (random.random(), random.random(), random.random()))
+        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, get_random_color())
         new_patch.grow_seed_faces(self.input_net.bme, self.boundary_faces)
         new_patch.color_patch()
         self.face_patches += [new_patch]
@@ -2749,7 +2750,7 @@ class NetworkCutter(object):
             
             
         f= self.net_ui_context.bme.faces[face_ind]                   
-        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, (random.random(), random.random(), random.random()))
+        new_patch = BMFacePatch(f, local_loc, world_loc, vcol_layer, get_random_color())
         self.face_patches += [new_patch]
         self.active_patch = new_patch
                  
