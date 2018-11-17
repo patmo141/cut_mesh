@@ -23,8 +23,6 @@ class Polytrim_UI_Draw():
         clear = (0,0,0,0)
         green = (.3,1,.3,1)
         green_opaque = (.3,1,.3,.5)
-        if self._state in {'paint_wait', 'paint'}:
-            self.brush.draw_postview(self.context, self.actions.mouse)
         self.draw_stuff_3d()
         # circle around point to be drawn
         if not self._nav:
@@ -34,6 +32,8 @@ class Polytrim_UI_Draw():
             #elif self.net_ui_context.hovered_mesh:
                 #world_loc = self.net_ui_context.hovered_mesh["world_loc"]
             if world_loc: self.draw_circle(world_loc, 20, .7, green_opaque, clear)
+        if not self._nav and self._state in {'paint_wait', 'paint'}:
+            self.brush.draw_postview(self.context, self.actions.mouse)
 
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
