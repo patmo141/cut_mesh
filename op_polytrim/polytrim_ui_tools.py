@@ -187,25 +187,23 @@ class Polytrim_UI_Tools():
                 vcol_layer = self.net_ui_context.bme.loops.layers.color["patches"]
             
             self.vcol = vcol_layer
-            
+
+        def ray_hit(self, pt_screen, context):
+            view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen)  #a location and direction in WORLD coordinates
+            return ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
+
         def absorb_geom(self, context, pt_screen_loc):
-            
-            view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
-            loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
-                    
-            if loc != None:
-                close_geom = self.net_ui_context.bvh.find_nearest_range(loc, self.radius)
-                
-                fs = [self.net_ui_context.bme.faces[ind] for  _,_,ind,_ in close_geom]                
-                self.color_geom(fs)  
-                
-                self.geom_accum.update(fs)  
-        
+            loc, no, face_ind = self.ray_hit(pt_screen_loc, context)
+            if not loc: return
+
+            close_geom = self.net_ui_context.bvh.find_nearest_range(loc, self.radius)
+            fs = [self.net_ui_context.bme.faces[ind] for  _,_,ind,_ in close_geom]
+            self.color_geom(fs)
+            self.geom_accum.update(fs)
+
         def absorb_geom_geodesic(self, context, pt_screen_loc):
-            view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
-            loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
-                    
-            if loc == None: return
+            loc, no, face_ind = self.ray_hit(pt_screen_loc, context)
+            if not loc: return
             
             #can do old mapping if bme has been altered
             seed = self.net_ui_context.bme.faces[face_ind]
@@ -224,9 +222,8 @@ class Polytrim_UI_Tools():
                                   
             self.color_geom(fs_in)  
             self.geom_accum.update(fs_in) 
-            
-            
-                  
+
+
         def color_geom(self, faces):
             for f in faces:
                 for loop in f.loops:
