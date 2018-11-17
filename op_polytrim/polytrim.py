@@ -33,6 +33,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Tools, Polytri
         # val: a str or a set of strings representing the user action
         'action': {'LEFTMOUSE'},
         'sketch': {'LEFTMOUSE'},
+        'select': {'LEFTMOUSE'},
         'add point (disconnected)': {'CTRL+LEFTMOUSE'},
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'grab': 'G',

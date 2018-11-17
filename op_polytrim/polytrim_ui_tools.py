@@ -573,7 +573,7 @@ class Polytrim_UI_Tools():
             self.input_net.insert_point(point, old_seg)
             self.net_ui_context.selected = point
             self.network_cutter.update_segments()
-    
+
     def click_add_spline_point(self, context, mouse_loc, connect=True):
         '''
         this will add a point into the trim line
@@ -587,8 +587,7 @@ class Polytrim_UI_Tools():
         #loc, no, face_ind = ray_cast(self.net_ui_context.ob, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
         loc, no, face_ind = ray_cast_bvh(self.net_ui_context.bvh, self.net_ui_context.imx, ray_origin, ray_target, none_selected)
         
-        if loc == None: 
-            return
+        if not loc: return
 
         #Add a new edge_point?
         if self.net_ui_context.hovered_near[0] and 'NON_MAN' in self.net_ui_context.hovered_near[0]:

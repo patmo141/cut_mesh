@@ -31,13 +31,20 @@ class Polytrim_States():
             #TODO: Bring hover into NetworkUiContext
             self.hover_spline()
             #self.net_ui_context.inspect_print()
-            
+
         #after navigation filter, these are relevant events in this state
-        if self.actions.pressed('grab'): 
+        if self.actions.pressed('grab'):
             self.ui_text_update()
             return 'grab'
 
-        if self.actions.pressed('sketch'): 
+        if self.actions.pressed('select', unpress=False):
+            if self.net_ui_context.hovered_near[0] == 'POINT':
+                self.actions.unpress()
+                print('select hovered point')
+                self.net_ui_context.selected = self.net_ui_context.hovered_near[1]
+                return
+
+        if self.actions.pressed('sketch'):
             self.ui_text_update()
             return 'sketch'
 
@@ -53,7 +60,7 @@ class Polytrim_States():
             self.hover_spline()
             self.ui_text_update()
             return
-        
+
         if self.actions.pressed('delete (disconnect)'):
             self.click_delete_spline_point('mouse', True)
             self.net_ui_context.update(self.actions.mouse)
@@ -65,12 +72,12 @@ class Polytrim_States():
             #TODO what about a button?
             #What about can_enter?
             return 'seed'
-        
+
         if self.actions.pressed('P'):
             #TODO what about a button?
             #What about can_enter?
             return 'paint_wait'
-             
+
         if self.actions.pressed('RET'):
             self.done()
             return
@@ -99,11 +106,11 @@ class Polytrim_States():
             self.hover()
 
         #after navigation filter, these are relevant events in this state
-        if self.actions.pressed('grab'): 
+        if self.actions.pressed('grab'):
             self.ui_text_update()
             return 'grab'
 
-        if self.actions.pressed('sketch'): 
+        if self.actions.pressed('sketch'):
             self.ui_text_update()
             return 'sketch'
 
@@ -118,7 +125,7 @@ class Polytrim_States():
             self.hover()
             self.ui_text_update()
             return
-        
+
         if self.actions.pressed('delete (disconnect)'):
             self.click_delete_point('mouse', True)
             self.net_ui_context.update(self.actions.mouse)
@@ -130,13 +137,12 @@ class Polytrim_States():
             #TODO what about a button?
             #What about can_enter?
             return 'seed'
-        
+
         if self.actions.pressed('P'):
             #TODO what about a button?
             #What about can_enter?
             return 'paint_wait'
-        
-           
+
         if self.actions.pressed('RET'):
             #self.done()
             return 'main'
@@ -157,7 +163,7 @@ class Polytrim_States():
         can_enter_spline = (not self.spline_net.is_empty and self.net_ui_context.selected != None)
         if self._state == 'main':
             return can_enter_spline
-        else:    
+        else:
             return can_enter
 
     @CookieCutter.FSM_State('grab', 'enter')
@@ -176,14 +182,13 @@ class Polytrim_States():
             #confirm location
             x,y = self.actions.mouse
             self.grabber.finalize(self.context)
-            
+
             if isinstance(self.net_ui_context.selected, CurveNode):
                 self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
-                                                  
                 self.network_cutter.update_segments_async()
             else:
                 self.network_cutter.update_segments()
-            
+
             return 'main'
 
         if self.actions.pressed('cancel'):
@@ -214,12 +219,13 @@ class Polytrim_States():
         print("selected", self.net_ui_context.selected)
         context = self.context
         mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
+
+        # TODO: do NOT change state in "can enter".  move the following click_add_* stuff to "enter"
         if self._state == 'main':
             self.click_add_spline_point(context, mouse)  #Send the 2D coordinates to Knife Class
             return  self.net_ui_context.hovered_near[0] == 'POINT' or self.input_net.num_points == 1
         elif self._state == 'point_edit':
             self.click_add_point(context, mouse)
-            
             print("selected 2", self.net_ui_context.selected)
             return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
 
@@ -242,13 +248,12 @@ class Polytrim_States():
                 last_hovered_point = self.net_ui_context.hovered_near[1]
                 print("LAST:",self.net_ui_context.hovered_near)
                 self.net_ui_context.update(self.actions.mouse)
-                self.hover_spline()  
-                new_hovered_point = self.net_ui_context.hovered_near[1]   
+                self.hover_spline()
+                new_hovered_point = self.net_ui_context.hovered_near[1]
                 print("NEW:",self.net_ui_context.hovered_near)
                 print(last_hovered_point, new_hovered_point)
                 self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
                 self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
-                
                 self.network_cutter.update_segments_async()
             self.ui_text_update()
             self.sketcher.reset()
@@ -276,26 +281,26 @@ class Polytrim_States():
         if self.actions.mousemove_prev:
             #update the bmesh geometry under mouse location
             self.net_ui_context.update(self.actions.mouse)
-               
+
         #if left click
             #place seed on surface
             #background watershed form the seed to color the region on the mesh
-        
+
         if self.actions.pressed('LEFTMOUSE'):
             self.click_add_seed()
-        
+
         #if right click
             #remove the seed
             #remove any "patch" data associated with the seed
 
         #if escape
             #return to 'main'
-            
+
         #if enter
             #return to 'main'
         if self.actions.pressed('RET'):
             return 'main'
-           
+
         if self.actions.pressed('ESC'):
             self.done(cancel=True)
             return
