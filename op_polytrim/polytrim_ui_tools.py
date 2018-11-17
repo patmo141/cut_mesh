@@ -920,10 +920,10 @@ class Polytrim_UI_Tools():
             del self.brush
             self.brush = None
             self.paint_exit()
-            self._state_next = 'main'
+            self.fsm_change('main')
     
         elif self._state == 'seed':
-            self._state_next = 'main'
+            self.fsm_change('main')
             
             
     def enter_paint_mode(self):
@@ -935,8 +935,7 @@ class Polytrim_UI_Tools():
                 patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
                 patch.color_patch()
             self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-            
-        self._state_next = 'paint_wait'
+        self.fsm_change('paint_wait')
                
     def find_network_cycles_button(self):
         self.input_net.find_network_cycles()
@@ -959,8 +958,8 @@ class Polytrim_UI_Tools():
         
         self._sate_next = 'seed'
         
-    def enter_seed_select_button(self):    
-        self._state_next = 'seed'
+    def enter_seed_select_button(self):
+        self.fsm_change('seed')
         self.cursor_modal_set('EYEDROPPER')
         return
     

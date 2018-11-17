@@ -59,21 +59,25 @@ class CookieCutter_FSM:
             debugger.print_exception()
             return
 
+    def fsm_change(self, state):
+        self._state_next = None
+        if self._state == state:
+            return True
+        if self._fsm_call(self._state, substate='can exit') == False:
+            print('Cannot exit %s' % str(self._state))
+            return False
+        if self._fsm_call(state, substate='can enter') == False:
+            print('Cannot enter %s' % str(state))
+            return False
+        print('%s -> %s' % (str(self._state), str(state)))
+        self._fsm_call(self._state, substate='exit')
+        self._state = state
+        self._fsm_call(self._state, substate='enter')
+        return True
 
     def fsm_update(self):
-        if self._state_next is not None and self._state_next != self._state:
-            if self._fsm_call(self._state, substate='can exit') == False:
-                print('Cannot exit %s' % str(self._state))
-                self._state_next = None
-                return
-            if self._fsm_call(self._state_next, substate='can enter') == False:
-                print('Cannot enter %s' % str(self._state_next))
-                self._state_next = None
-                return
-            print('%s -> %s' % (str(self._state), str(self._state_next)))
-            self._fsm_call(self._state, substate='exit')
-            self._state = self._state_next
-            self._fsm_call(self._state, substate='enter')
+        if self._state_next is not None:
+            self.fsm_change(self._state_next)
         self._state_next = self._fsm_call(self._state, fail_if_not_exist=True)
 
 
