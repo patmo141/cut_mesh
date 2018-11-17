@@ -39,9 +39,6 @@ from ..common.simplify import simplify_RDP, relax_vert_chain
 from ..common.profiler import profiler
 
 from concurrent.futures.thread import ThreadPoolExecutor
-from test.test_dis import simple
-
-
 
 #helper function to split a face
 def split_face_by_verts(bme, f, ed_enter, ed_exit, bmvert_chain):
