@@ -20,7 +20,7 @@ from mathutils import Vector, kdtree, Color
 from mathutils.geometry import intersect_point_line
 from mathutils.bvhtree import BVHTree
 from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
-from ..common.maths import Direction
+from ..common.maths import Point, Direction, XForm
 from ..common.bezier import CubicBezierSpline
 from ..common.simplify import simplify_RDP
 from ..geodesic import geodesic_walk
@@ -176,6 +176,7 @@ class Polytrim_UI_Tools():
         #active patch?  meaning we are updating a selection
         def __init__(self, net_ui_context, radius=1.5, color=(0.8, 0.1, 0.3)):
             self.net_ui_context = net_ui_context
+            self.xform = XForm(self.net_ui_context.ob.matrix_world)
             self.radius = radius
             self.brush_color = Color(color)
             #self.brush_rad_pixel = 40
@@ -192,7 +193,7 @@ class Polytrim_UI_Tools():
 
         def ray_hit(self, pt_screen, context):
             view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen)  #a location and direction in WORLD coordinates
-            return ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
+            return ray_cast_bvh(self.net_ui_context.bvh, self.net_ui_context.imx, ray_origin, ray_target, None)
 
         def absorb_geom(self, context, pt_screen_loc):
             loc, no, face_ind = self.ray_hit(pt_screen_loc, context)
@@ -234,6 +235,8 @@ class Polytrim_UI_Tools():
         def draw_postview(self, context, pt_screen):
             loc,no,_ = self.ray_hit(pt_screen, context)
             if not loc: return
+            loc = self.xform.l2w_point(loc)
+            no = self.xform.l2w_normal(no)
             tr = Vector((0,0,1)) if abs(no.z) < 0.9 else Vector((1,0,0))
             tx = Direction(no.cross(tr))
             ty = Direction(no.cross(tx))
