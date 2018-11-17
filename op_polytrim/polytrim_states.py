@@ -265,7 +265,9 @@ class Polytrim_States():
     @CookieCutter.FSM_State('seed', 'can enter')
     def seed_can_enter(self):
         #the cut network has been executed
-        return True
+        c1 = not any([seg.is_bad for seg in self.input_net.segments])
+        c2 = all([seg.calculation_complete for seg in self.input_net.segments])
+        return c1 and c2
 
     @CookieCutter.FSM_State('seed', 'enter')
     def seed_enter(self):
@@ -309,7 +311,10 @@ class Polytrim_States():
     @CookieCutter.FSM_State('paint_wait', 'can enter')
     def paintwait_can_enter(self):
         #the cut network has been executed
-        return True
+        
+        c1 = not any([seg.is_bad for seg in self.input_net.segments])
+        c2 = all([seg.calculation_complete for seg in self.input_net.segments])
+        return c1 and c2
 
     @CookieCutter.FSM_State('paint_wait', 'enter')
     def paintwait_enter(self):
