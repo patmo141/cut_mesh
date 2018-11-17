@@ -314,12 +314,20 @@ class Polytrim_States():
         
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
-        return c1 and c2
+        
+        print(c1, c2)
+        return (c1 and c2)
 
     @CookieCutter.FSM_State('paint_wait', 'enter')
     def paintwait_enter(self):
         self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
 
+        #if self._state == 'main': #TODO polydraw
+        self.network_cutter.find_boundary_faces()
+        for patch in self.network_cutter.face_patches:
+            patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
+            patch.color_patch()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
     @CookieCutter.FSM_State('paint_wait')
     def modal_paintwait(self):
         self.cursor_modal_set('PAINT_BRUSH')
@@ -386,8 +394,8 @@ class Polytrim_States():
             #use brush radius to find all geometry within
             #add that geometry to the "stroke region"
             #color it as the "interim" strokeregion color
-            #self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
-            self.brush.absorb_geom(self.context, self.actions.mouse)
+            self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
+            #self.brush.absorb_geom(self.context, self.actions.mouse)
             self.paint_dirty = True
 
         if self.paint_dirty and (time.time() - self.last_update) > 0.2:

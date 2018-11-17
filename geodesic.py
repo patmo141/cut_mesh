@@ -263,7 +263,7 @@ def unwrap_tri_obtuse(vcenter, vobtuse, face):
     return v_cos[i], verts[i], v_cos
     
 
-def geodesic_walk(bme, seed, seed_location, targets = [], subset = None, max_iters = 100, min_dist = None):
+def geodesic_walk(bme, seed, seed_location, targets = [], subset = None, max_iters = 10000, min_dist = None):
     '''
     bme - BMesh
     seed - a vertex or a face
