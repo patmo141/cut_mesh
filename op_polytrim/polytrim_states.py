@@ -297,7 +297,9 @@ class Polytrim_States():
         if self.actions.pressed('RET'):
             return 'main'
            
-        return 'seed'
+        if self.actions.pressed('ESC'):
+            self.done(cancel=True)
+            return
     
     
     @CookieCutter.FSM_State('paint_wait', 'can enter')
@@ -335,9 +337,12 @@ class Polytrim_States():
             return 'main'
         
         if self.actions.pressed('ESC'):
-            del self.brush
-            self.brush = None
-            return 'main'
+            self.done(cancel=True)
+            return
+        # if self.actions.pressed('ESC'):
+        #     del self.brush
+        #     self.brush = None
+        #     return 'main'
         
         return 'paint_wait'
     
