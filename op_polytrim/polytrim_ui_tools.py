@@ -20,6 +20,7 @@ from mathutils.bvhtree import BVHTree
 from ..bmesh_fns import edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 from ..common.bezier import CubicBezierSpline
 from ..common.simplify import simplify_RDP
+from ..geodesic import geodesic_walk
 
 class Polytrim_UI_Tools():
     '''
@@ -199,7 +200,33 @@ class Polytrim_UI_Tools():
                 self.color_geom(fs)  
                 
                 self.geom_accum.update(fs)  
-                
+        
+        def absorb_geom_geodesic(self, context, pt_screen_loc):
+            view_vector, ray_origin, ray_target = get_view_ray_data(context, pt_screen_loc)  #a location and direction in WORLD coordinates
+            loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
+                    
+            if loc == None: return
+            
+            #can do old mapping if bme has been altered
+            seed = self.net_ui_context.bme.faces[face_ind]
+            
+            geos, fixed_vs, close, far = geodesic_walk(self.net_ui_context.bme, seed, loc, min_dist = self.radius)
+            
+            fs_in = set()
+            fs_out = set()
+            for v in fixed_vs:
+                for f in v.link_faces:
+                    if f in fs_in or f in fs_out: continue
+                    if all([v in fixed_vs for v in f.verts]):
+                        fs_in.add(f)
+                    else:
+                        fs_out.add(f)
+                                  
+            self.color_geom(fs_in)  
+            self.geom_accum.update(fs_in) 
+            
+            
+                  
         def color_geom(self, faces):
             for f in faces:
                 for loop in f.loops:
@@ -237,7 +264,6 @@ class Polytrim_UI_Tools():
             if d and self.grab_point:
                 self.grab_point.set_values(d["world loc"], d["local loc"], d["view"], d["face index"])
                 self.grab_point.bmface = self.input_net.bme.faces[d["face index"]]
-                self.grab_point.seed_geom = self.grab_point.bmface
                 
                 #update bezier preview
                 if isinstance(self.grab_point, CurveNode):
@@ -283,7 +309,11 @@ class Polytrim_UI_Tools():
                     node = seg.other_point(self.net_ui_context.selected)
                     node.calc_handles()
                     node.update_splines()
-                    
+                
+                print(len(self.grab_point.link_segments))
+                print(self.grab_point.face_index)
+                print(self.grab_point.seed_geom)
+                
             self.grab_point = None
 
 
@@ -493,6 +523,7 @@ class Polytrim_UI_Tools():
 
             self.net_ui_context.selected = self.input_net.create_point(wrld_loc, self.net_ui_context.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
             self.net_ui_context.selected.seed_geom = bmed
+            self.net_ui_context.selected.bmedge = bmed  #UNUSED BUT PREPARING FOR FUTURE
 
             if ip1:
                 seg = InputSegment(self.net_ui_context.selected, ip1)
@@ -569,6 +600,7 @@ class Polytrim_UI_Tools():
 
             self.net_ui_context.selected = self.spline_net.create_point(wrld_loc, self.net_ui_context.imx * wrld_loc, view_vector, bmed.link_faces[0].index)
             self.net_ui_context.selected.seed_geom = bmed
+            self.net_ui_context.selected.bmedge = bmed  #UNUSED, but preparing for future
 
             self.net_ui_context.selected.update_splines()
                 
@@ -651,10 +683,17 @@ class Polytrim_UI_Tools():
         '''
         if mode == 'mouse':
             if self.net_ui_context.hovered_near[0] != 'POINT': return
+            curve_point = self.net_ui_context.hovered_near[1]  #CurveNode
 
-            self.spline_net.remove_point(self.net_ui_context.hovered_near[1], disconnect) 
-            #self.network_cutter.update_segments()
-
+            #Clear the CurveNode to InputNetwork mappings and delete corresponding
+            #elements
+            for seg in curve_point.link_segments:
+                seg.clear_input_net_references(self.input_net)
+            if curve_point.input_point in self.input_net.points:
+                self.input_net.remove_point(curve_point.input_point, disconnect)
+            #Remove CurveNode from SplineNetwork
+            self.spline_net.remove_point(curve_point, disconnect)
+                
             if self.spline_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered_near[1]:
                 self.net_ui_context.selected = None
 

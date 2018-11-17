@@ -363,12 +363,12 @@ class Polytrim_States():
             #use brush radius to find all geometry within
             #add that geometry to the "stroke region"
             #color it as the "interim" strokeregion color
-            self.brush.absorb_geom(self.context, self.actions.mouse)
+            self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
             self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
             return 'paint'
         
         if self.actions.released('LEFTMOUSE'):
-            self.brush.absorb_geom(self.context, self.actions.mouse)
+            self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
             self.paint_confirm()
             self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
             

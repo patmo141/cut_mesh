@@ -477,6 +477,14 @@ def geodesic_walk(bme, seed, seed_location, targets = [], subset = None, max_ite
     iters = 0                
     while len(far) and len(close) and ((max_iters and iters < max_iters) or max_iters == None) and (len(stop_targets) or targets == []):
         
+        if min_dist:
+            max_fixed = max(fixed_verts, key=geos.get)
+            T = geos[max_fixed]
+            if T > min_dist:
+                fixed_verts.remove(max_fixed)
+                close.add(max_fixed)
+                break
+                
         begin_loop()
         iters += 1
         

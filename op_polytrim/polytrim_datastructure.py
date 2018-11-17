@@ -3126,7 +3126,7 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
         self.input_point.set_data(self.duplicate_data())    
             
     def is_endpoint(self):
-        if self.seed_geom and self.num_linked_segs > 0: return False  #TODO, better system to delinate edge of mesh
+        if self.is_edgepoint() and self.num_linked_segs > 0: return False
         if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
 
     def is_edgepoint(self):
@@ -3368,7 +3368,11 @@ class SplineSegment(object): #NetworkSegment
                 input_network.remove_point(ip, disconnect = True)
                         
     def convert_tessellation_to_network(self, net_ui_context, input_network):
-        
+        """
+        The reason SplineNet does not have a self reference to InputNet
+        is because SplineNet is a more generic Class, that could be used
+        independently of an InputNetwork.
+        """
         #first clear out any existing tessellation
         self.clear_input_net_references(input_network)
         if self.n0.input_point == None:
@@ -3507,6 +3511,7 @@ class SplineNetwork(object): #InputNetwork
         if len(connected_points) == 2 and not disconnect:
             self.connect_points(connected_points[0], connected_points[1])
 
+        
         
         self.points.remove(point)
 
