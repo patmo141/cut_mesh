@@ -825,7 +825,7 @@ class Polytrim_UI_Tools():
         for seg in remove_segs:
             self.input_net.remove_segment(seg)
     
-        #perhaps create new spline endpoints at the discrete endpoints..YES
+        
         #Destroy all Spline Network Elements touched by brush
         remove_nodes = []
         for node in self.spline_net.points:

@@ -131,8 +131,7 @@ class Polytrim_States():
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
             patch.color_patch()
-        
-        
+            
         self.network_cutter.update_spline_edited_patches(self.spline_net)
         
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
