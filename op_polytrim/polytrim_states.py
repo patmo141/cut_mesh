@@ -103,7 +103,7 @@ class Polytrim_States():
         if self.network_cutter.knife_complete:
             self.network_cutter.find_perimeter_edges()
         else:
-            self.network_cutter.find_boundary_faces()
+            self.network_cutter.find_boundary_faces_cycles()
         self.seed_fsm.reset()
 
     @CookieCutter.FSM_State('seed')
@@ -120,7 +120,7 @@ class Polytrim_States():
 
     @CookieCutter.FSM_State('region', 'enter')
     def region_enter(self):
-        self.network_cutter.find_boundary_faces()
+        self.network_cutter.find_boundary_faces_cycles()
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
             patch.color_patch()
