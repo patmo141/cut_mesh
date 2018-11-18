@@ -23,16 +23,27 @@ class Polytrim_UI_Draw():
         clear = (0,0,0,0)
         green = (.3,1,.3,1)
         green_opaque = (.3,1,.3,.5)
+
         self.draw_stuff_3d()
+
+        # skip the rest of the drawing if user is navigating or doing stuff with ui
+        if self._nav or self._ui: return
+
         # circle around point to be drawn
-        if not self._nav:
-            world_loc = None
-            if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not self._nav:
-                world_loc = self.net_ui_context.hovered_near[1][1]
-            #elif self.net_ui_context.hovered_mesh:
-                #world_loc = self.net_ui_context.hovered_mesh["world_loc"]
-            if world_loc: self.draw_circle(world_loc, 20, .7, green_opaque, clear)
-        if not (self._nav or self._ui) and self._state == 'region':
+        if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+            loc = self.net_ui_context.hovered_near[1][1]
+            self.draw_circle(loc, 20, .7, green_opaque, clear)
+
+        if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'}:
+            loc = self.net_ui_context.hovered_near[1].world_loc
+            d2d = self.net_ui_context.hovered_dist2D
+            if d2d < 12:
+                self.draw_circle(loc, 24, .7, green_opaque, clear)
+            elif d2d < 24:
+                self.draw_circle(loc, 48, .7, green_opaque, clear)
+
+        # draw region paint brush
+        if self._state == 'region':
             self.brush.draw_postview(self.context, self.actions.mouse)
 
     @CookieCutter.Draw('post2d')
@@ -79,7 +90,7 @@ class Polytrim_UI_Draw():
 
         if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, CurveNode):
             common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
-             
+
         # Grab Location Dot and Lines XXX:This part is gross..
         if self.grabber.grab_point:
             # Dot
@@ -122,7 +133,6 @@ class Polytrim_UI_Draw():
                     point_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.hovered_near[1][1])
                 else: point_loc = mouse_loc
                 common_drawing.draw_polyline_from_points(context, [ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
-            
 
 
     def draw_stuff_3d(self):

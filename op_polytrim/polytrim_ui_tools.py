@@ -691,19 +691,13 @@ class Polytrim_UI_Tools():
         elif self.net_ui_context.hovered_near[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             print("Here 2")
             closest_endpoints = self.closest_spline_endpoints(self.net_ui_context.snap_element.world_loc, 2)
-
-            if closest_endpoints == None:
-                #we are not quite hovered_near but in snap territory
-                return
-
-            if len(closest_endpoints) < 2:
-                return
-
+            # bail if we did not find at least two nearby endpoints
+            if len(closest_endpoints) < 2: return
             seg = SplineSegment(closest_endpoints[0], closest_endpoints[1])
             self.spline_net.segments.append(seg)
             closest_endpoints[0].update_splines()
             closest_endpoints[1].update_splines()
-            
+
             #self.network_cutter.precompute_cut(seg)
             #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
 
@@ -964,18 +958,14 @@ class Polytrim_UI_Tools():
         n_points = max(0, n_points)
 
         endpoints = [ip for ip in self.spline_net.points if ip.is_endpoint] #TODO self.endpoints?
-
-        if len(endpoints) == 0: return None
+        if len(endpoints) == 0: return []
         n_points = min(n_points, len(endpoints))
 
-
-        def dist3d(point):
-            return (point.world_loc - pt3d).length
+        def dist3d(point): return (point.world_loc - pt3d).length
 
         endpoints.sort(key = dist3d)
-
         return endpoints[0:n_points+1]
-    
+
     # TODO: NetworkUIContext??
     def closest_point_3d_linear(self, seg, pt3d):
         '''
@@ -1184,94 +1174,69 @@ class Polytrim_UI_Tools():
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
         '''
 
+        self.net_ui_context.snap_element    = None
+        self.net_ui_context.connect_element = None
+        self.net_ui_context.hovered_near    = [None, -1]
+        self.net_ui_context.hovered_dist2D  = float('inf')
+        self.net_ui_context.closest_ep      = None
+
         # TODO: update self.hover to use Accel2D?
         mouse = self.actions.mouse
+        mouse_vec = Vector(mouse)
         context = self.context
-
         mx, imx = get_matrices(self.net_ui_context.ob)
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+
+        if self.spline_net.is_empty:
+            # no points to be near
+            self.net_ui_context.nearest_non_man_loc()
+            return
+
         # ray tracing
         view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
         #loc, no, face_ind = ray_cast(self.net_ui_context.ob, imx, ray_origin, ray_target, None)
-        loc, no, face_ind = ray_cast_bvh(self.net_ui_context.bvh, imx, ray_origin, ray_target, None)
-        self.net_ui_context.snap_element = None
-        self.net_ui_context.connect_element = None
+        loc,_,face_ind = ray_cast_bvh(self.net_ui_context.bvh, imx, ray_origin, ray_target, None)
 
-        if self.spline_net.is_empty:
-            self.net_ui_context.hovered_near = [None, -1]
-            self.net_ui_context.nearest_non_man_loc()
-            return
-        
-        if face_ind == -1 or face_ind == None: 
-            self.net_ui_context.closest_ep = None
-            return
-        else: self.net_ui_context.closest_ep = self.closest_spline_endpoint(mx * loc)
+        # bail if we did not hit the source
+        if face_ind == -1 or face_ind == None: return
 
-        #find length between vertex and mouse
-        def dist(v):
-            if v == None:
-                print('v off screen')
-                return 100000000
-            diff = v - Vector(mouse)
-            return diff.length
+        loc = mx * loc      # transform loc to world
+        self.net_ui_context.closest_ep = self.closest_spline_endpoint(loc)
 
-        #find length between 2 3d points
-        def dist3d(v3):
-            if v3 == None:
-                return 100000000
-            delt = v3 - self.net_ui_context.ob.matrix_world * loc
-            return delt.length
+        # find length between vertex and mouse
+        def dist(v): return (v - mouse_vec).length if v else float('inf')
+        # find length between 2 3d points
+        def dist3d(v3): return (v3 - loc).length if v3 else float('inf')
 
         #closest_3d_loc = min(self.spline_net.world_locs, key = dist3d)
         closest_ip = min(self.spline_net.points, key = lambda x: dist3d(x.world_loc))
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
-        if pixel_dist  < select_radius:
-            #print('point is hovered_near')
-            #print(pixel_dist)
+        if pixel_dist < select_radius:
             self.net_ui_context.hovered_near = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
-            self.net_ui_context.snap_element = None
+            self.net_ui_context.hovered_dist2D = pixel_dist
             return
 
-        elif pixel_dist >= select_radius and pixel_dist < snap_radius:
-            #print('point is within snap radius')
-            #print(pixel_dist)
+        if select_radius <= pixel_dist < snap_radius:
             if closest_ip.is_endpoint:
                 self.net_ui_context.snap_element = closest_ip
-
                 #print('This is the close loop scenario')
                 closest_endpoints = self.closest_spline_endpoints(self.net_ui_context.snap_element.world_loc, 2)
-
-                #print('these are the 2 closest endpoints, one should be snap element itself')
-                #print(closest_endpoints)
-                if closest_endpoints == None:
-                    #we are not quite hovered_near but in snap territory
-                    return
-
-                if len(closest_endpoints) < 2:
-                    #print('len of closest endpoints not 2')
-                    return
-
+                # bail if we did not find at least two nearby endpoints
+                if len(closest_endpoints) < 2: return
+                self.net_ui_context.hovered_near = ['POINT CONNECT', closest_ip]
                 self.net_ui_context.connect_element = closest_endpoints[1]
-
+                self.net_ui_context.hovered_dist2D = pixel_dist
             return
 
-
-        if self.spline_net.num_points == 1:  #why did we do this? Oh because there are no segments.
-            self.net_ui_context.hovered_near = [None, -1]
-            self.net_ui_context.snap_element = None
-            return
+        # bail if there are only one num_points (no segments)
+        if self.spline_net.num_points == 1: return
 
         ##Check distance between ray_cast point, and segments
         distance_map = {}
-        for seg in self.spline_net.segments:  #TODO, may need to decide some better naming and better heirarchy
-  
-            close_loc, close_d = self.closest_point_3d_linear(seg, self.net_ui_context.ob.matrix_world * loc)
-            if close_loc  == None:
-                distance_map[seg] = 10000000
-                continue
-
-            distance_map[seg] = close_d
+        for seg in self.spline_net.segments:  #TODO, may need to decide some better naming and better hierarchy
+            close_loc, close_d = self.closest_point_3d_linear(seg, loc)
+            distance_map[seg] = close_d if close_loc else float('inf')
 
         if self.spline_net.segments:
             closest_seg = min(self.spline_net.segments, key = lambda x: distance_map[x])
@@ -1280,19 +1245,18 @@ class Polytrim_UI_Tools():
             b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.n1.world_loc)
 
             if a and b:  #if points are not on the screen, a or b will be None
-                intersect = intersect_point_line(Vector(mouse).to_3d(), a.to_3d(),b.to_3d())
-                dist = (intersect[0].to_2d() - Vector(mouse)).length_squared
+                intersect = intersect_point_line(mouse_vec.to_3d(), a.to_3d(),b.to_3d())
+                dist = (intersect[0].to_2d() - mouse_vec).length_squared
                 bound = intersect[1]
                 if (dist < select_radius**2) and (bound < 1) and (bound > 0):
                     self.net_ui_context.hovered_near = ['EDGE', closest_seg]
                     return
-
         ## Multiple points, but not hovering over edge or point.
-        self.net_ui_context.hovered_near = [None, -1]
 
         self.net_ui_context.nearest_non_man_loc()
-    
-    ### XXX: Puth these in their own class maybe?
+
+
+    ### XXX: Put these in their own class maybe?
     def interpolate_input_point_pair(self, p0, p1, factor):
         '''
         will return a linear interpolation of this point with other
