@@ -3,6 +3,7 @@ Created on Oct 8, 2015
 
 @author: Patrick
 '''
+
 import math
 import bgl
 
@@ -16,15 +17,32 @@ from ..common.shaders import circleShader
 from .polytrim_datastructure import InputPoint, CurveNode, SplineSegment
 
 
+# some useful colors
+clear       = (0.0, 0.0, 0.0, 0.0)
+red         = (1.0, 0.1, 0.1, 1.0)
+orange      = (1.0, 0.8, 0.2, 1.0)
+orange2     = (1.0, 0.65, 0.2, 1.0)
+yellow      = (1.0, 1.0, 0.1, 1.0)
+green       = (0.3, 1.0, 0.3, 1.0)
+green_trans = (0.3, 1.0, 0.3, 0.5)
+green2      = (0.2, 0.5, 0.2, 1.0)
+cyan        = (0.0, 1.0, 1.0, 1.0)
+blue        = (0.1, 0.1, 0.8, 1.0)
+blue_trans  = (0.0, 0.0, 1.0, 0.2)
+blue2       = (0.1, 0.2, 1.0, 0.8)
+navy_trans  = (0.0, 0.2, 0.2, 0.5)
+purple      = (0.8, 0.1, 0.8, 1.0)
+pink        = (1.0, 0.8, 0.8, 1.0)
+
+preview_line_clr = (0.0, 1.0, 0.0, 0.4)
+preview_line_wdth = 2
+
 
 class Polytrim_UI_Draw():
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
-        clear = (0,0,0,0)
-        green = (.3,1,.3,1)
-        green_opaque = (.3,1,.3,.5)
 
-        self.draw_stuff_3d()
+        self.draw_3D_stuff()
 
         # skip the rest of the drawing if user is navigating or doing stuff with ui
         if self._nav or self._ui: return
@@ -32,15 +50,15 @@ class Polytrim_UI_Draw():
         # circle around point to be drawn
         if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             loc = self.net_ui_context.hovered_near[1][1]
-            self.draw_circle(loc, 10, .7, green_opaque, clear)
+            self.draw_circle(loc, 10, .7, green_trans, clear)
 
         if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'}:
             loc = self.net_ui_context.hovered_near[1].world_loc
             d2d = self.net_ui_context.hovered_dist2D
             if d2d < 12:
-                self.draw_circle(loc, 12, .7, green_opaque, clear)
+                self.draw_circle(loc, 12, .7, green_trans, clear)
             elif d2d < 24:
-                self.draw_circle(loc, 24, .7, green_opaque, clear)
+                self.draw_circle(loc, 24, .7, green_trans, clear)
 
         # draw region paint brush
         if self._state == 'region':
@@ -48,13 +66,13 @@ class Polytrim_UI_Draw():
 
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
-        self.draw_stuff(self.context)
+        self.draw_2D_stuff()
         if self.sketcher.has_locs:
             common_drawing.draw_polyline_from_points(self.context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
 
 
     #TODO: Clean up/ Organize this function into parts
-    def draw_stuff(self, context):
+    def draw_2D_stuff(self):
         '''
         2d drawing
         '''
@@ -63,19 +81,7 @@ class Polytrim_UI_Draw():
         is_nav = self._nav
         ctrl_pressed = self.actions.ctrl
 
-        green  = (.3,1,.3,1)
-        red = (1,.1,.1,1)
-        orange = (1,.8,.2,1)
-        yellow = (1,1,.1,1)
-        cyan = (0,1,1,1)
-        navy_opaque = (0,.2,.2,.5)
-        blue_opaque = (0,0,1,.2)
-
-        preview_line_clr = (0,1,0,.4)
-        preview_line_wdth = 2
-
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
-
 
         ## Hovered Non-manifold Edge or Vert
         if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not is_nav:
@@ -94,7 +100,7 @@ class Polytrim_UI_Draw():
         # Grab Location Dot and Lines XXX:This part is gross..
         if self.grabber.grab_point:
             # Dot
-            common_drawing.draw_3d_points(context,[self.grabber.grab_point.world_loc], 5, blue_opaque)
+            common_drawing.draw_3d_points(context,[self.grabber.grab_point.world_loc], 5, blue_trans)
             # Lines
 
             point_orig = self.net_ui_context.selected  #had to be selected to be grabbed
@@ -135,21 +141,13 @@ class Polytrim_UI_Draw():
                 common_drawing.draw_polyline_from_points(context, [ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
 
 
-    def draw_stuff_3d(self):
+    def draw_3D_stuff(self):
         '''
         3d drawing
          * ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
         '''
         context = self.context
         #if self.input_net.is_empty: return #TODO while diagnosing
-
-        blue = (.1,.1,.8,1)
-        blue2 = (.1,.2,1,.8)
-        green = (.2,.5,.2,1)
-        orange = (1,.65,.2,1)
-        red = (1,0,0,1)
-        purple = (.8, .1, .8, 1)
-        pink = (1, .8, .8, 1)
 
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
@@ -206,76 +204,69 @@ class Polytrim_UI_Draw():
         bgl.glLineWidth(1)  # Why are these two lines down here?
         bgl.glDepthRange(0.0, 1.0)
 
-
         #CurveNetwork, BezierSegments
         for seg in self.spline_net.segments:
             if len(seg.draw_tessellation) == 0: continue
-            
+
             #has not been successfully converted to InputPoints and InputSegments
             if seg.is_inet_dirty:
-                draw3d_polyline(context, seg.draw_tessellation,  orange, 4, 'GL_LINE_STRIP' )
-            
+                draw3d_polyline(context, seg.draw_tessellation,  orange2, 4, 'GL_LINE_STRIP' )
+
             #if len(seg.ip_tesselation):
             #    draw3d_polyline(context, seg.ip_tesselation,  blue, 2, 'GL_LINE_STRIP' )
-            #    draw3d_points(context, seg.ip_tesselation, green, 4)
-            
-                
-                
-        draw3d_points(context, self.spline_net.point_world_locs, green, 6)
-        
-            
+            #    draw3d_points(context, seg.ip_tesselation, green2, 4)
+
+        draw3d_points(context, self.spline_net.point_world_locs, green2, 6)
+
         # Polylines...InputSegments
         for seg in self.input_net.segments:
-            
+
             #bad segment with a preview path provided by geodesic
             if seg.bad_segment and not len(seg.path) > 2:
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  pink, 2, 'GL_LINE_STRIP' )
-            
+
             #s
             elif len(seg.path) >= 2 and not seg.bad_segment and seg not in self.network_cutter.completed_segments:
                 draw3d_polyline(context, seg.path,  blue, 2, 'GL_LINE_STRIP' )
-            
+
             elif len(seg.path) >= 2 and not seg.bad_segment and seg in self.network_cutter.completed_segments:
-                draw3d_polyline(context, seg.path,  green, 2, 'GL_LINE_STRIP' )
-              
+                draw3d_polyline(context, seg.path,  green2, 2, 'GL_LINE_STRIP' )
+
             elif len(seg.path) >= 2 and seg.bad_segment:
-                draw3d_polyline(context, seg.path,  orange, 2, 'GL_LINE_STRIP' )
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
-                           
+                draw3d_polyline(context, seg.path,  orange2, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange2, 2, 'GL_LINE_STRIP' )
+
             elif seg.calculation_complete == False:
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange2, 2, 'GL_LINE_STRIP' )
             else:
                 draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
-    
-        
+
+
         if self.network_cutter.the_bad_segment:
             seg = self.network_cutter.the_bad_segment
             draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, 'GL_LINE_STRIP' )
-        
+
         if self._state == 'main':
             draw3d_points(context, self.input_net.point_world_locs, blue, 2)
         else:
             draw3d_points(context, self.input_net.point_world_locs, blue, 6)
 
         #draw the seed/face patch points
-        draw3d_points(context, [p.world_loc for p in self.network_cutter.face_patches], orange, 6)
-        
-        
+        draw3d_points(context, [p.world_loc for p in self.network_cutter.face_patches], orange2, 6)
+
+
         #draw the actively processing Input Point (IP Steper Debug)
         if self.network_cutter.active_ip:
             draw3d_points(context, [self.network_cutter.active_ip.world_loc], purple, 20)
             draw3d_points(context, [ip.world_loc for ip in self.network_cutter.ip_chain], purple, 12)
-        
+
         if self.network_cutter.seg_enter:
-            draw3d_polyline(context, self.network_cutter.seg_enter.path,  green, 4, 'GL_LINE_STRIP' )
-                
+            draw3d_polyline(context, self.network_cutter.seg_enter.path,  green2, 4, 'GL_LINE_STRIP' )
+
         if self.network_cutter.seg_exit:
             draw3d_polyline(context, self.network_cutter.seg_exit.path,  red, 4, 'GL_LINE_STRIP' )
 
-        
-        bgl.glLineWidth(1)     
-                
-        
+        bgl.glLineWidth(1)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
         bgl.glDepthMask(bgl.GL_TRUE)
