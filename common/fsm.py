@@ -62,6 +62,10 @@ class FSM:
         self._args = args
         self._kwargs = kwargs
 
+    @property
+    def state(self):
+        return self._state
+
     # def _find_fns(self, key):
     #     #c = type(self)
     #     c = self.FSM_State

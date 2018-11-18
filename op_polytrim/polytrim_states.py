@@ -54,25 +54,19 @@ class Polytrim_States():
         #if self.actions.pressed('F9'): bad = 3.14 / 0
         #if self.actions.pressed('F10'): assert False
 
-        if self.actions.pressed('S'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'seed'
+        if fsm.state == 'main':
+            # only handle these common actions if we are in the main state of the tool
 
-        if self.actions.pressed('P'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'region'
+            if self.actions.pressed('S'): return 'seed'
+            if self.actions.pressed('P'): return 'region'
 
-        if self.actions.pressed('RET'):
-            self.done()
-            return
-            #return 'finish'
+            if self.actions.pressed('RET'):
+                self.done()
+                return
 
-        if self.actions.pressed('ESC'):
-            self.done(cancel=True)
-            return
-            #return 'cancel'
+            if self.actions.pressed('ESC'):
+                self.done(cancel=True)
+                return
 
         # call the currently selected tool
         fsm.update()
