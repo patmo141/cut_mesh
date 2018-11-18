@@ -210,16 +210,6 @@ class Polytrim_States():
         self.cursor_modal_set('HAND')
 
         if self.actions.pressed('LEFTMOUSE'):
-            #confirm location
-            x,y = self.actions.mouse
-            self.grabber.finalize(self.context)
-
-            if isinstance(self.net_ui_context.selected, CurveNode):
-                self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
-                self.network_cutter.update_segments_async()
-            else:
-                self.network_cutter.update_segments()
-
             return 'main'
 
         if self.actions.pressed('cancel'):
@@ -240,6 +230,16 @@ class Polytrim_States():
 
     @spline_fsm.FSM_State('grab', 'exit')
     def spline_grab_exit(self):
+        #confirm location
+        x,y = self.actions.mouse
+        self.grabber.finalize(self.context)
+
+        if isinstance(self.net_ui_context.selected, CurveNode):
+            self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+            self.network_cutter.update_segments_async()
+        else:
+            self.network_cutter.update_segments()
+
         self.ui_text_update()
 
 

@@ -129,35 +129,24 @@ class Polytrim_UI_Draw():
     @CookieCutter.Draw('post2d')
     def draw_postpixel(self):
         self.draw_2D_stuff()
-        if self.sketcher.has_locs:
-            draw2D_polyline(self.sketcher.get_locs(), (0.0, 1.0, 0.0, 0.4), 2)
+        # if self.sketcher.has_locs:
+        if self._state == 'spline' and self.spline_fsm.state == 'sketch':
+            draw2d_polyline(self.sketcher.get_locs(), (0.0, 1.0, 0.0, 0.4), 2)
 
 
     #TODO: Clean up/ Organize this function into parts
     def draw_2D_stuff(self):
-        '''
-        2d drawing
-        '''
         context = self.context
         mouse_loc = self.actions.mouse
-        is_nav = self._nav
         ctrl_pressed = self.actions.ctrl
-
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
-        ## Hovered Non-manifold Edge or Vert
-        if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'} and not is_nav:
-            ed, pt = self.net_ui_context.hovered_near[1]
-            common_drawing.draw_3d_points(context,[pt], 6, green)
-
-        #if  self.input_net.is_empty: return
-
         ## Selected Point
-        if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, InputPoint):
-            common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
-
-        if self.net_ui_context.selected and isinstance(self.net_ui_context.selected, CurveNode):
-            common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
+        if self.net_ui_context.selected:
+            if isinstance(self.net_ui_context.selected, InputPoint):
+                common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
+            elif isinstance(self.net_ui_context.selected, CurveNode):
+                common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
 
         # Grab Location Dot and Lines XXX:This part is gross..
         if self._state == 'spline' and self.spline_fsm.state == 'grab': # self.grabber.grab_point:
@@ -172,44 +161,51 @@ class Polytrim_UI_Draw():
                 if other_loc and grab_loc:
                     draw2d_polyline([grab_loc, other_loc], preview_line_clr, preview_line_wdth)
 
-        elif not is_nav:
-            ## Hovered Point
-            if self.net_ui_context.hovered_near[0] == 'POINT':
-                common_drawing.draw_3d_points(context,[self.net_ui_context.hovered_near[1].world_loc], 8, color=(0,1,0,1))
-            # Insertion Lines (for adding in a point to edge)
-            elif self.net_ui_context.hovered_near[0] == 'EDGE':
-                seg = self.net_ui_context.hovered_near[1]
-                if isinstance(seg, SplineSegment):
-                    a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.n0.world_loc)
-                    b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.n1.world_loc)
-                else:
-                    a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
-                    b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
-                if a and b:
-                    draw2d_polyline([a, mouse_loc, b], preview_line_clr, preview_line_wdth)
-            # Insertion Lines (for adding closing loop)
-            elif self.net_ui_context.snap_element != None and self.net_ui_context.connect_element != None:
-                a = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.connect_element.world_loc)
-                b = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.snap_element.world_loc)
-                if a and b:
-                    draw2d_polyline([a, b], preview_line_clr, preview_line_wdth)
-            # Insertion Line (for general adding of points)
-            elif self.net_ui_context.closest_ep and not ctrl_pressed:
-                ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.closest_ep.world_loc)
-                if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
-                    point_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.hovered_near[1][1])
-                else: point_loc = mouse_loc
-                draw2d_polyline([ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth)
+        # skip the rest of the drawing if user is navigating or doing stuff with ui
+        if self._nav or self._ui: return
+
+        ###############
+        # Draw hints
+
+        # Hovered Non-manifold Edge or Vert
+        if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+            ed, pt = self.net_ui_context.hovered_near[1]
+            common_drawing.draw_3d_points(context,[pt], 6, green)
+
+        # Hovered Point
+        if self.net_ui_context.hovered_near[0] == 'POINT':
+            common_drawing.draw_3d_points(context,[self.net_ui_context.hovered_near[1].world_loc], 8, color=(0,1,0,1))
+
+        # Insertion Lines (for adding in a point to edge)
+        elif self.net_ui_context.hovered_near[0] == 'EDGE':
+            seg = self.net_ui_context.hovered_near[1]
+            if isinstance(seg, SplineSegment):
+                a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.n0.world_loc)
+                b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.n1.world_loc)
+            else:
+                a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
+                b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
+            if a and b:
+                draw2d_polyline([a, mouse_loc, b], preview_line_clr, preview_line_wdth)
+
+        # Insertion Lines (for adding closing loop)
+        elif self.net_ui_context.snap_element != None and self.net_ui_context.connect_element != None:
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.connect_element.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.snap_element.world_loc)
+            if a and b:
+                draw2d_polyline([a, b], preview_line_clr, preview_line_wdth)
+
+        # Insertion Line (for general adding of points)
+        elif self.net_ui_context.closest_ep and not ctrl_pressed:
+            ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.closest_ep.world_loc)
+            if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+                point_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.hovered_near[1][1])
+            else: point_loc = mouse_loc
+            draw2d_polyline([ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth)
 
 
     def draw_3D_stuff(self):
-        '''
-        3d drawing
-         * ADAPTED FROM POLYSTRIPS John Denning @CGCookie and Taylor University
-        '''
         context = self.context
-        #if self.input_net.is_empty: return #TODO while diagnosing
-
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
         view_loc = r3d.view_location - view_dir * r3d.view_distance
