@@ -1169,7 +1169,7 @@ class Polytrim_UI_Tools():
         self.net_ui_context.nearest_non_man_loc()
 
 
-    def hover_spline(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
+    def hover_spline(self, select_radius=12, snap_radius=24): #TODO, these radii are pixels? Should they be settings?
         '''
         finds points/edges/etc that are near ,mouse
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
@@ -1214,20 +1214,23 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist < select_radius:
+            # the mouse is hovering over a point
             self.net_ui_context.hovered_near = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             self.net_ui_context.hovered_dist2D = pixel_dist
             return
 
         if select_radius <= pixel_dist < snap_radius:
+            # the mouse is near a point (just outside of hovering)
             if closest_ip.is_endpoint:
+                # only care about endpoints at this moment
                 self.net_ui_context.snap_element = closest_ip
+                self.net_ui_context.hovered_dist2D = pixel_dist
                 #print('This is the close loop scenario')
                 closest_endpoints = self.closest_spline_endpoints(self.net_ui_context.snap_element.world_loc, 2)
                 # bail if we did not find at least two nearby endpoints
                 if len(closest_endpoints) < 2: return
                 self.net_ui_context.hovered_near = ['POINT CONNECT', closest_ip]
                 self.net_ui_context.connect_element = closest_endpoints[1]
-                self.net_ui_context.hovered_dist2D = pixel_dist
             return
 
         # bail if there are only one num_points (no segments)

@@ -52,11 +52,11 @@ def set_depthrange(near, far, points, view_loc, view_ortho):
     #bgl.glDepthRange(0.0, 0.5)
 
 # draws points
-def draw3d_points(points, color, size, view_loc, view_ortho):
+def draw3d_points(points, color, size, view_loc, view_ortho, zfar=0.997):
     if not points: return
     bgl.glColor4f(*color)
     bgl.glPointSize(size)
-    set_depthrange(0.0, 0.997, points, view_loc, view_ortho)
+    set_depthrange(0.0, zfar, points, view_loc, view_ortho)
     bgl.glBegin(bgl.GL_POINTS)
     for coord in points: bgl.glVertex3f(*coord)
     bgl.glEnd()
@@ -80,6 +80,21 @@ def draw3d_polyline(points, color, thickness, view_loc, view_ortho, stipple=Fals
         bgl.glDisable(bgl.GL_LINE_STIPPLE)
         bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
 
+def draw2d_polyline(points, color, thickness, stipple=False):
+    if stipple:
+        bgl.glLineStipple(4, 0x5555)  #play with this later
+        bgl.glEnable(bgl.GL_LINE_STIPPLE)
+    bgl.glEnable(bgl.GL_BLEND)
+    bgl.glColor4f(*color)
+    bgl.glLineWidth(thickness)
+    bgl.glBegin(bgl.GL_LINE_STRIP)
+    for coord in points: bgl.glVertex2f(*coord)
+    bgl.glEnd()
+    bgl.glLineWidth(1)
+    if stipple:
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+        bgl.glEnable(bgl.GL_BLEND)  # back to uninterupted lines
+
 
 
 
@@ -92,18 +107,20 @@ class Polytrim_UI_Draw():
         # skip the rest of the drawing if user is navigating or doing stuff with ui
         if self._nav or self._ui: return
 
-        # circle around point to be drawn
         if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
+            # draw non-manifold circle
             loc = self.net_ui_context.hovered_near[1][1]
             self.draw_circle(loc, 10, .7, green_trans, clear)
 
-        if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'}:
+        if self.net_ui_context.hovered_near[0] in {'POINT'}:
+            # draw selection circle
             loc = self.net_ui_context.hovered_near[1].world_loc
-            d2d = self.net_ui_context.hovered_dist2D
-            if d2d < 12:
-                self.draw_circle(loc, 12, .7, green_trans, clear)
-            elif d2d < 24:
-                self.draw_circle(loc, 24, .7, green_trans, clear)
+            self.draw_circle(loc, 12, .7, green_trans, clear)
+
+        if self.net_ui_context.snap_element:
+            # draw snap/sketch circle
+            loc = self.net_ui_context.snap_element.world_loc
+            self.draw_circle(loc, 24, .7, green_trans, clear)
 
         # draw region paint brush
         if self._state == 'region':
@@ -113,7 +130,7 @@ class Polytrim_UI_Draw():
     def draw_postpixel(self):
         self.draw_2D_stuff()
         if self.sketcher.has_locs:
-            common_drawing.draw_polyline_from_points(self.context, self.sketcher.get_locs(), (0,1,0,.4), 2, "GL_LINE_SMOOTH")
+            draw2D_polyline(self.sketcher.get_locs(), (0.0, 1.0, 0.0, 0.4), 2)
 
 
     #TODO: Clean up/ Organize this function into parts
@@ -143,23 +160,22 @@ class Polytrim_UI_Draw():
             common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
 
         # Grab Location Dot and Lines XXX:This part is gross..
-        if self.grabber.grab_point:
+        if self._state == 'spline' and self.spline_fsm.state == 'grab': # self.grabber.grab_point:
             # Dot
             common_drawing.draw_3d_points(context,[self.grabber.grab_point.world_loc], 5, blue_trans)
             # Lines
-
             point_orig = self.net_ui_context.selected  #had to be selected to be grabbed
             other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
-
             for pt_3d in other_locs:
                 other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
                 grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grabber.grab_point.world_loc)
                 if other_loc and grab_loc:
-                    common_drawing.draw_polyline_from_points(context, [grab_loc, other_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+                    draw2d_polyline([grab_loc, other_loc], preview_line_clr, preview_line_wdth)
+
         elif not is_nav:
             ## Hovered Point
             if self.net_ui_context.hovered_near[0] == 'POINT':
-                common_drawing.draw_3d_points(context,[self.net_ui_context.hovered_near[1].world_loc], 8, color = (0,1,0,1))
+                common_drawing.draw_3d_points(context,[self.net_ui_context.hovered_near[1].world_loc], 8, color=(0,1,0,1))
             # Insertion Lines (for adding in a point to edge)
             elif self.net_ui_context.hovered_near[0] == 'EDGE':
                 seg = self.net_ui_context.hovered_near[1]
@@ -170,20 +186,20 @@ class Polytrim_UI_Draw():
                     a = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip0.world_loc)
                     b = loc3d_reg2D(context.region, context.space_data.region_3d, seg.ip1.world_loc)
                 if a and b:
-                    common_drawing.draw_polyline_from_points(context, [a,mouse_loc, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+                    draw2d_polyline([a, mouse_loc, b], preview_line_clr, preview_line_wdth)
             # Insertion Lines (for adding closing loop)
             elif self.net_ui_context.snap_element != None and self.net_ui_context.connect_element != None:
                 a = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.connect_element.world_loc)
                 b = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.snap_element.world_loc)
                 if a and b:
-                    common_drawing.draw_polyline_from_points(context, [a, b], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+                    draw2d_polyline([a, b], preview_line_clr, preview_line_wdth)
             # Insertion Line (for general adding of points)
             elif self.net_ui_context.closest_ep and not ctrl_pressed:
                 ep_screen_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.closest_ep.world_loc)
                 if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
                     point_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.hovered_near[1][1])
                 else: point_loc = mouse_loc
-                common_drawing.draw_polyline_from_points(context, [ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth,"GL_LINE_STRIP")
+                draw2d_polyline([ep_screen_loc, point_loc], preview_line_clr, preview_line_wdth)
 
 
     def draw_3D_stuff(self):
@@ -212,7 +228,7 @@ class Polytrim_UI_Draw():
 
             #has not been successfully converted to InputPoints and InputSegments
             if seg.is_inet_dirty:
-                draw3d_polyline(seg.draw_tessellation,  orange2, 4, view_loc, view_ortho)
+                draw3d_polyline(seg.draw_tessellation, orange2, 4, view_loc, view_ortho)
 
             #if len(seg.ip_tesselation):
             #    draw3d_polyline(seg.ip_tesselation,  blue, 2, view_loc, view_ortho)
