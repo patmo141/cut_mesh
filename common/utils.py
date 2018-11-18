@@ -214,11 +214,14 @@ def shorten_floats(s):
     return s
 
 
+imx_cache = {}
 def get_matrices(ob):
     ''' obtain blender object matrices '''
+    global imx_cache
     mx = ob.matrix_world
-    imx = mx.inverted()
-    return [mx, imx]
+    smx = str(mx)
+    if smx not in imx_cache: imx_cache[smx] = mx.inverted()
+    return (mx, imx_cache[smx])
 
 
 class AddonLocator(object):

@@ -54,26 +54,21 @@ class Polytrim_States():
         #if self.actions.pressed('F9'): bad = 3.14 / 0
         #if self.actions.pressed('F10'): assert False
 
-        if self.actions.pressed('S'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'seed'
+        if fsm.state == 'main':
+            # only handle these common actions if we are in the main state of the tool
 
-        if self.actions.pressed('P'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'region'
+            if self.actions.pressed('S'): return 'seed'
+            if self.actions.pressed('P'): return 'region'
 
-        if self.actions.pressed('RET'):
-            self.done()
-            return
-            #return 'finish'
+            if self.actions.pressed('RET'):
+                self.done()
+                return
 
-        if self.actions.pressed('ESC'):
-            self.done(cancel=True)
-            return
-            #return 'cancel'
+            if self.actions.pressed('ESC'):
+                self.done(cancel=True)
+                return
 
+        # call the currently selected tool
         fsm.update()
 
 
@@ -90,9 +85,7 @@ class Polytrim_States():
     def spline_exit(self):
         #maybe this needs to happen on paint enter...yes?
         self.spline_fsm.reset()
-        
-        
-        
+
     @CookieCutter.FSM_State('spline')
     def spline(self):
         return self.common(self.spline_fsm)
@@ -131,18 +124,17 @@ class Polytrim_States():
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
             patch.color_patch()
-            
+
         self.network_cutter.update_spline_edited_patches(self.spline_net)
-        
+
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         self.region_fsm.reset()
-        
+
     @CookieCutter.FSM_State('region', 'exit')
     def region_exit(self):
         self.paint_exit()
         self.region_fsm.reset()
-        
-        
+
 
     @CookieCutter.FSM_State('region')
     def region(self):
@@ -157,15 +149,14 @@ class Polytrim_States():
         self.cursor_modal_set('CROSSHAIR')
         context = self.context
 
-        if self.actions.mousemove:
-            return
-        if self.actions.mousemove_prev:
+        mouse_just_stopped = self.actions.mousemove_prev and not self.actions.mousemove
+        if mouse_just_stopped:
             self.net_ui_context.update(self.actions.mouse)
             #TODO: Bring hover into NetworkUiContext
             self.hover_spline()
             #self.net_ui_context.inspect_print()
 
-        #after navigation filter, these are relevant events in this state
+        # after navigation filter, these are relevant events in this state
         if self.actions.pressed('grab'):
             self.ui_text_update()
             return 'grab'
