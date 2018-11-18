@@ -13,6 +13,7 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import inspect
 from ..common.debug import debugger
 
 def get_state(state, substate):
@@ -20,10 +21,8 @@ def get_state(state, substate):
 
 class FSM:
     def _generate_state_decorator(self):
-        fsm_instance = self
-        def gen():
+        def gen(fsm_instance):
             class FSM_State:
-                @staticmethod
                 def __init__(self, state, substate='main'):
                     self.state = state
                     self.substate = substate
@@ -40,20 +39,28 @@ class FSM:
                             debugger.print_exception()
                             return
                     run.fnname = self.fnname
-                    run.fsmstate = get_state(self.state, self.substate)
-                    fsm_instance._fsm_states[run.fsmstate] = self.fn
+                    m = get_state(self.state, self.substate)
+                    #run.fsmstate = m
+                    fsm_instance._fsm_states[m] = self.fn
                     return run
             return FSM_State
-        self.FSM_State = gen()
+        return gen(self)
 
     def __init__(self, default_state='main'):
         self._state_default = default_state
         self._state = None
         self._state_next = default_state
         self._fsm_states = {}
+        self._args = []
+        self._kwargs = {}
+        self.FSM_State = self._generate_state_decorator()
         #for (m,fn) in self._find_fns('fsmstate'):
         #    assert m not in self._fsm_states, 'Duplicate states registered!'
         #    self._fsm_states[m] = fn
+
+    def set_call_args(self, *args, **kwargs):
+        self._args = args
+        self._kwargs = kwargs
 
     # def _find_fns(self, key):
     #     #c = type(self)
@@ -68,15 +75,16 @@ class FSM:
             assert not fail_if_not_exist
             return
         try:
-            return self._fsm_states[s](self)
+            return self._fsm_states[s](*self._args, **self._kwargs)
         except Exception as e:
             print('Caught exception in state ("%s")' % (s))
             debugger.print_exception()
             return
 
-    def reset(self, state=None, call_enter=False):
+    def reset(self, state=None, call_enter=True):
         if state is None: state = self._state_default
         self._state = state
+        self._state_next = None
         if call_enter: self._call(self._state, substate='enter')
 
     def change(self, state):

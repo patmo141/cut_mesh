@@ -82,6 +82,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim
         self.brush_radius = 1.5
 
         self.ui_setup()
+        self.fsm_setup()
 
 
     def end(self):

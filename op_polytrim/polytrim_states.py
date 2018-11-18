@@ -15,60 +15,123 @@ from ..common.fsm import FSM
 from .polytrim_datastructure import InputPoint, SplineSegment, CurveNode
 
 '''
-main --> spline
+these are the states and substates (tool states)
 
-spline --> spline main (gateway)
-    spline main --> spline grab   --> spline main
-    spline main --> spline sketch --> spline main
-    spline main --> seed
-    spline main --> region
+    main   --> spline     (automatically switch to default tool)
+    spline <-> seed
+    seed   <-> region
+    region <-> spline
 
-seed --> seed main (gateway)
-    seed main --> spline
-    seed main --> paint
+    spline tool:
+        main --> grab   --> main
+        main --> sketch --> main
 
-region --> region main (gateway)
-    region main --> region paint --> region main
-    region main --> spline
-    region main --> seed
+    seed tool:
+        (no states)
+
+    region tool:
+        main --> paint --> main
 '''
 
 
 
 class Polytrim_States():
-    # spline_fsm = FSM()
-    # seed_fsm = FSM()
-    # region_fsm = FSM()
+    # spline, seed, and region are tools with their own states
+    spline_fsm = FSM()
+    seed_fsm   = FSM()
+    region_fsm = FSM()
+
+    def fsm_setup(self):
+        # let each fsm know that self should be passed to every fsm state call and transition (main, enter, exit, etc.)
+        self.spline_fsm.set_call_args(self)
+        self.seed_fsm.set_call_args(self)
+        self.region_fsm.set_call_args(self)
+
+    def common(self, fsm):
+        # this fn contains common actions for all states
+
+        if self.actions.pressed('S'):
+            #TODO what about a button?
+            #What about can_enter?
+            return 'seed'
+
+        if self.actions.pressed('P'):
+            #TODO what about a button?
+            #What about can_enter?
+            return 'region'
+
+        if self.actions.pressed('RET'):
+            self.done()
+            return
+            #return 'finish'
+
+        if self.actions.pressed('ESC'):
+            self.done(cancel=True)
+            return
+            #return 'cancel'
+
+        fsm.update()
+
 
     @CookieCutter.FSM_State('main')
     def main(self):
         return 'spline'
 
 
-    # @CookieCutter.FSM_State('spline', 'enter')
-    # def spline_enter(self):
-    #     spline_fsm.reset()
+    @CookieCutter.FSM_State('spline', 'enter')
+    def spline_enter(self):
+        self.spline_fsm.reset()
 
-    # @CookieCutter.FSM_State('spline')
-    # def spline(self):
-    #     spline_fsm.update()
+    @CookieCutter.FSM_State('spline')
+    def spline(self):
+        return self.common(self.spline_fsm)
 
-    # @CookieCutter.FSM_State('spline', 'can exit')
-    # def spline_can_exit(self):
-    #     # exit spline mode iff cut network has finished and there are no bad segments
-    #     c1 = not any([seg.is_bad for seg in self.input_net.segments])
-    #     c2 = all([seg.calculation_complete for seg in self.input_net.segments])
-    #     return c1 and c2
+
+    @CookieCutter.FSM_State('seed', 'can enter')
+    def seed_can_enter(self):
+        # exit spline mode iff cut network has finished and there are no bad segments
+        c1 = not any([seg.is_bad for seg in self.input_net.segments])
+        c2 = all([seg.calculation_complete for seg in self.input_net.segments])
+        return c1 and c2
+
+    @CookieCutter.FSM_State('seed', 'enter')
+    def seed_enter(self):
+        if self.network_cutter.knife_complete:
+            self.network_cutter.find_perimeter_edges()
+        else:
+            self.network_cutter.find_boundary_faces()
+        self.seed_fsm.reset()
+
+    @CookieCutter.FSM_State('seed')
+    def seed(self):
+        return self.common(self.seed_fsm)
+
+
+    @CookieCutter.FSM_State('region', 'can enter')
+    def region_can_enter(self):
+        # exit spline mode iff cut network has finished and there are no bad segments
+        c1 = not any([seg.is_bad for seg in self.input_net.segments])
+        c2 = all([seg.calculation_complete for seg in self.input_net.segments])
+        return c1 and c2
+
+    @CookieCutter.FSM_State('region', 'enter')
+    def region_enter(self):
+        self.network_cutter.find_boundary_faces()
+        for patch in self.network_cutter.face_patches:
+            patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
+            patch.color_patch()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        self.region_fsm.reset()
+
+    @CookieCutter.FSM_State('region')
+    def region(self):
+        return self.common(self.region_fsm)
 
 
     ######################################################
     # spline editing
 
-    @CookieCutter.FSM_State('spline')
-    def spline(self):
-        return 'spline main'
-
-    @CookieCutter.FSM_State('spline main')
+    @spline_fsm.FSM_State('main')
     def spline_main(self):
         self.cursor_modal_set('CROSSHAIR')
         context = self.context
@@ -88,7 +151,7 @@ class Polytrim_States():
         #after navigation filter, these are relevant events in this state
         if self.actions.pressed('grab'):
             self.ui_text_update()
-            return 'spline grab'
+            return 'grab'
 
         if self.actions.pressed('select', unpress=False):
             if self.net_ui_context.hovered_near[0] == 'POINT':
@@ -99,7 +162,7 @@ class Polytrim_States():
 
         if self.actions.pressed('sketch'):
             self.ui_text_update()
-            return 'spline sketch'
+            return 'sketch'
 
         if self.actions.pressed('add point (disconnected)'):
             self.click_add_spline_point(context, self.actions.mouse, False)
@@ -121,39 +184,19 @@ class Polytrim_States():
             self.ui_text_update()
             return
 
-        if self.actions.pressed('S'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'seed'
 
-        if self.actions.pressed('P'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'region'
-
-        if self.actions.pressed('RET'):
-            self.done()
-            return
-            #return 'finish'
-
-        elif self.actions.pressed('ESC'):
-            self.done(cancel=True)
-            return
-            #return 'cancel'
-
-
-    @CookieCutter.FSM_State('spline grab', 'can enter')
+    @spline_fsm.FSM_State('grab', 'can enter')
     def spline_grab_can_enter(self):
         return (not self.spline_net.is_empty and self.net_ui_context.selected != None)
 
-    @CookieCutter.FSM_State('spline grab', 'enter')
+    @spline_fsm.FSM_State('grab', 'enter')
     def spline_grab_enter(self):
-        self.header_text_set("'MoveMouse'and 'LeftClick' to adjust node location, Right Click to cancel the grab")
+        self.header_text_set("'MoveMouse' and 'LeftClick' to adjust node location, Right Click to cancel the grab")
         self.grabber.initiate_grab_point()
         self.grabber.move_grab_point(self.context, self.actions.mouse)
         self.ui_text_update()
 
-    @CookieCutter.FSM_State('spline grab')
+    @spline_fsm.FSM_State('grab')
     def spline_grab(self):
         # no navigation in grab mode
         self.cursor_modal_set('HAND')
@@ -169,12 +212,12 @@ class Polytrim_States():
             else:
                 self.network_cutter.update_segments()
 
-            return 'spline main'
+            return 'main'
 
         if self.actions.pressed('cancel'):
             #put it back!
             self.grabber.grab_cancel()
-            return 'spline main'
+            return 'main'
 
         if self.actions.mousemove:
             self.net_ui_context.update(self.actions.mouse)
@@ -187,12 +230,12 @@ class Polytrim_States():
             #self.net_ui_context.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
 
-    @CookieCutter.FSM_State('spline grab', 'exit')
+    @spline_fsm.FSM_State('grab', 'exit')
     def spline_grab_exit(self):
         self.ui_text_update()
 
 
-    @CookieCutter.FSM_State('spline sketch', 'can enter')
+    @spline_fsm.FSM_State('sketch', 'can enter')
     def spline_sketch_can_enter(self):
         print("selected", self.net_ui_context.selected)
         context = self.context
@@ -202,12 +245,12 @@ class Polytrim_States():
         self.click_add_spline_point(context, mouse)  #Send the 2D coordinates to Knife Class
         return  self.net_ui_context.hovered_near[0] == 'POINT' or self.input_net.num_points == 1
 
-    @CookieCutter.FSM_State('spline sketch', 'enter')
+    @spline_fsm.FSM_State('sketch', 'enter')
     def spline_sketch_enter(self):
         x,y = self.actions.mouse
         self.sketcher.add_loc(x,y)
 
-    @CookieCutter.FSM_State('spline sketch')
+    @spline_fsm.FSM_State('sketch')
     def spline_sketch(self):
         if self.actions.mousemove:
             x,y = self.actions.mouse
@@ -219,7 +262,7 @@ class Polytrim_States():
         if self.actions.released('sketch'):
             return 'spline main'
 
-    @CookieCutter.FSM_State('spline sketch', 'exit')
+    @spline_fsm.FSM_State('sketch', 'exit')
     def spline_sketch_exit(self):
         is_sketch = self.sketcher.is_good()
         if is_sketch:
@@ -241,113 +284,94 @@ class Polytrim_States():
     # poly edit
     # note: currently not used!
 
-    @CookieCutter.FSM_State('poly')
-    def poly(self):
-        return 'poly main'
+    # @CookieCutter.FSM_State('poly')
+    # def poly(self):
+    #     return 'poly main'
 
-    @CookieCutter.FSM_State('poly main')
-    def poly_main(self):
-        self.cursor_modal_set('CROSSHAIR')
-        context = self.context
+    # @CookieCutter.FSM_State('poly main')
+    # def poly_main(self):
+    #     self.cursor_modal_set('CROSSHAIR')
+    #     context = self.context
 
-        # test code that will break operator :)
-        #if self.actions.pressed('F9'): bad = 3.14 / 0
-        #if self.actions.pressed('F10'): assert False
+    #     # test code that will break operator :)
+    #     #if self.actions.pressed('F9'): bad = 3.14 / 0
+    #     #if self.actions.pressed('F10'): assert False
 
-        if self.actions.mousemove:
-            return
-        if self.actions.mousemove_prev:
-            self.net_ui_context.update(self.actions.mouse)
-            #TODO: Bring hover into NetworkUiContext
-            self.hover()
+    #     if self.actions.mousemove:
+    #         return
+    #     if self.actions.mousemove_prev:
+    #         self.net_ui_context.update(self.actions.mouse)
+    #         #TODO: Bring hover into NetworkUiContext
+    #         self.hover()
 
-        #after navigation filter, these are relevant events in this state
-        if self.actions.pressed('grab'):
-            self.ui_text_update()
-            return 'poly grab'
+    #     #after navigation filter, these are relevant events in this state
+    #     if self.actions.pressed('grab'):
+    #         self.ui_text_update()
+    #         return 'poly grab'
 
-        if self.actions.pressed('sketch'):
-            self.ui_text_update()
-            return 'poly sketch'
+    #     if self.actions.pressed('sketch'):
+    #         self.ui_text_update()
+    #         return 'poly sketch'
 
-        if self.actions.pressed('add point (disconnected)'):
-            self.click_add_point(context, self.actions.mouse, False)
-            self.ui_text_update()
-            return
+    #     if self.actions.pressed('add point (disconnected)'):
+    #         self.click_add_point(context, self.actions.mouse, False)
+    #         self.ui_text_update()
+    #         return
 
-        if self.actions.pressed('delete'):
-            self.click_delete_point(mode='mouse')
-            self.net_ui_context.update(self.actions.mouse)
-            self.hover()
-            self.ui_text_update()
-            return
+    #     if self.actions.pressed('delete'):
+    #         self.click_delete_point(mode='mouse')
+    #         self.net_ui_context.update(self.actions.mouse)
+    #         self.hover()
+    #         self.ui_text_update()
+    #         return
 
-        if self.actions.pressed('delete (disconnect)'):
-            self.click_delete_point('mouse', True)
-            self.net_ui_context.update(self.actions.mouse)
-            self.hover()
-            self.ui_text_update()
-            return
+    #     if self.actions.pressed('delete (disconnect)'):
+    #         self.click_delete_point('mouse', True)
+    #         self.net_ui_context.update(self.actions.mouse)
+    #         self.hover()
+    #         self.ui_text_update()
+    #         return
 
-        if self.actions.pressed('S'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'seed'
+    #     if self.actions.pressed('S'):
+    #         #TODO what about a button?
+    #         #What about can_enter?
+    #         return 'seed'
 
-        if self.actions.pressed('P'):
-            #TODO what about a button?
-            #What about can_enter?
-            return 'paint entering'
+    #     if self.actions.pressed('P'):
+    #         #TODO what about a button?
+    #         #What about can_enter?
+    #         return 'paint entering'
 
-        if self.actions.pressed('RET'):
-            #self.done()
-            return 'main'
-            #return 'finish'
+    #     if self.actions.pressed('RET'):
+    #         #self.done()
+    #         return 'main'
+    #         #return 'finish'
 
-        elif self.actions.pressed('ESC'):
-            #self.done(cancel=True)
-            return 'main'
-            #return 'cancel
+    #     elif self.actions.pressed('ESC'):
+    #         #self.done(cancel=True)
+    #         return 'main'
+    #         #return 'cancel
 
-    @CookieCutter.FSM_State('poly sketch', 'can enter')
-    def poly_sketch_can_enter(self):
-        print("selected", self.net_ui_context.selected)
-        context = self.context
-        mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
+    # @CookieCutter.FSM_State('poly sketch', 'can enter')
+    # def poly_sketch_can_enter(self):
+    #     print("selected", self.net_ui_context.selected)
+    #     context = self.context
+    #     mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
 
-        # TODO: do NOT change state in "can enter".  move the following click_add_* stuff to "enter"
-        self.click_add_point(context, mouse)
-        print("selected 2", self.net_ui_context.selected)
-        return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
+    #     # TODO: do NOT change state in "can enter".  move the following click_add_* stuff to "enter"
+    #     self.click_add_point(context, mouse)
+    #     print("selected 2", self.net_ui_context.selected)
+    #     return (self.net_ui_context.ui_type == 'DENSE_POLY' and self.net_ui_context.hovered_near[0] == 'POINT') or self.input_net.num_points == 1
 
-    @CookieCutter.FSM_State('poly grab', 'can enter')
-    def poly_grab_can_enter(self):
-        return (not self.input_net.is_empty and self.net_ui_context.selected != None)
+    # @CookieCutter.FSM_State('poly grab', 'can enter')
+    # def poly_grab_can_enter(self):
+    #     return (not self.input_net.is_empty and self.net_ui_context.selected != None)
 
 
     ######################################################
     # seed/patch selection state
 
-    @CookieCutter.FSM_State('seed', 'can enter')
-    def seed_can_enter(self):
-        #the cut network has been executed
-        c1 = not any([seg.is_bad for seg in self.input_net.segments])
-        c2 = all([seg.calculation_complete for seg in self.input_net.segments])
-        return c1 and c2
-
-    @CookieCutter.FSM_State('seed', 'enter')
-    def seed_enter(self):
-        #set the cursor to to something
-        if self.network_cutter.knife_complete:
-            self.network_cutter.find_perimeter_edges()
-        else:
-            self.network_cutter.find_boundary_faces()
-
-    @CookieCutter.FSM_State('seed')
-    def seed(self):
-        return 'seed main'
-
-    @CookieCutter.FSM_State('seed main')
+    @seed_fsm.FSM_State('main')
     def modal_seed(self):
         self.cursor_modal_set('EYEDROPPER')
 
@@ -364,40 +388,15 @@ class Polytrim_States():
             #remove the seed
             #remove any "patch" data associated with the seed
 
-        if self.actions.pressed('ESC'):
-            self.done(cancel=True)
-            return
-
 
     ######################################################
     # region painting
 
-    @CookieCutter.FSM_State('region', 'can enter')
-    def region_can_enter(self):
-        #the cut network has been executed
-        c1 = not any([seg.is_bad for seg in self.input_net.segments])
-        c2 = all([seg.calculation_complete for seg in self.input_net.segments])
-        return (c1 and c2)
-
-    @CookieCutter.FSM_State('region', 'enter')
-    def region_enter(self):
-        #if self._state == 'main': #TODO polydraw
-        self.network_cutter.find_boundary_faces()
-        for patch in self.network_cutter.face_patches:
-            patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
-            patch.color_patch()
-        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-
-    @CookieCutter.FSM_State('region')
-    def region(self):
-        return 'region main'
-
-
-    @CookieCutter.FSM_State('region main', 'enter')
+    @region_fsm.FSM_State('main', 'enter')
     def region_main_enter(self):
         self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
 
-    @CookieCutter.FSM_State('region main')
+    @region_fsm.FSM_State('main')
     def region_main(self):
         self.cursor_modal_set('PAINT_BRUSH')
 
@@ -407,32 +406,19 @@ class Polytrim_States():
 
         if self.actions.pressed('LEFTMOUSE'):
             #start painting
-            return 'region paint'
+            return 'paint'
 
         if self.actions.pressed('RIGHTMOUSE'):
-            return 'region paint'
-
-        # if self.actions.pressed('RET'):
-        #     del self.brush
-        #     self.brush = None
-        #     self.paint_exit()
-        #     return 'main'
-
-        if self.actions.pressed('ESC'):
-            # del self.brush
-            # self.brush = None
-            # return 'main'
-            self.done(cancel=True)
-            return
+            return 'paint'
 
 
-    @CookieCutter.FSM_State('region paint', 'can enter')
+    @region_fsm.FSM_State('paint', 'can enter')
     def region_paint_can_enter(self):
         #any time really, may require a BVH update if
         #network cutter has been executed
         return True
 
-    @CookieCutter.FSM_State('region paint', 'enter')
+    @region_fsm.FSM_State('paint', 'enter')
     def region_paint_enter(self):
         #set the cursor to to something
         self.network_cutter.find_boundary_faces()
@@ -441,12 +427,12 @@ class Polytrim_States():
         self.last_update = 0
         self.paint_dirty = False
 
-    @CookieCutter.FSM_State('region paint')
+    @region_fsm.FSM_State('paint')
     def region_paint(self):
         self.cursor_modal_set('PAINT_BRUSH')
 
         if self.actions.released('LEFTMOUSE'):
-            return 'region main'
+            return 'main'
 
         loc,_,_ = self.brush.ray_hit(self.actions.mouse, self.context)
         if loc and (not self.last_loc or (self.last_loc - loc).length > self.brush.radius*(0.25)):
@@ -464,7 +450,7 @@ class Polytrim_States():
             self.paint_dirty = False
             self.last_update = time.time()
 
-    @CookieCutter.FSM_State('region paint', 'exit')
+    @region_fsm.FSM_State('paint', 'exit')
     def region_paint_exit(self):
         self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
         self.paint_confirm()

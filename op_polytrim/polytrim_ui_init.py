@@ -39,9 +39,9 @@ class Polytrim_UI_Init():
 
         def mode_getter():
             if self._state is None: return None
-            if self._state.startswith('region'): return 'region'
-            if self._state.startswith('spline'): return 'spline'
-            if self._state.startswith('seed'): return 'seed'
+            if self._state == 'region': return 'region'
+            if self._state == 'spline': return 'spline'
+            if self._state == 'seed': return 'seed'
             print('Unknown state for UI getter: "%s"' % self._state)
             return self._state
         def mode_setter(m):

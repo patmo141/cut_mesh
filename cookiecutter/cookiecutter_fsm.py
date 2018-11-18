@@ -44,7 +44,12 @@ class CookieCutter_FSM:
         self._state = None
         self._fsm_states = {}
         for (m,fn) in self.find_fns('fsmstate'):
-            assert m not in self._fsm_states, 'Duplicate states registered!'
+            assert m not in self._fsm_states, '\n'.join([
+                'Duplicate states registered!',
+                '- fn name: %s' % m,
+                '- new fn: %s (%s)' % (str(fn), fn.fnname),
+                '- old fn: %s (%s)' % (str(self._fsm_states[m]), self._fsm_states[m].fnname)
+            ])
             self._fsm_states[m] = fn
 
     def _fsm_call(self, state, substate='main', fail_if_not_exist=False):
