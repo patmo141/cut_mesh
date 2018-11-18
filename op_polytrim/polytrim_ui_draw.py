@@ -32,15 +32,15 @@ class Polytrim_UI_Draw():
         # circle around point to be drawn
         if self.net_ui_context.hovered_near[0] in {'NON_MAN_ED', 'NON_MAN_VERT'}:
             loc = self.net_ui_context.hovered_near[1][1]
-            self.draw_circle(loc, 20, .7, green_opaque, clear)
+            self.draw_circle(loc, 10, .7, green_opaque, clear)
 
         if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'}:
             loc = self.net_ui_context.hovered_near[1].world_loc
             d2d = self.net_ui_context.hovered_dist2D
             if d2d < 12:
-                self.draw_circle(loc, 24, .7, green_opaque, clear)
+                self.draw_circle(loc, 12, .7, green_opaque, clear)
             elif d2d < 24:
-                self.draw_circle(loc, 48, .7, green_opaque, clear)
+                self.draw_circle(loc, 24, .7, green_opaque, clear)
 
         # draw region paint brush
         if self._state == 'region':
@@ -280,34 +280,26 @@ class Polytrim_UI_Draw():
         bgl.glDepthRange(0.0, 1.0)
         bgl.glDepthMask(bgl.GL_TRUE)
 
-    def draw_circle(self, world_loc, diam, perc_in, clr_out, clr_in):
+    def draw_circle(self, world_loc, radius, inner_ratio, color_outside, color_inside):
         bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
         bgl.glEnable(bgl.GL_DEPTH_TEST)
-
-        # draw in front of geometry
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
+        bgl.glDepthFunc(bgl.GL_LEQUAL)  # draw in front of geometry
 
         circleShader.enable()
-        #print('matriz buffer')
+        self.drawing.point_size(2.0 * radius)
         circleShader['uMVPMatrix'] = self.drawing.get_view_matrix_buffer()
-        #print('set the uMVPMatrix')
-        #print(self.drawing.get_view_matrix_buffer())
-        
-        circleShader['uInOut'] = perc_in
-        self.drawing.point_size(diam)  #this is diameter
-        bgl.glBegin(bgl.GL_POINTS)
-        
-        circleShader['vOutColor'] = clr_out
-        circleShader['vInColor']  = clr_in
+        circleShader['uInOut']     = inner_ratio
 
-        #print("WORLD", world_loc)
+        bgl.glBegin(bgl.GL_POINTS)
+        circleShader['vOutColor'] = color_outside
+        circleShader['vInColor']  = color_inside
         bgl.glVertex3f(*world_loc)
-        
         bgl.glEnd()
+
         circleShader.disable()
-        
+
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         bgl.glDepthRange(0.0, 1.0)
         bgl.glDepthMask(bgl.GL_TRUE)
