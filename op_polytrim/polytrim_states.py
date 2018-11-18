@@ -50,6 +50,10 @@ class Polytrim_States():
     def common(self, fsm):
         # this fn contains common actions for all states
 
+        # test code that will break operator :)
+        #if self.actions.pressed('F9'): bad = 3.14 / 0
+        #if self.actions.pressed('F10'): assert False
+
         if self.actions.pressed('S'):
             #TODO what about a button?
             #What about can_enter?
@@ -135,10 +139,6 @@ class Polytrim_States():
     def spline_main(self):
         self.cursor_modal_set('CROSSHAIR')
         context = self.context
-
-        # test code that will break operator :)
-        #if self.actions.pressed('F9'): bad = 3.14 / 0
-        #if self.actions.pressed('F10'): assert False
 
         if self.actions.mousemove:
             return
