@@ -25,7 +25,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
-from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
+from ..bmesh_fns import grow_selection_to_find_face, flood_selection_faces, edge_loops_from_bmedges_old, edge_loops_from_bmedges, flood_selection_by_verts, flood_selection_edge_loop, ensure_lookup
 from ..bmesh_fns import face_region_boundary_loops, bmesh_loose_parts_faces
 from ..cut_algorithms import cross_section_2seeds_ver1, path_between_2_points, path_between_2_points_clean, find_bmedges_crossing_plane
 from ..geodesic import GeoPath, geodesic_walk, continue_geodesic_walk, gradient_descent
@@ -190,7 +190,7 @@ class BMFacePatch(object):
         self.color = Color(color)
         self.color_layer = vcol_layer
         
-        #mapptin got DiscreteNetwork
+        #mapping to DiscreteNetwork
         self.input_net_segments = []
         self.ip_points = []
         
@@ -221,6 +221,8 @@ class BMFacePatch(object):
         island -= boundary_faces  #because boundary_faces are between all segments
         self.patch_faces = island
     
+        self.boundary_edges.clear()  #no longer valid
+        
     def adjacent_faces(self):
         '''
         the set of the one ring neighbors of this patch
@@ -236,9 +238,11 @@ class BMFacePatch(object):
         
         expanded_faces = set()
         if len(self.boundary_edges) == 0:
+            print('using faces method')
             for f in self.patch_faces:
                 expanded_faces.update(face_neighbors_by_vert(f))
         else:
+            print('using boundary edges method')
             for ed in self.boundary_edges:
                 for v in ed.verts:
                     expanded_faces.update([f for f in v.link_faces])
@@ -285,6 +289,7 @@ class BMFacePatch(object):
         else:
             geom = face_region_boundary_loops(bme, [f.index for f in self.patch_faces])
         
+        #TODO, face patch could have interior lakes
         loop = geom['EDGES'][0]
         for ind in loop:
             self.boundary_edges.add(bme.edges[ind])
@@ -292,6 +297,28 @@ class BMFacePatch(object):
         loop = geom['VERTS'][0]
         for ind in loop:
             self.perimeter_path += [bme.verts[ind].co.copy()]
+    
+    def find_all_boundary_edges(self):
+        '''
+        this does not need loops, will find all MANIFOLD boundary edges
+        
+        '''
+        if len(self.patch_faces) == 0: return set()
+        
+        all_edges = set()
+        for f in self.patch_faces:
+            all_edges.update([ed for ed in f.edges])
+        
+        print('there are %i edges in this patch' % len(all_edges))   
+        keep_edges = set()
+        for ed in all_edges:
+            if len(ed.link_faces) != 2: continue #non manifold
+            
+            if len([f for f in ed.link_faces if f in self.patch_faces]) == 1:
+                keep_edges.add(ed)
+        
+        return keep_edges    
+            
         
 #Input Net Topolocy Functons to help
 def next_segment(ip, current_seg): #TODO Code golf this
@@ -623,7 +650,7 @@ class NetworkCutter(object):
                 self.pre_vis_geo(seg, self.input_net.bme, self.net_ui_context.bvh, self.net_ui_context.mx)   
 
 
-    def find_boundary_faces(self):
+    def find_boundary_faces_cycles(self):
         self.boundary_faces = set()
         #find network cycles
         #this prevents open cycles from messing up things
@@ -636,16 +663,84 @@ class NetworkCutter(object):
             for ip in ip_cyc:
                 self.boundary_faces.add(ip.bmface)   
 
+    
+    
+    def validate_face_patch_spline_data(self, patch, spline_net): 
+        '''
+        after SplineNet or InputNet have had elements destroyed when painting
+        those elements need to be de-referenced from the Patch Level
+        maybe they should be del element at time or removal from the
+        SplineNet or Input Net, but since I'm unsure on that, this needs to
+        happen so we don't have stale references laying around
+        '''
+        
+        ip_remove = []
+        for ip in patch.ip_points:
+            if ip not in self.input_net.points:
+                ip_remove += [ip]
+        
+        seg_remove = []
+        for seg in patch.input_net_segments:
+            if seg not in self.input_net.segments:
+                seg_remove += [seg]
+                
+        node_remove = []
+        for node in patch.curve_nodes:
+            if node not in spline_net.points:
+                node_remove += [node]
+                
+        spline_remove = []
+        for spline in patch.spline_net_segments:
+            if spline not in spline_net.segments:
+                spline_remove += [spline] 
+                
+                
+        print('removed %i InputPoint references' % len(ip_remove))
+        print('removed %i InputSegment references' % len(seg_remove))
+        
+        print('removed %i CurveNode references' % len(node_remove))
+        print('removed %i SplineSegment references' % len(spline_remove))
+        
+        #TODO shoudl these be sets and do some difference_update
+        for ip in ip_remove: 
+            patch.ip_points.remove(ip)
+        for seg in seg_remove:
+            patch.input_net_segments.remove(seg)
+        for node in node_remove:
+            patch.curve_nodes.remove(node)
+        for spline in spline_remove:
+            patch.spline_net_segments.remove(spline)
+        
                 
     def create_spline_network_from_face_patches(self, spline_net):  #maybe this should be a tool instead of datastructure
-        
+        '''
+        This only creates noew spline data from face patches that
+        were initiated in paint mode, but have not had boundaries
+        defined yet
+        '''
         if len(self.face_patches) == 0:
             print('no face patches yet')
             return
         
-        self.simple_paths = []  #clear the old data
+        
         for patch in self.face_patches:
             if not patch.paint_modified: continue
+            
+            self.validate_face_patch_spline_data(patch, spline_net)
+            
+            if len(patch.curve_nodes) > 0: 
+                print('patch still has nodes')
+                continue
+            if len(patch.ip_points) > 0:
+                print('patch still has input_points')
+                continue
+            if len(patch.spline_net_segments) > 0:
+                print('patch still has spline segments')
+                continue
+            if len(patch.input_net_segments) > 0:
+                print('patch still has input segments')
+                continue
+            
             #TODO patch.is_inet_dirty?
             #TODO how to handle patches on non manifold boundary
             #TODO how to ensure non-tangentional patches (patches with a border)
@@ -689,6 +784,8 @@ class NetworkCutter(object):
             
             patch.curve_nodes = new_points
             patch.spline_net_segments = new_segs
+            patch.paint_modified = False  #we have now corrected paint modification
+            
             for p in new_points:
                 p.calc_handles()
             for seg in new_segs:
@@ -696,11 +793,145 @@ class NetworkCutter(object):
                 seg.tessellate()
                 seg.tessellate_IP_error(.1)
         
+        #This happens OUTSIDE of this function at the UITools level...so the patch
+        #does not know about it's DiscreteNetwork/InputNetwork elements yet
         #self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)    
         #self.update_segments_async()   
+    
+    def update_painted_face_patches_splines(self, spline_net): 
+        '''
+        for any patch that had it's boundaries modified
+        need to find the new boundary and fit splines to it
+        '''
         
+        
+        inet_boundary_faces = set()
+        #TODO, if we have fidelity in FacePatch references to input segments
+        #thene we don't need to iterate over ALL of them
+        #remove all existing boundary faces from the neighbors
+        for seg in self.input_net.segments:
+            seg_faces = self.cut_data[seg]['face_set']
+            inet_boundary_faces.update(seg_faces)
+        
+        for ip in self.input_net.points:
+            inet_boundary_faces.add(ip.bmface)
+                    
+        
+        for patch in self.face_patches:
+            #TODO, Only Affect Patches that have been painted and have existing spline data
+            if not patch.paint_modified: continue
+            #if len(patch.ip_points) == 0: continue  #we have not established this fidelity yet
+            if len(patch.spline_net_segments) == 0: continue
+            
+            
+            #get the patch one ring neighbors
+            adjacent_faces = patch.adjacent_faces()
+            
+            adjacent_faces.difference_update(inet_boundary_faces)
+            #color the non-affected boundary faces
+            #cl = patch.color_layer
+            #for f in adjacent_faces:
+            #    for loop in f.loops:
+            #        loop[cl]  = Color((.1,.1,.1))   
+            
+            
+            b_edges = patch.find_all_boundary_edges()
+            print('there are %i free boundary edges' % len(b_edges))
+            
+            
+            #keep only the ones touching the....adjacent_faces
+            #TODO
+            unbounded_edges = set()
+            for ed in b_edges:
+                if len([f for f in ed.link_faces if f in adjacent_faces]) == 1:
+                    unbounded_edges.add(ed)
+            
+            
+            b_eds_inds = [ed.index for ed in unbounded_edges] #TODO, this is stupid
+            geom = edge_loops_from_bmedges(self.input_net.bme, b_eds_inds)
+            loops = geom['VERTS']
+            
+            spline_endpoints = [node for node in patch.curve_nodes if node.is_endpoint]
+            
+            def spline_dist(node, pt):
+                return (node.world_loc - pt).length
+            
+            for v_loop in loops:
+                print('there are %i verts in this loop' % len(v_loop))
+                path = [self.input_net.bme.verts[ind].co.copy() for ind in v_loop]
+                path_inds = simplify_RDP(path, .35)
+                
+                simple_path = [self.net_ui_context.mx * path[i] for i in path_inds]
+                
+                start_node = min(spline_endpoints, key = lambda x: spline_dist(x, simple_path[0]))
+                end_node = min(spline_endpoints, key = lambda x: spline_dist(x, simple_path[-1]))
+                
+                new_points = []
+                new_segs = []
+                prev_pnt = start_node
+                end_pnt = end_node
+                
+                if len(simple_path) == 2:
+                    seg = SplineSegment(prev_pnt,end_pnt)
+                    spline_net.segments.append(seg)  
+                    new_segs += [seg]
+                    
+                    start_node.calc_handles()
+                    end_pnt.calc_handles()
+                    seg.calc_bezier()
+                    seg.tessellate()
+                    seg.tessellate_IP_error(.1)
+                else:
+                    for pt in simple_path[1:len(simple_path)-1]:
+                        delta = Vector((random.random(), random.random(), random.random()))
+                        delta.normalize()
+                        loc, no, face_ind, d =  self.net_ui_context.bvh.find_nearest(self.net_ui_context.imx * (pt + .1 * delta))
+                        if face_ind == None: continue
+                        #TODO store a view dictionary from the brush
+                        new_pnt = spline_net.create_point(self.net_ui_context.mx * loc, loc, self.net_ui_context.mx_norm * no, face_ind)
+                        #patch.ip_points.append(new_pnt)
+                        #new_pnt = self.spline_net.create_point(loc3d, loc, view_vector, face_ind)
+                        new_points += [new_pnt]
+                        if prev_pnt:
+                            seg = SplineSegment(prev_pnt,new_pnt)
+                            spline_net.segments.append(seg)
+                            new_segs += [seg]
+                        #self.network_cutter.precompute_cut(seg)
+                        #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
+                        prev_pnt = new_pnt
+                
+                    
+                    #connect to the endpoint
+                    seg = SplineSegment(prev_pnt,end_pnt)
+                    spline_net.segments.append(seg)  
+                    new_segs += [seg]
+                
+                
+                    patch.curve_nodes += new_points
+                    patch.spline_net_segments += new_segs
+                
+                
+                    for p in new_points:
+                        p.calc_handles()
+                    for seg in new_segs:
+                        seg.calc_bezier()
+                        seg.tessellate()
+                        seg.tessellate_IP_error(.1)
+                
+                
+                
+            patch.paint_modified = False  #we have now corrected paint modification
+            
+            
+                
+            #get all the patch adjacent edges that are also adjacent to 1 ring neighbors
+            #But not in the existing boundary edges
+            
+            continue
+           
     def create_network_from_face_patches(self):
-        
+        #TODO UNTESTED, SHOULD NOT EB USED
+        #ACTUALLY SHOULD NEVER BE USED BECAUSE PAINT -> DIRECT EDIT is unnecessary
         if len(self.face_patches) == 0:
             print('no face patches yet')
             return
@@ -2892,9 +3123,15 @@ class InputSegment(object): #NetworkSegment
 
         self.face_chain = []   #TODO, get a better structure within Network Cutter
 
+        #Network Cutter Flags
         self.calculation_complete = False #this is a NetworkCutter Flag
         self.needs_calculation = True
         self.cut_method = 'NONE'
+        
+        
+        #SplineNetwork References
+        self.parent_spline = None #will be a SplineSegment if set
+        
     def is_bad(self): return self.bad_segment
     is_bad = property(is_bad)
 
@@ -3173,7 +3410,12 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
             self.spawn_input_point(input_network)
             
         self.input_point.set_data(self.duplicate_data())    
-            
+    
+    def clear_input_net_references(self, input_network):
+        if self.input_point in input_network.points:
+            input_network.remove_point(self.input_point, disconnect = True)
+        
+                
     def is_endpoint(self):
         if self.is_edgepoint() and self.num_linked_segs > 0: return False
         if self.num_linked_segs < 2: return True # What if self.linked_segs == 2 ??
@@ -3230,7 +3472,7 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
             self.handles[seg0] = self.world_loc - r0/3 * tangent
             self.handles[seg1] = self.world_loc + r1/3 * tangent
             
-        #TODO if self.handles == 4
+        #TODO if self.handles == 4  #Hold this code until we have more compelex structure
             #calc handles 0/2 as smooth (tangent)
             #calc handles 1/3 as smooth (tangent)
             #ASSUMES SEGMENTS SORTED CCW AROUND
@@ -3258,7 +3500,16 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
             
             #self.handles[seg1] = self.world_loc - r1/3 * tangent
             #self.handles[seg3] = self.world_loc + r3/3 * tangent
-            
+    
+    def calc_handles_vector(self):
+        '''
+        handle pointing directly at next node
+        '''
+        for seg in self.link_segments:
+            other = seg.other_point(self)
+            v = other.world_loc - self.world_loc
+            self.handles[seg] = self.world_loc + 1/3 * v
+               
     def update_splines(self):
         for seg in self.link_segments:
             seg.calc_bezier()
@@ -3425,7 +3676,10 @@ class SplineSegment(object): #NetworkSegment
         """
         The reason SplineNet does not have a self reference to InputNet
         is because SplineNet is a more generic Class, that could be used
-        independently of an InputNetwork.
+        independently of an InputNetwork.  I'm also not convinced this method
+        shoould be here, vs a function in a higher level manager.  but the
+        parent/child references are fundamental to how the overall system works.
+        For now, this is stashed here.
         """
         #first clear out any existing tessellation
         self.clear_input_net_references(input_network)
@@ -3441,6 +3695,8 @@ class SplineSegment(object): #NetworkSegment
             if not ip0.are_connected(ip1):
                 seg = input_network.connect_points(ip0, ip1)
                 self.input_segments += [seg]
+                seg.parent_spline = self
+            
             self.is_inet_dirty = False    
             return
         prev_pnt = ip0
@@ -3456,8 +3712,10 @@ class SplineSegment(object): #NetworkSegment
             input_network.points.append(new_pnt)
             self.input_points += [new_pnt]
             
+            #create segment, link the child/parent relationship and insert into network
             seg = InputSegment(prev_pnt,new_pnt)
             self.input_segments += [seg]
+            seg.parent_spline = self
             input_network.segments.append(seg)
             
             prev_pnt = new_pnt

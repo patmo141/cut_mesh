@@ -275,7 +275,7 @@ class Polytrim_States():
         if self.network_cutter.knife_complete:
             self.network_cutter.find_perimeter_edges()
         else:
-            self.network_cutter.find_boundary_faces()
+            self.network_cutter.find_boundary_faces_cycles()
 
     @CookieCutter.FSM_State('seed')
     def modal_seed(self):
@@ -321,7 +321,7 @@ class Polytrim_States():
     @CookieCutter.FSM_State('paint entering', 'enter')
     def paint_entering_enter(self):
         #if self._state == 'main': #TODO polydraw
-        self.network_cutter.find_boundary_faces()
+        self.network_cutter.find_boundary_faces_cycles()
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
             patch.color_patch()
@@ -375,7 +375,7 @@ class Polytrim_States():
     @CookieCutter.FSM_State('paint', 'enter')
     def paint_enter(self):
         #set the cursor to to something
-        self.network_cutter.find_boundary_faces()
+        self.network_cutter.find_boundary_faces_cycles()
         self.click_enter_paint()
         self.last_loc = None
         self.last_update = 0

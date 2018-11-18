@@ -799,38 +799,81 @@ class Polytrim_UI_Tools():
         print('paint confirm')
         for patch in self.network_cutter.face_patches:
             if patch == self.network_cutter.active_patch:continue
-            L = len(patch.patch_faces)
-            patch.patch_faces.difference_update(self.brush.geom_accum)
-            if L != len(patch.patch_faces):
+            
+            if not patch.patch_faces.isdisjoint(self.brush.geom_accum):
                 patch.paint_modified = True
+            patch.patch_faces.difference_update(self.brush.geom_accum)
+            
 
         #Destroy all Discrete Network Elements touched by brush
+        remove_points = []
         for ip in self.input_net.points:
             if ip.bmface in self.brush.geom_accum:
-                self.input_net.remove_point(ip, disconnect = True)
+                #self.input_net.remove_point(ip, disconnect = True)
+                remove_points += [ip]
                 
+        for ip in remove_points:
+            self.input_net.remove_point(ip, disconnect = True)
+            
+        remove_segs = []        
         for seg in self.input_net.segments:
             if seg not in self.network_cutter.cut_data: continue #uh oh
             if not self.brush.geom_accum.isdisjoint(self.network_cutter.cut_data[seg]['face_set']):
-                self.input_net.remove_segment(seg)                             
+                #self.input_net.remove_segment(seg)                             
+                remove_segs += [seg]
         
+        for seg in remove_segs:
+            self.input_net.remove_segment(seg)
+    
         #perhaps create new spline endpoints at the discrete endpoints..YES
         #Destroy all Spline Network Elements touched by brush
-        for ip in self.spline_net.points:
-            if ip.bmface in self.brush.geom_accum:
-                self.spline_net.remove_point(ip, disconnect = True)
+        remove_nodes = []
+        for node in self.spline_net.points:
+            if node.bmface in self.brush.geom_accum:
+                #self.spline_net.remove_point(node, disconnect = True)
+                remove_nodes += [node]
                 
-        for seg in self.spline_net.segments:
-            for ip_seg in seg.input_segments:
+        for node in remove_nodes:
+            #the seg is about to get deleted because it's node is gone
+            #so we will loose the opportuity to clear out the children
+            #segments
+            for seg in node.link_segments:
+                seg.clear_input_net_references(self.input_net)
+            #actually delete the node
+            self.spline_net.remove_point(node, disconnect = True)
+            node.clear_input_net_references(self.input_net)  #Should  not be any
+            
+        remove_splines = []    
+        for spline in self.spline_net.segments:
+            for ip_seg in spline.input_segments:
                 if ip_seg not in self.input_net.segments:
-                    self.spline_net.remove_segment(seg)  #remove teh associated SPLINE segment  #TODO get smarter later
-                    for node in seg.points:
-                        if len(node.link_segments) == 0:
-                            self.spline_net.remove_point(node)
+                    #  #remove teh associated SPLINE segment  #TODO get smarter later 
+                    remove_splines += [spline]
+                    
+        for spline in remove_splines:
+            self.spline_net.remove_segment(spline)            
+            spline.clear_input_net_references(self.input_net) #if the spline parent is gone, we take all children away from the border too....#TRUMP?        
         
+        loose_nodes = []     
+        for node in self.spline_net.points:
+            if len(node.link_segments) == 0:
+                loose_nodes += [node]
+                
+        print('deleting %i loose nodes' % len(loose_nodes))       
+        for node in loose_nodes:
+            self.spline_net.remove_point(node)
+
         self.network_cutter.active_patch.patch_faces |= self.brush.geom_accum
         self.network_cutter.active_patch.paint_modified = True
         
+        
+        #TODO, remove the destroyed elements from the patch references
+        
+        self.network_cutter.active_patch.color_patch()
+        self.network_cutter.validate_cdata()
+        
+        
+        return
         ####### BRUTE FORCE REMOVE PATCH PERIMETER DATA ########
         for patch in self.network_cutter.face_patches:
             if not patch.paint_modified: continue
@@ -856,24 +899,27 @@ class Polytrim_UI_Tools():
             for node in patch.curve_nodes:
                 if node in self.spline_net.points:
                     self.spline_net.remove_point(node)
-            
-            #clear the references
-            patch.ip_points = []
-            patch.input_net_segments = []
-            patch.curve_nodes = []
-            patch.spline_net_segments = []
-            
+      
                    
-        self.network_cutter.active_patch.color_patch()
-        self.network_cutter.validate_cdata()
+        
         
         
     def paint_exit(self):
         print('paint exit')
+        
+        #create new splines around newly created patches
         self.network_cutter.create_spline_network_from_face_patches(self.spline_net)
         
+        #fit splines to modified boundaries of existing patches
+        self.network_cutter.update_painted_face_patches_splines(self.spline_net)
+        
+        #now push all the splines back to input net and preview the cuts
         self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
         self.network_cutter.update_segments_async()
+        
+        #Do this for now
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        
         #TODO why is _state_next not working
         #if self._state_next == 'main':
         #    print('create spline network')
