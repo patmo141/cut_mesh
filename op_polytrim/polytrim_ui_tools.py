@@ -688,7 +688,7 @@ class Polytrim_UI_Tools():
                 self.net_ui_context.selected.update_splines()
                 closest_endpoint.update_splines() 
 
-        elif self.net_ui_context.hovered_near[0] == None and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
+        elif self.net_ui_context.hovered_near[0] == 'POINT CONNECT' and self.net_ui_context.snap_element != None:  #adding in a new point at end, may need to specify closest unlinked vs append and do some previs
             print("Here 2")
             closest_endpoints = self.closest_spline_endpoints(self.net_ui_context.snap_element.world_loc, 2)
             # bail if we did not find at least two nearby endpoints
@@ -718,6 +718,7 @@ class Polytrim_UI_Tools():
             
         self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
         self.network_cutter.update_segments_async()
+
     # TODO: Clean this up
     def click_delete_point(self, mode = 'mouse', disconnect=False):
         '''
