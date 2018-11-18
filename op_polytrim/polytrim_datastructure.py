@@ -928,6 +928,68 @@ class NetworkCutter(object):
             #But not in the existing boundary edges
             
             continue
+
+
+    def update_spline_edited_patches(self, spline_net): 
+        '''
+        for any patch that had it's boundaries modified by spline
+        editing, needs to make sure patch data is correct
+        
+        this will be part of region_enter
+        
+        This is a brute force techqnique that can be avoided if we 
+        use careful management of spline editings and if splines have
+        link_patches mapping to adjacent patches
+        '''
+        
+        
+        #TODO, if we have fidelity in FacePatch references to input segments
+        #thene we don't need to iterate over ALL of them
+        #remove all existing boundary faces from the neighbors
+        
+    
+        for patch in self.face_patches:
+            #TODO, Only Affect Patches that have been spline_edits
+            #TODO if not patch.spline_dirty: continue
+            
+    
+            #get the patch one ring neighbors
+            adjacent_faces = patch.adjacent_faces()
+            
+            
+            boundary_splines = set()
+            boundary_nodes = set()
+            boundary_segs = set()
+            boundary_points = set()
+            
+            #might be smarter...to just iterate over the ponts, and then do link_segments
+            for node in spline_net.points:
+                if node.bmface in adjacent_faces:
+                    boundary_nodes.add(node)
+            
+            for node in boundary_nodes:
+                for spline in node.link_segments:
+                    if spline.n0 in boundary_nodes and spline.n1 in boundary_nodes:
+                        boundary_splines.add(spline)
+                        
+                        
+            for spline in boundary_splines:
+                #add all the children
+                boundary_segs.update(spline.input_segments)
+            
+            for seg in boundary_segs:
+                boundary_points.update([seg.ip0, seg.ip1])   
+                
+            
+            patch.ip_points = list(boundary_points)
+            patch.input_net_segments = list(boundary_segs)
+            patch.spline_net_segments = list(boundary_splines)
+            patch.curve_nodes = list(boundary_nodes)
+            
+            print("patch has %i points" % len(patch.ip_points))  
+            print("patch has %i nodes" % len(patch.curve_nodes))  
+            print("patch has %i segments" % len(patch.input_net_segments))  
+            print("patch has %i splines" % len(patch.spline_net_segments))  
            
     def create_network_from_face_patches(self):
         #TODO UNTESTED, SHOULD NOT EB USED

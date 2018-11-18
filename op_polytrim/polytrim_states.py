@@ -86,6 +86,13 @@ class Polytrim_States():
     def spline_enter(self):
         self.spline_fsm.reset()
 
+    @CookieCutter.FSM_State('spline', 'exit')
+    def spline_exit(self):
+        #maybe this needs to happen on paint enter...yes?
+        self.spline_fsm.reset()
+        
+        
+        
     @CookieCutter.FSM_State('spline')
     def spline(self):
         return self.common(self.spline_fsm)
@@ -124,8 +131,19 @@ class Polytrim_States():
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
             patch.color_patch()
+        
+        
+        self.network_cutter.update_spline_edited_patches(self.spline_net)
+        
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         self.region_fsm.reset()
+        
+    @CookieCutter.FSM_State('region', 'exit')
+    def region_exit(self):
+        self.paint_exit()
+        self.region_fsm.reset()
+        
+        
 
     @CookieCutter.FSM_State('region')
     def region(self):
