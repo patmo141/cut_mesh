@@ -38,6 +38,51 @@ preview_line_clr = (0.0, 1.0, 0.0, 0.4)
 preview_line_wdth = 2
 
 
+def set_depthrange(near, far, points, view_loc, view_ortho):
+    d2 = min((view_loc-p).length_squared for p in points)
+    d = math.sqrt(d2)
+    d2 /= 10.0
+    near = near / d2
+    far = 1.0 - ((1.0 - far) / d2)
+    if view_ortho:
+        far *= 0.9999
+    near = max(0.0, min(1.0, near))
+    far = max(near, min(1.0, far))
+    bgl.glDepthRange(near, far)
+    #bgl.glDepthRange(0.0, 0.5)
+
+# draws points
+def draw3d_points(points, color, size, view_loc, view_ortho):
+    if not points: return
+    bgl.glColor4f(*color)
+    bgl.glPointSize(size)
+    set_depthrange(0.0, 0.997, points, view_loc, view_ortho)
+    bgl.glBegin(bgl.GL_POINTS)
+    for coord in points: bgl.glVertex3f(*coord)
+    bgl.glEnd()
+    bgl.glPointSize(1.0)
+
+# draws polylines.
+def draw3d_polyline(points, color, thickness, view_loc, view_ortho, stipple=False, zfar=0.997):
+    if not points: return
+    if stipple:
+        bgl.glLineStipple(4, 0x5555)  #play with this later
+        bgl.glEnable(bgl.GL_LINE_STIPPLE)
+    bgl.glEnable(bgl.GL_BLEND)
+    bgl.glColor4f(*color)
+    bgl.glLineWidth(thickness)
+    set_depthrange(0.0, zfar, points, view_loc, view_ortho)
+    bgl.glBegin(bgl.GL_LINE_STRIP)
+    for coord in points: bgl.glVertex3f(*coord)
+    bgl.glEnd()
+    bgl.glLineWidth(1)
+    if stipple:
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+        bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
+
+
+
+
 class Polytrim_UI_Draw():
     @CookieCutter.Draw('post3d')
     def draw_postview(self):
@@ -152,56 +197,13 @@ class Polytrim_UI_Draw():
         region,r3d = context.region,context.space_data.region_3d
         view_dir = r3d.view_rotation * Vector((0,0,-1))
         view_loc = r3d.view_location - view_dir * r3d.view_distance
-        if r3d.view_perspective == 'ORTHO': view_loc -= view_dir * 1000.0
+        view_ortho = (r3d.view_perspective == 'ORTHO')
+        if view_ortho: view_loc -= view_dir * 1000.0
 
         bgl.glEnable(bgl.GL_POINT_SMOOTH)
         bgl.glDepthRange(0.0, 1.0)
         bgl.glEnable(bgl.GL_DEPTH_TEST)
-
-        def set_depthrange(near=0.0, far=1.0, points=None):
-            if points and len(points) and view_loc:
-                d2 = min((view_loc-p).length_squared for p in points)
-                d = math.sqrt(d2)
-                d2 /= 10.0
-                near = near / d2
-                far = 1.0 - ((1.0 - far) / d2)
-            if r3d.view_perspective == 'ORTHO':
-                far *= 0.9999
-            near = max(0.0, min(1.0, near))
-            far = max(near, min(1.0, far))
-            bgl.glDepthRange(near, far)
-            #bgl.glDepthRange(0.0, 0.5)
-
-        # draws points
-        def draw3d_points(context, points, color, size):
-            if len(points) == 0: return
-            bgl.glColor4f(*color)
-            bgl.glPointSize(size)
-            set_depthrange(0.0, 0.997, points)
-            bgl.glBegin(bgl.GL_POINTS)
-            for coord in points: bgl.glVertex3f(*coord)
-            bgl.glEnd()
-            bgl.glPointSize(1.0)
-
-        # draws polylines.
-        def draw3d_polyline(context, points, color, thickness, LINE_TYPE, zfar=0.997):
-            if len(points) == 0: return
-            if LINE_TYPE == "GL_LINE_STIPPLE":
-                bgl.glLineStipple(4, 0x5555)  #play with this later
-                bgl.glEnable(bgl.GL_LINE_STIPPLE)
-            bgl.glEnable(bgl.GL_BLEND)
-            bgl.glColor4f(*color)
-            bgl.glLineWidth(thickness)
-            set_depthrange(0.0, zfar, points)
-            bgl.glBegin(bgl.GL_LINE_STRIP)
-            for coord in points: bgl.glVertex3f(*coord)
-            bgl.glEnd()
-            bgl.glLineWidth(1)
-            if LINE_TYPE == "GL_LINE_STIPPLE":
-                bgl.glDisable(bgl.GL_LINE_STIPPLE)
-                bgl.glEnable(bgl.GL_BLEND)  # back to uninterrupted lines
-
-        bgl.glLineWidth(1)  # Why are these two lines down here?
+        bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
 
         #CurveNetwork, BezierSegments
@@ -210,61 +212,61 @@ class Polytrim_UI_Draw():
 
             #has not been successfully converted to InputPoints and InputSegments
             if seg.is_inet_dirty:
-                draw3d_polyline(context, seg.draw_tessellation,  orange2, 4, 'GL_LINE_STRIP' )
+                draw3d_polyline(seg.draw_tessellation,  orange2, 4, view_loc, view_ortho)
 
             #if len(seg.ip_tesselation):
-            #    draw3d_polyline(context, seg.ip_tesselation,  blue, 2, 'GL_LINE_STRIP' )
-            #    draw3d_points(context, seg.ip_tesselation, green2, 4)
+            #    draw3d_polyline(seg.ip_tesselation,  blue, 2, view_loc, view_ortho)
+            #    draw3d_points(seg.ip_tesselation, green2, 4, view_loc, view_ortho)
 
-        draw3d_points(context, self.spline_net.point_world_locs, green2, 6)
+        draw3d_points(self.spline_net.point_world_locs, green2, 6, view_loc, view_ortho)
 
         # Polylines...InputSegments
         for seg in self.input_net.segments:
 
             #bad segment with a preview path provided by geodesic
             if seg.bad_segment and not len(seg.path) > 2:
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  pink, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], pink, 2, view_loc, view_ortho)
 
             #s
             elif len(seg.path) >= 2 and not seg.bad_segment and seg not in self.network_cutter.completed_segments:
-                draw3d_polyline(context, seg.path,  blue, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(seg.path,  blue, 2, view_loc, view_ortho)
 
             elif len(seg.path) >= 2 and not seg.bad_segment and seg in self.network_cutter.completed_segments:
-                draw3d_polyline(context, seg.path,  green2, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(seg.path,  green2, 2, view_loc, view_ortho)
 
             elif len(seg.path) >= 2 and seg.bad_segment:
-                draw3d_polyline(context, seg.path,  orange2, 2, 'GL_LINE_STRIP' )
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange2, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline(seg.path,  orange2, 2, view_loc, view_ortho)
+                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], orange2, 2, view_loc, view_ortho)
 
             elif seg.calculation_complete == False:
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  orange2, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], orange2, 2, view_loc, view_ortho)
             else:
-                draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  blue2, 2, 'GL_LINE_STRIP' )
+                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], blue2, 2, view_loc, view_ortho)
 
 
         if self.network_cutter.the_bad_segment:
             seg = self.network_cutter.the_bad_segment
-            draw3d_polyline(context, [seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, 'GL_LINE_STRIP' )
+            draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, view_loc, view_ortho)
 
-        if self._state == 'main':
-            draw3d_points(context, self.input_net.point_world_locs, blue, 2)
+        if self._state == 'spline':
+            draw3d_points(self.input_net.point_world_locs, blue, 2, view_loc, view_ortho)
         else:
-            draw3d_points(context, self.input_net.point_world_locs, blue, 6)
+            draw3d_points(self.input_net.point_world_locs, blue, 6, view_loc, view_ortho)
 
         #draw the seed/face patch points
-        draw3d_points(context, [p.world_loc for p in self.network_cutter.face_patches], orange2, 6)
+        draw3d_points([p.world_loc for p in self.network_cutter.face_patches], orange2, 6, view_loc, view_ortho)
 
 
         #draw the actively processing Input Point (IP Steper Debug)
         if self.network_cutter.active_ip:
-            draw3d_points(context, [self.network_cutter.active_ip.world_loc], purple, 20)
-            draw3d_points(context, [ip.world_loc for ip in self.network_cutter.ip_chain], purple, 12)
+            draw3d_points([self.network_cutter.active_ip.world_loc], purple, 20, view_loc, view_ortho)
+            draw3d_points([ip.world_loc for ip in self.network_cutter.ip_chain], purple, 12, view_loc, view_ortho)
 
         if self.network_cutter.seg_enter:
-            draw3d_polyline(context, self.network_cutter.seg_enter.path,  green2, 4, 'GL_LINE_STRIP' )
+            draw3d_polyline(self.network_cutter.seg_enter.path, green2, 4, view_loc, view_ortho)
 
         if self.network_cutter.seg_exit:
-            draw3d_polyline(context, self.network_cutter.seg_exit.path,  red, 4, 'GL_LINE_STRIP' )
+            draw3d_polyline(self.network_cutter.seg_exit.path, red, 4, view_loc, view_ortho)
 
         bgl.glLineWidth(1)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
