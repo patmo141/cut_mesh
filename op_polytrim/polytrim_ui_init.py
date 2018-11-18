@@ -38,18 +38,22 @@ class Polytrim_UI_Init():
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
 
         def mode_getter():
-            if self._state in {'paint main', 'paint'}: return 'paint'
-            if self._state in {'main', 'grab'}: return 'main'
+            if self._state is None: return None
+            if self._state.startswith('region'): return 'region'
+            if self._state.startswith('spline'): return 'spline'
+            if self._state.startswith('seed'): return 'seed'
+            print('Unknown state for UI getter: "%s"' % self._state)
             return self._state
         def mode_setter(m):
-            if   m == 'main':   self.enter_poly_mode()
-            elif m == 'paint':  self.enter_paint_mode()
-            elif m == 'seed':   self.enter_seed_select_button()
+            if   m == 'spline': self.fsm_change('spline')
+            elif m == 'region': self.fsm_change('region')
+            elif m == 'seed':   self.fsm_change('seed')
+            else: print('Unknown state for UI setter: "%s"' % m)
         ui_mode = info.add(ui.UI_Options(mode_getter, mode_setter))
         ui_mode.set_label('Pre Cut Tools', fontsize=16, align=0, margin=4)
-        ui_mode.add_option('Boundary Edit', value='main', icon=ui.UI_Image('polyline.png'))
+        ui_mode.add_option('Boundary Edit', value='spline', icon=ui.UI_Image('polyline.png'))
         ui_mode.add_option('Boundary > Region', value='seed', icon=ui.UI_Image('seed.png'))
-        ui_mode.add_option('Region Paint', value='paint', icon=ui.UI_Image('paint.png'))
+        ui_mode.add_option('Region Paint', value='region', icon=ui.UI_Image('paint.png'))
 
         def radius_getter():
             return self.brush_radius
