@@ -2391,7 +2391,6 @@ class UI_WindowManager:
                     self.delete_window(self.focus)
 
         ret = {}
-
         if self.active and self.active.state != 'main':
             ret = self.active.modal(context, event)
             if not ret: self.active = None
