@@ -91,16 +91,21 @@ class FSM:
         self._state_next = None
         if call_enter: self._call(self._state, substate='enter')
 
+    def can_change(self, state):
+        if self._state == state: return True
+        if self._call(self._state, substate='can exit') == False:
+            print('Cannot exit %s to %s' % (str(self._state), str(state)))
+            return False
+        if self._call(state, substate='can enter') == False:
+            print('Cannot enter %s from %s' % (str(state), str(self._state)))
+            return False
+        return True
+
     def change(self, state):
         self._state_next = None
         if self._state == state: return True
-        if self._call(self._state, substate='can exit') == False:
-            print('Cannot exit %s' % str(self._state))
-            return False
-        if self._call(state, substate='can enter') == False:
-            print('Cannot enter %s' % str(state))
-            return False
-        print('%s -> %s' % (str(self._state), str(state)))
+        if not self.can_change(state): return False
+        print('State change: %s -> %s' % (str(self._state), str(state)))
         self._call(self._state, substate='exit')
         self._state = state
         self._call(self._state, substate='enter')
