@@ -1743,6 +1743,8 @@ class NetworkCutter(object):
        
     def knife_gometry_stepper_prepare(self):
         
+        self.validate_cdata()  #there could be a lot of old cdata
+        
         self.new_bmverts = set()
         for ip in self.input_net.points:
             bmv = self.input_net.bme.verts.new(ip.local_loc)
@@ -1755,6 +1757,8 @@ class NetworkCutter(object):
         
         ip_cycles, seg_cycles = self.input_net.find_network_cycles()
         
+        for ip_cyc in ip_cycles:
+            print(ip_cyc)
         #create a set of input points that we will pull from
         self.ip_set = set()
         
@@ -3324,7 +3328,7 @@ class InputNetwork(object): #InputNetwork
         #right now ther eare no T or X junctions, only cuts across mesh or loops within mesh
         #will need to implement "IputNode.get_segment_to_right(InputSegment) to take care this
         
-        
+        print('INPUT NETWORK CYCLES')
         ip_set = set(self.points)
         endpoints = set(self.get_endpoints())
         
@@ -3926,6 +3930,7 @@ class SplineNetwork(object): #InputNetwork
         #right now ther eare no T or X junctions, only cuts across mesh or loops within mesh
         #will need to implement "IputNode.get_segment_to_right(InputSegment) to take care this
         
+        print('SPLINE NETWORK CYCLES')
         
         ip_set = set(self.points)
         endpoints = set(self.get_endpoints())
