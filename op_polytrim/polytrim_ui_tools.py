@@ -648,8 +648,14 @@ class Polytrim_UI_Tools():
         assert endpoint0.is_endpoint and endpoint1.is_endpoint
         seg = SplineSegment(endpoint0, endpoint1)
         self.spline_net.segments.append(seg)
+        
+        endpoint0.calc_handles()
+        endpoint1.calc_handles()
+            
         endpoint0.update_splines()
         endpoint1.update_splines()
+        
+        
         self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
         self.network_cutter.update_segments_async()
         return seg
@@ -745,7 +751,7 @@ class Polytrim_UI_Tools():
                 node.update_splines()
             
             
-        self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+        self.spline_net.push_to_input_net(self.net_ui_context, self.input_net, all_segs = True)
         self.network_cutter.update_segments_async()
 
     # TODO: Clean this up

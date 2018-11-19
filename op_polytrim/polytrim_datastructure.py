@@ -3581,7 +3581,6 @@ class CurveNode(object):  # CurveNetworkNode, basically identical to InputPoint
             seg.calc_bezier()
             seg.tessellate()
             seg.tessellate_IP_error(.1)
-            
             seg.is_inet_dirty = True
               
     #note, does not duplicate connectivity data
@@ -3730,9 +3729,9 @@ class SplineSegment(object): #NetworkSegment
         print('this spline segment has %i input segments' % len(self.input_segments))
         for seg in self.input_segments:
             input_network.remove_segment(seg)
-            for ip in seg.points:
-                if len(ip.link_segments) == 0 and ip in input_network.points:
-                    input_network.remove_point(ip)
+            #for ip in seg.points:  #THIS IS THE CULPRIT BECUASE OPEN ENDED SEGMENTS GOT ENDPOINTS REMOVED
+                #if len(ip.link_segments) == 0 and ip in input_network.points:
+                #    input_network.remove_point(ip)
                
         for ip in self.input_points:
             if ip in input_network.points:
@@ -3749,7 +3748,10 @@ class SplineSegment(object): #NetworkSegment
         """
        
         #first clear out any existing tessellation
+        print('\n\nCONVERT TESSELLATION TO NETWORK')
+        print('there are %i points in input_network' % len(input_network.points))
         self.clear_input_net_references(input_network)
+        
         if self.n0.input_point == None:
             self.n0.spawn_input_point(input_network)
         if self.n1.input_point == None:
@@ -3757,8 +3759,8 @@ class SplineSegment(object): #NetworkSegment
         
         self.input_points = []
         self.input_segments = []
-        
-        
+        print('\n\nAFTER CELEAR')
+        print('there are %i points in input_network' % len(input_network.points))
         #now create new ones 
         ip0 = self.n0.input_point
         ip1 = self.n1.input_point
@@ -3796,6 +3798,10 @@ class SplineSegment(object): #NetworkSegment
         self.input_segments += [seg]
         input_network.segments.append(seg)    
         self.is_inet_dirty = False
+        
+        print('\n\nAFTER PUSH')
+        print('There are now %i points in input_network' % len(input_network.points))
+        print('\n\n')
          
 class SplineNetwork(object): #InputNetwork
     '''
@@ -3833,9 +3839,18 @@ class SplineNetwork(object): #InputNetwork
 
 
     def push_to_input_net(self, net_ui_context, input_net, all_segs = False):
+        
+        print('\n\nPUSH TO INPUT NET')
+        print('there are %i points in inet' % len(input_net.points))
+        print('there are %i segs in inet' % len(input_net.segments))
         for seg in self.segments:
             if seg.is_inet_dirty or all_segs:
                 seg.convert_tessellation_to_network(net_ui_context, input_net)
+        
+        
+        print('there are %i points in inet' % len(input_net.points))
+        print('there are %i segs in inet' % len(input_net.segments))
+        
         
         
     def create_point(self, world_loc, local_loc, view, face_ind):
