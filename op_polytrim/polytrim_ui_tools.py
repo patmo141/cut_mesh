@@ -791,7 +791,12 @@ class Polytrim_UI_Tools():
             self.network_cutter.add_patch_start_paint(face_ind, world_loc, local_loc)
                        
     def paint_confirm(self):
+        
+        
         print('paint confirm')
+        
+        self.network_cutter.validate_cdata()
+        
         for patch in self.network_cutter.face_patches:
             if patch == self.network_cutter.active_patch:continue
             
@@ -804,22 +809,22 @@ class Polytrim_UI_Tools():
         remove_points = []
         for ip in self.input_net.points:
             if ip.bmface in self.brush.geom_accum:
-                #self.input_net.remove_point(ip, disconnect = True)
                 remove_points += [ip]
                 
+        print('removing %i input points' % len(remove_points))
         for ip in remove_points:
             self.input_net.remove_point(ip, disconnect = True)
             
         remove_segs = []        
         for seg in self.input_net.segments:
             if seg not in self.network_cutter.cut_data: continue #uh oh
-            if not self.brush.geom_accum.isdisjoint(self.network_cutter.cut_data[seg]['face_set']):
-                #self.input_net.remove_segment(seg)                             
+            if not self.brush.geom_accum.isdisjoint(self.network_cutter.cut_data[seg]['face_set']):                           
                 remove_segs += [seg]
         
         for seg in remove_segs:
             self.input_net.remove_segment(seg)
     
+        print('removing %i input segments' % len(remove_segs))
         
         #Destroy all Spline Network Elements touched by brush
         remove_nodes = []
@@ -838,25 +843,25 @@ class Polytrim_UI_Tools():
             self.spline_net.remove_point(node, disconnect = True)
             node.clear_input_net_references(self.input_net)  #Should  not be any
             
-        remove_splines = []    
+        remove_splines = set()   
         for spline in self.spline_net.segments:
             for ip_seg in spline.input_segments:
                 if ip_seg not in self.input_net.segments:
-                    #  #remove teh associated SPLINE segment  #TODO get smarter later 
-                    remove_splines += [spline]
+                    #remove the associated SPLINE segment  #TODO get smarter later 
+                    remove_splines.add(spline)
                     
         for spline in remove_splines:
             self.spline_net.remove_segment(spline)            
             spline.clear_input_net_references(self.input_net) #if the spline parent is gone, we take all children away from the border too....#TRUMP?        
         
-        loose_nodes = []     
-        for node in self.spline_net.points:
-            if len(node.link_segments) == 0:
-                loose_nodes += [node]
+        #loose_nodes = []     
+        #for node in self.spline_net.points:
+        #    if len(node.link_segments) == 0:
+        #        loose_nodes += [node]
                 
-        print('deleting %i loose nodes' % len(loose_nodes))       
-        for node in loose_nodes:
-            self.spline_net.remove_point(node)
+        #print('deleting %i loose nodes' % len(loose_nodes))       
+        #for node in loose_nodes:
+        #    self.spline_net.remove_point(node)
 
         self.network_cutter.active_patch.patch_faces |= self.brush.geom_accum
         self.network_cutter.active_patch.paint_modified = True

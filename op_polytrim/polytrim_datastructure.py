@@ -3743,6 +3743,7 @@ class SplineSegment(object): #NetworkSegment
         parent/child references are fundamental to how the overall system works.
         For now, this is stashed here.
         """
+       
         #first clear out any existing tessellation
         self.clear_input_net_references(input_network)
         if self.n0.input_point == None:
@@ -3750,6 +3751,11 @@ class SplineSegment(object): #NetworkSegment
         if self.n1.input_point == None:
             self.n1.spawn_input_point(input_network)
         
+        self.input_points = []
+        self.input_segments = []
+        
+        
+        #now create new ones 
         ip0 = self.n0.input_point
         ip1 = self.n1.input_point
         
