@@ -3833,18 +3833,9 @@ class SplineNetwork(object): #InputNetwork
 
     def push_to_input_net(self, net_ui_context, input_net, all_segs = False):
         
-        print('\n\nPUSH TO INPUT NET')
-        print('there are %i points in inet' % len(input_net.points))
-        print('there are %i segs in inet' % len(input_net.segments))
         for seg in self.segments:
             if seg.is_inet_dirty or all_segs:
                 seg.convert_tessellation_to_network(net_ui_context, input_net)
-        
-        
-        print('there are %i points in inet' % len(input_net.points))
-        print('there are %i segs in inet' % len(input_net.segments))
-        
-        
         
     def create_point(self, world_loc, local_loc, view, face_ind):
         ''' create an InputPoint '''
@@ -3907,11 +3898,14 @@ class SplineNetwork(object): #InputNetwork
         for cp in connected_points:
             self.disconnect_points(cp, point)
 
-        if len(connected_points) == 2 and not disconnect:
-            self.connect_points(connected_points[0], connected_points[1])
-             
         if point in self.points:
             self.points.remove(point)
+        
+        if len(connected_points) == 2 and not disconnect:
+            new_seg = self.connect_points(connected_points[0], connected_points[1])
+        
+        return connected_points
+        
         
     #def duplicate(self):
     #    new = InputNetwork(self.source_ob)

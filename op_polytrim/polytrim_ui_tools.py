@@ -662,11 +662,21 @@ class Polytrim_UI_Tools():
 
     def add_point(self, p2d):
         mx = self.net_ui_context.mx
+        imx = self.net_ui_context.imx
         loc, no, face_ind = self.ray_cast_source(p2d, in_world=False)
         if not loc: return None
         view_vector, ray_origin, ray_target = get_view_ray_data(self.context, p2d)
-        return self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
+        
+        if self.net_ui_context.hovered_near[0] and 'NON_MAN' in self.net_ui_context.hovered_near[0]:
+            bmed, wrld_loc = self.net_ui_context.hovered_near[1]
+            p = self.spline_net.create_point(wrld_loc,imx * wrld_loc, view_vector, bmed.link_faces[0].index)
+            p.seed_geom = bmed
+            p.bmedge = bmed #UNUSED, but preparing for future
+        else:
+            p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
 
+        return p
+    
     def ray_cast_source(self, p2d, in_world=True):
         context = self.context
         view_vector, ray_origin, ray_target = get_view_ray_data(context, p2d)
@@ -787,14 +797,23 @@ class Polytrim_UI_Tools():
             if curve_point.input_point in self.input_net.points:
                 self.input_net.remove_point(curve_point.input_point, disconnect)
             #Remove CurveNode from SplineNetwork
-            self.spline_net.remove_point(curve_point, disconnect)
+            connected_points = self.spline_net.remove_point(curve_point, disconnect)  #returns the new points on either side, connected or not
+            print('there are %i connected points')
+            for node in connected_points:  #need all point handles updated first, becuae of how auto handles use neighboring points
+                node.calc_handles()   
+            for node in connected_points:  #this actually doubly updaes the middle segment, but it's just bez interp, no cutting
+                node.update_splines()
                 
+            self.spline_net.push_to_input_net(self.net_ui_context, self.input_net, all_segs = False)
+            self.network_cutter.update_segments_async()
+            self.network_cutter.validate_cdata()
             if self.spline_net.is_empty or self.net_ui_context.selected == self.net_ui_context.hovered_near[1]:
                 self.net_ui_context.selected = None
-
-        else: #hard delete with x key
-            if not self.net_ui_context.selected: return
-            self.spline_net.remove(self.net_ui_context.selected, disconnect= True)
+                
+        #Let's avoid hotkeys for now
+        # else: #hard delete with x key
+        #     if not self.net_ui_context.selected: return
+        #     self.spline_net.remove(self.net_ui_context.selected, disconnect= True)
     
     def click_add_seed(self):
         

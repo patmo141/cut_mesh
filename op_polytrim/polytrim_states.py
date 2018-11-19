@@ -188,7 +188,7 @@ class Polytrim_States():
         if self.actions.pressed('delete'):
             self.click_delete_spline_point(mode='mouse')
             self.net_ui_context.update(self.actions.mouse)
-            self.network_cutter.validate_cdata()
+            
             self.hover_spline()
             self.ui_text_update()
             return
