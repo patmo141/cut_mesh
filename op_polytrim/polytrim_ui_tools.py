@@ -69,16 +69,16 @@ class Polytrim_UI_Tools():
             return True
 
         def finalize(self, context, start_pnt, end_pnt=None):
-            ''' takes sketch data and adds it into the datastructures '''
-            
-            
-            print(start_pnt, end_pnt)
-            if not isinstance(end_pnt, InputPoint) or isinstance(end_pnt, CurveNode): end_pnt = None    
-            if not isinstance(start_pnt, InputPoint)  or isinstance(start_pnt, CurveNode): 
+            ''' takes sketch data and adds it into the data structures '''
+
+            print('Finalizing sketching', start_pnt, end_pnt)
+            if not isinstance(end_pnt, InputPoint) or isinstance(end_pnt, CurveNode):
+                end_pnt = None
+            if not isinstance(start_pnt, InputPoint) or isinstance(start_pnt, CurveNode):
                 prev_pnt = None
             else:
                 prev_pnt = start_pnt
-            
+
             #FINALIZE INPUT NET MODE
             if isinstance(start_pnt, InputPoint):
                 for ind in range(0, len(self.sketch) , 5):
@@ -96,14 +96,14 @@ class Polytrim_UI_Tools():
                         print(prev_pnt)
                         seg = InputSegment(prev_pnt,new_pnt)
                         self.input_net.segments.append(seg)
-                        
+
                         #self.network_cutter.precompute_cut(seg)
                         #seg.make_path(self.net_ui_context.bme, self.input_net.bvh, self.net_ui_context.mx, self.net_ui_context.imx)
                     prev_pnt = new_pnt
                 if end_pnt:
                     seg = InputSegment(prev_pnt,end_pnt)
                     self.input_net.segments.append(seg)
-            
+
             #FINALIZE CURVE NETWORK MODE
             else:
                 sketch_3d = []
@@ -114,10 +114,10 @@ class Polytrim_UI_Tools():
                     loc, no, face_ind =  ray_cast_bvh(self.net_ui_context.bvh,self.net_ui_context.imx, ray_origin, ray_target, None)
                     if face_ind != None:
                             sketch_3d += [self.net_ui_context.mx * loc]
-                            other_data += [(loc, view_vector, face_ind)]  
-                
+                            other_data += [(loc, view_vector, face_ind)]
+
                 feature_inds = simplify_RDP(sketch_3d, .25)  #TODO, sketch threshold
-                
+
                 new_points = []
                 new_segs = []
                 for ind in feature_inds:
@@ -139,7 +139,7 @@ class Polytrim_UI_Tools():
                     prev_pnt = new_pnt
                 if end_pnt:
                     seg = SplineSegment(prev_pnt,end_pnt)
-                    self.spline_net.segments.append(seg)  
+                    self.spline_net.segments.append(seg)
                     new_segs += [seg]
                 for p in new_points:
                     p.calc_handles()
@@ -147,8 +147,8 @@ class Polytrim_UI_Tools():
                     seg.calc_bezier()
                     seg.tessellate()
                     seg.tessellate_IP_error(.1)
-    
-                    
+
+
         def finalize_bezier(self, context):
             
             stroke3d = []
@@ -642,6 +642,35 @@ class Polytrim_UI_Tools():
             self.input_net.insert_point(point, old_seg)
             self.net_ui_context.selected = point
             self.network_cutter.update_segments()
+
+
+    def add_spline(self, endpoint0, endpoint1):
+        assert endpoint0.is_endpoint and endpoint1.is_endpoint
+        seg = SplineSegment(endpoint0, endpoint1)
+        self.spline_net.segments.append(seg)
+        endpoint0.update_splines()
+        endpoint1.update_splines()
+        self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+        self.network_cutter.update_segments_async()
+        return seg
+
+    def add_point(self, p2d):
+        mx = self.net_ui_context.mx
+        loc, no, face_ind = self.ray_cast_source(p2d, in_world=False)
+        if not loc: return None
+        view_vector, ray_origin, ray_target = get_view_ray_data(self.context, p2d)
+        return self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
+
+    def ray_cast_source(self, p2d, in_world=True):
+        context = self.context
+        view_vector, ray_origin, ray_target = get_view_ray_data(context, p2d)
+        mx,imx = self.net_ui_context.mx,self.net_ui_context.imx
+        itmx = imx.transposed()
+        loc, no, face_ind = ray_cast_bvh(self.net_ui_context.bvh, imx, ray_origin, ray_target)
+        return (mx * loc if loc and in_world else loc, itmx * no if no and in_world else no, face_ind)
+
+    def ray_cast_source_hit(self, p2d):
+        return self.ray_cast_source(p2d, in_world=False)[0] != None
 
     def click_add_spline_point(self, context, mouse_loc, connect=True):
         '''
@@ -1174,7 +1203,7 @@ class Polytrim_UI_Tools():
         self.net_ui_context.nearest_non_man_loc()
 
 
-    def hover_spline(self, select_radius = 12, snap_radius = 24): #TDOD, these radii are pixels? Shoudl they be settings?
+    def hover_spline(self, select_radius=12, snap_radius=24): #TODO, these radii are pixels? Should they be settings?
         '''
         finds points/edges/etc that are near ,mouse
          * hovering happens in mixed 3d and screen space, 20 pixels thresh for points, 30 for edges 40 for non_man
@@ -1219,20 +1248,23 @@ class Polytrim_UI_Tools():
         pixel_dist = dist(loc3d_reg2D(context.region, context.space_data.region_3d, closest_ip.world_loc))
 
         if pixel_dist < select_radius:
+            # the mouse is hovering over a point
             self.net_ui_context.hovered_near = ['POINT', closest_ip]  #TODO, probably just store the actual InputPoint as the 2nd value?
             self.net_ui_context.hovered_dist2D = pixel_dist
             return
 
         if select_radius <= pixel_dist < snap_radius:
+            # the mouse is near a point (just outside of hovering)
             if closest_ip.is_endpoint:
+                # only care about endpoints at this moment
                 self.net_ui_context.snap_element = closest_ip
+                self.net_ui_context.hovered_dist2D = pixel_dist
                 #print('This is the close loop scenario')
                 closest_endpoints = self.closest_spline_endpoints(self.net_ui_context.snap_element.world_loc, 2)
                 # bail if we did not find at least two nearby endpoints
                 if len(closest_endpoints) < 2: return
                 self.net_ui_context.hovered_near = ['POINT CONNECT', closest_ip]
                 self.net_ui_context.connect_element = closest_endpoints[1]
-                self.net_ui_context.hovered_dist2D = pixel_dist
             return
 
         # bail if there are only one num_points (no segments)

@@ -156,31 +156,39 @@ class Polytrim_States():
             self.hover_spline()
             #self.net_ui_context.inspect_print()
 
-        # after navigation filter, these are relevant events in this state
-        if self.actions.pressed('grab'):
-            self.ui_text_update()
-            return 'grab'
-
         if self.actions.pressed('select', unpress=False):
-            if self.net_ui_context.hovered_near[0] == 'POINT':
+            if self.spline_fsm.can_change('select'):
                 self.actions.unpress()
-                print('select hovered point')
-                self.net_ui_context.selected = self.net_ui_context.hovered_near[1]
-                return
+                return 'select'
+
+        if self.actions.pressed('connect', unpress=False):
+            if self.spline_fsm.can_change('connect'):
+                self.actions.unpress()
+                return 'connect'
+
+        if self.actions.pressed('add point', unpress=False):
+            # first try to add a connected point
+            # if that fails, try to add a disconnected point
+            if self.spline_fsm.can_change('add point'):
+                self.actions.unpress()
+                return 'add point'
+            elif self.spline_fsm.can_change('add point (disconnected)'):
+                self.actions.unpress()
+                return 'add point (disconnected)'
 
         if self.actions.pressed('sketch'):
-            self.ui_text_update()
             return 'sketch'
 
         if self.actions.pressed('add point (disconnected)'):
-            self.click_add_spline_point(context, self.actions.mouse, False)
-            self.ui_text_update()
-            #self.net_ui_context.inspect_print()
-            return
+            return 'add point (disconnected)'
+
+        if self.actions.pressed('grab'):
+            return 'grab'
 
         if self.actions.pressed('delete'):
             self.click_delete_spline_point(mode='mouse')
             self.net_ui_context.update(self.actions.mouse)
+            self.network_cutter.validate_cdata()
             self.hover_spline()
             self.ui_text_update()
             return
@@ -192,6 +200,148 @@ class Polytrim_States():
             self.ui_text_update()
             return
 
+
+    #--------------------------------------
+    # select
+
+    @spline_fsm.FSM_State('select', 'can enter')
+    def spline_select_can_enter(self):
+        return self.net_ui_context.hovered_near[0] in {'POINT'}
+
+    @spline_fsm.FSM_State('select')
+    def spline_select(self):
+        self.net_ui_context.selected = self.net_ui_context.hovered_near[1]
+        self.tweak_release = 'select'
+        self.tweak_cancel = 'cancel'
+        return 'tweak'
+
+
+    #--------------------------------------
+    # tweak
+
+    @spline_fsm.FSM_State('tweak', 'can enter')
+    def spline_tweak_can_enter(self):
+        if not self.net_ui_context.selected: return False
+        if not hasattr(self, 'tweak_release'): self.tweak_release = None
+        if not hasattr(self, 'tweak_press'): self.tweak_press = None
+        if not hasattr(self, 'tweak_cancel'): self.tweak_cancel = None
+        assert self.tweak_release or self.tweak_press, 'Must set either self.tweak_release or self.tweak_press!'
+        return True
+
+    @spline_fsm.FSM_State('tweak', 'enter')
+    def spline_tweak_enter(self):
+        context = self.context
+        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+        self.tweak_point_p2d = loc3d_reg2D(context.region, context.space_data.region_3d, self.net_ui_context.selected.world_loc)
+        self.tweak_mousedown = self.actions.mouse
+        self.tweak_moving = False
+        self.grabber.initiate_grab_point()
+
+    @spline_fsm.FSM_State('tweak')
+    def spline_tweak(self):
+        if self.tweak_release and self.actions.released(self.tweak_release):
+            return 'main'
+        if self.tweak_press and self.actions.pressed(self.tweak_press):
+            return 'main'
+        if self.tweak_cancel and self.actions.pressed(self.tweak_cancel):
+            #put it back!
+            self.grabber.grab_cancel()
+            return 'main'
+
+        if (self.tweak_mousedown - self.actions.mouse).length > 5:
+            self.tweak_moving = True
+
+        if self.tweak_moving and self.actions.mousemove:
+            p2d = self.tweak_point_p2d + (self.actions.mouse - self.tweak_mousedown)
+            self.net_ui_context.update(p2d)
+            self.grabber.move_grab_point(self.context, p2d)
+
+    @spline_fsm.FSM_State('tweak', 'exit')
+    def spline_tweak_exit(self):
+        #confirm location
+        if self.tweak_moving:
+            self.grabber.finalize(self.context)
+            if isinstance(self.net_ui_context.selected, CurveNode):
+                self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+                self.network_cutter.update_segments_async()
+            else:
+                self.network_cutter.update_segments()
+        self.ui_text_update()
+        self.tweak_press = None
+        self.tweak_release = None
+        self.tweak_cancel = None
+
+
+    #--------------------------------------
+    # connect (two endpoints)
+
+    @spline_fsm.FSM_State('connect', 'can enter')
+    def spline_connect_can_enter(self):
+        # make sure selected is an endpoint
+        s = self.net_ui_context.selected
+        if not s or not s.is_endpoint: return False
+        # make sure near is an endpoint
+        if self.net_ui_context.hovered_near[0] not in {'POINT CONNECT'}: return False
+        n = self.net_ui_context.hovered_near[1]
+        if not n or not n.is_endpoint: return False
+        return True
+
+    @spline_fsm.FSM_State('connect')
+    def spline_connect(self):
+        s = self.net_ui_context.selected
+        n = self.net_ui_context.hovered_near[1]
+        assert s and n
+        self.add_spline(s, n)
+        self.net_ui_context.selected = n
+        self.tweak_release = 'connect'
+        self.tweak_cancel = 'cancel'
+        return 'tweak'
+
+
+    #--------------------------------------
+    # add point (connected to selected endpoint)
+
+    @spline_fsm.FSM_State('add point', 'can enter')
+    def spline_add_point_can_enter(self):
+        # make sure selected is an endpoint
+        s = self.net_ui_context.selected
+        if not s or not s.is_endpoint: return False
+        # make sure mouse is over source
+        if not self.ray_cast_source_hit(self.actions.mouse): return False
+        return True
+
+    @spline_fsm.FSM_State('add point')
+    def spline_add_point(self):
+        s = self.net_ui_context.selected
+        n = self.add_point(self.actions.mouse)
+        assert s and n
+        self.add_spline(s, n)
+        self.net_ui_context.selected = n
+        self.tweak_release = 'add point'
+        self.tweak_cancel = 'cancel'
+        return 'tweak'
+
+    #--------------------------------------
+    # add point disconnected
+
+    @spline_fsm.FSM_State('add point (disconnected)', 'can enter')
+    def spline_add_point_disconnected_can_enter(self):
+        # make sure mouse is over source
+        if not self.ray_cast_source_hit(self.actions.mouse): return False
+        return True
+
+    @spline_fsm.FSM_State('add point (disconnected)')
+    def spline_add_point_disconnected(self):
+        n = self.add_point(self.actions.mouse)
+        self.net_ui_context.selected = n
+        self.tweak_release = {'add point', 'add point (disconnected)'}
+        self.tweak_cancel = 'cancel'
+        return 'tweak'
+
+
+    #--------------------------------------
+    # grab
+    # TODO: can we not just use tweak?
 
     @spline_fsm.FSM_State('grab', 'can enter')
     def spline_grab_can_enter(self):
@@ -210,16 +360,6 @@ class Polytrim_States():
         self.cursor_modal_set('HAND')
 
         if self.actions.pressed('LEFTMOUSE'):
-            #confirm location
-            x,y = self.actions.mouse
-            self.grabber.finalize(self.context)
-
-            if isinstance(self.net_ui_context.selected, CurveNode):
-                self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
-                self.network_cutter.update_segments_async()
-            else:
-                self.network_cutter.update_segments()
-
             return 'main'
 
         if self.actions.pressed('cancel'):
@@ -240,52 +380,122 @@ class Polytrim_States():
 
     @spline_fsm.FSM_State('grab', 'exit')
     def spline_grab_exit(self):
+        #confirm location
+        x,y = self.actions.mouse
+        self.grabber.finalize(self.context)
+
+        if isinstance(self.net_ui_context.selected, CurveNode):
+            self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+            self.network_cutter.update_segments_async()
+        else:
+            self.network_cutter.update_segments()
+
         self.ui_text_update()
 
 
+    #--------------------------------------
+    # sketch
+
     @spline_fsm.FSM_State('sketch', 'can enter')
     def spline_sketch_can_enter(self):
-        print("selected", self.net_ui_context.selected)
-        context = self.context
-        mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
+        # as long as mouse is over source, sketch either starts:
+        # 1. from selected endpoint if mouse is near (or hovering) selected
+        # 2. from a new, disconnected point
 
-        # TODO: do NOT change state in "can enter".  move the following click_add_* stuff to "enter"
-        self.click_add_spline_point(context, mouse)  #Send the 2D coordinates to Knife Class
-        return  self.net_ui_context.hovered_near[0] == 'POINT' or self.input_net.num_points == 1
+        # make sure mouse is over source
+        if not self.ray_cast_source_hit(self.actions.mouse): return False
+
+        s = self.net_ui_context.selected
+        n = self.net_ui_context.hovered_near[1] if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'} else None
+
+        # case 1: mouse is near selected endpoint
+        if s and s.is_endpoint and n == s: return True
+
+        # case 2
+        return True
 
     @spline_fsm.FSM_State('sketch', 'enter')
     def spline_sketch_enter(self):
-        x,y = self.actions.mouse
-        self.sketcher.add_loc(x,y)
+        self.sketcher.reset()
+
+        s = self.net_ui_context.selected
+        n = self.net_ui_context.hovered_near[1] if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'} else None
+        if s and s.is_endpoint and n == s:
+            # case 1: mouse is near selected endpoint
+            self.sketching_start = s
+        else:
+            # case 2: start with new disconnected point
+            self.sketching_start = self.add_point(self.actions.mouse)
+            self.net_ui_context.selected = self.sketching_start
+        self.sketcher.add_loc(*self.actions.mouse)
 
     @spline_fsm.FSM_State('sketch')
     def spline_sketch(self):
         if self.actions.mousemove:
-            x,y = self.actions.mouse
-            if not len(self.sketcher.sketch):
-                return 'spline main' #XXX: Delete this??
-            self.sketcher.smart_add_loc(x,y)
-            return
-
+            self.sketcher.smart_add_loc(*self.actions.mouse)
         if self.actions.released('sketch'):
-            return 'spline main'
+            return 'main'
 
     @spline_fsm.FSM_State('sketch', 'exit')
     def spline_sketch_exit(self):
         is_sketch = self.sketcher.is_good()
         if is_sketch:
-            last_hovered_point = self.net_ui_context.hovered_near[1]
-            print("LAST:",self.net_ui_context.hovered_near)
             self.net_ui_context.update(self.actions.mouse)
             self.hover_spline()
-            new_hovered_point = self.net_ui_context.hovered_near[1]
-            print("NEW:",self.net_ui_context.hovered_near)
-            print(last_hovered_point, new_hovered_point)
-            self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
+            self.sketching_end = self.net_ui_context.hovered_near[1] if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'} else None
+            self.sketcher.finalize(self.context, self.sketching_start, self.sketching_end)
             self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
             self.network_cutter.update_segments_async()
+            self.hover_spline()
+            new_hovered_point = self.net_ui_context.hovered_near[1] if self.net_ui_context.hovered_near[0] in {'POINT', 'POINT CONNECT'} else None
+            if new_hovered_point: self.net_ui_context.selected = new_hovered_point
         self.ui_text_update()
         self.sketcher.reset()
+
+
+    # @spline_fsm.FSM_State('sketch old', 'can enter')
+    # def spline_sketch_can_enter(self):
+    #     print("selected", self.net_ui_context.selected)
+    #     context = self.context
+    #     mouse = self.actions.mouse  #gather the 2D coordinates of the mouse click
+
+    #     # TODO: do NOT change state in "can enter".  move the following click_add_* stuff to "enter"
+    #     self.click_add_spline_point(context, mouse)  #Send the 2D coordinates to Knife Class
+    #     return  self.net_ui_context.hovered_near[0] == 'POINT' or self.input_net.num_points == 1
+
+    # @spline_fsm.FSM_State('sketch old', 'enter')
+    # def spline_sketch_enter(self):
+    #     x,y = self.actions.mouse
+    #     self.sketcher.add_loc(x,y)
+
+    # @spline_fsm.FSM_State('sketch old')
+    # def spline_sketch(self):
+    #     if self.actions.mousemove:
+    #         x,y = self.actions.mouse
+    #         if not len(self.sketcher.sketch):
+    #             return 'spline main' #XXX: Delete this??
+    #         self.sketcher.smart_add_loc(x,y)
+    #         return
+
+    #     if self.actions.released('sketch'):
+    #         return 'spline main'
+
+    # @spline_fsm.FSM_State('sketch old', 'exit')
+    # def spline_sketch_exit(self):
+    #     is_sketch = self.sketcher.is_good()
+    #     if is_sketch:
+    #         last_hovered_point = self.net_ui_context.hovered_near[1]
+    #         print("LAST:",self.net_ui_context.hovered_near)
+    #         self.net_ui_context.update(self.actions.mouse)
+    #         self.hover_spline()
+    #         new_hovered_point = self.net_ui_context.hovered_near[1]
+    #         print("NEW:",self.net_ui_context.hovered_near)
+    #         print(last_hovered_point, new_hovered_point)
+    #         self.sketcher.finalize(self.context, last_hovered_point, new_hovered_point)
+    #         self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+    #         self.network_cutter.update_segments_async()
+    #     self.ui_text_update()
+    #     self.sketcher.reset()
 
 
     ######################################################
