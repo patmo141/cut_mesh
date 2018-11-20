@@ -627,7 +627,7 @@ class Polytrim_States():
             return 'paint'
 
         if self.actions.pressed('RIGHTMOUSE'):
-            return 'paint'
+            return 'paint delete'
 
 
     @region_fsm.FSM_State('paint', 'can enter')
@@ -671,9 +671,44 @@ class Polytrim_States():
     @region_fsm.FSM_State('paint', 'exit')
     def region_paint_exit(self):
         self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
-        self.paint_confirm()
+        self.paint_confirm_mergey()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-        #self.paint_confirm()
-        #add all geometry (or subtract all geometr) from current patch
-        #color it apporpriately
-        #reset the paint widget
+        
+        
+    @region_fsm.FSM_State('paint delete', 'enter')
+    def region_unpaint_enter(self):
+        #set the cursor to to something
+        self.network_cutter.find_boundary_faces_cycles()
+        self.click_enter_paint(delete = True)
+        self.last_loc = None
+        self.last_update = 0
+        self.paint_dirty = False
+
+    @region_fsm.FSM_State('paint delete')
+    def region_unpaint(self):
+        self.cursor_modal_set('PAINT_BRUSH')
+
+        if self.actions.released('RIGHTMOUSE'):
+            return 'main'
+
+        loc,_,_ = self.brush.ray_hit(self.actions.mouse, self.context)
+        if loc and (not self.last_loc or (self.last_loc - loc).length > self.brush.radius*(0.25)):
+            self.last_loc = loc
+            #update the bmesh geometry under mouse location
+            #use brush radius to find all geometry within
+            #add that geometry to the "stroke region"
+            #color it as the "interim" strokeregion color
+            self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
+            #self.brush.absorb_geom(self.context, self.actions.mouse)
+            self.paint_dirty = True
+
+        if self.paint_dirty and (time.time() - self.last_update) > 0.2:
+            self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+            self.paint_dirty = False
+            self.last_update = time.time()
+
+    @region_fsm.FSM_State('paint delete', 'exit')
+    def region_unpaint_exit(self):
+        self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
+        self.paint_confirm_subtract()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)

@@ -41,6 +41,7 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim
         'cancel': {'ESC', 'RIGHTMOUSE'},
         'grab': 'G',
         'delete': {'RIGHTMOUSE'},
+        'paint delete':{'CTRL+RIGHTMOUSE'},
         'delete (disconnect)': {'CTRL+RIGHTMOUSE'},
         'preview cut': 'C',
         'up': 'UP_ARROW',

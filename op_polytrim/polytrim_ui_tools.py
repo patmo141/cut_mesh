@@ -764,6 +764,17 @@ class Polytrim_UI_Tools():
         self.spline_net.push_to_input_net(self.net_ui_context, self.input_net, all_segs = True)
         self.network_cutter.update_segments_async()
 
+    def inspect_things(self):
+        '''
+        container for random stuff to help debug
+        '''
+        print(self.net_ui_context.selected)
+        
+        if isinstance(self.net_ui_context.selected, CurveNode):
+            cn = self.net_ui_context.selected
+            print(cn.link_segments)
+            print(cn.bmface)
+        
     # TODO: Clean this up
     def click_delete_point(self, mode = 'mouse', disconnect=False):
         '''
@@ -824,7 +835,7 @@ class Polytrim_UI_Tools():
         local_loc = self.net_ui_context.hovered_mesh['local loc']
         self.network_cutter.add_seed(face_ind, world_loc, local_loc)
     
-    def click_enter_paint(self):
+    def click_enter_paint(self, delete = False):
         
         if self.net_ui_context.hovered_mesh == {}: return
         
@@ -841,23 +852,37 @@ class Polytrim_UI_Tools():
                 self.brush.brush_color = patch.color
                 print('found the active patch')
         
-        if self.network_cutter.active_patch == None:
+        if delete:
+            self.brush.brush_color = Color((1,1,1))
+        if self.network_cutter.active_patch == None and not delete:
             self.network_cutter.add_patch_start_paint(face_ind, world_loc, local_loc)
                        
-    def paint_confirm(self):
+    def paint_confirm_greedy(self):
+        '''
+        destroy all Iput elements touched by brush
+        add brush accum geometry to active patch
+        remove brush accumg geometry from other patches
+        '''
         
         
         print('paint confirm')
         
         self.network_cutter.validate_cdata()
         
+        #First, remove geom accum from other patches
+        remove_patches = []
         for patch in self.network_cutter.face_patches:
             if patch == self.network_cutter.active_patch:continue
             
             if not patch.patch_faces.isdisjoint(self.brush.geom_accum):
                 patch.paint_modified = True
             patch.patch_faces.difference_update(self.brush.geom_accum)
+            if len(patch.patch_faces) == 0:
+                remove_patches += [patch]
+            patch.validate_seed()
             
+        for patch in remove_patches:
+            self.network_cutter.face_patches.remove(patch)
 
         #Destroy all Discrete Network Elements touched by brush
         remove_points = []
@@ -928,36 +953,195 @@ class Polytrim_UI_Tools():
         
         
         return
-        ####### BRUTE FORCE REMOVE PATCH PERIMETER DATA ########
-        for patch in self.network_cutter.face_patches:
-            if not patch.paint_modified: continue
-            
-            print('this patch has %i ip points' % len(patch.ip_points))
-            print('this patch has %i spline points' % len(patch.curve_nodes))
-            #clear out all input points
-            for ip in patch.ip_points:
-                if ip in self.input_net.points:  #TODO, get really smart, only remove the affected discreet or curve network geom?
-                    self.input_net.remove_point(ip, disconnect = True)
-            
-            #clear out all SplinePoints
-            for seg in patch.spline_net_segments:
-                seg.clear_input_net_references(self.input_net) #clear out the InputNet
-                self.spline_net.remove_segment(seg) #clear out the SplineNet
-                
-                print('there are now %i nodes in spline net' % len(self.spline_net.points))
-                print('there are now %i points in input net' % len(self.input_net.points))
-                
-                print('there are now %i segs in input net' % len(self.input_net.segments))
-                print('there are now %i segs in spline net' % len(self.spline_net.segments))
-            
-            for node in patch.curve_nodes:
-                if node in self.spline_net.points:
-                    self.spline_net.remove_point(node)
       
-                   
+    def paint_confirm_mergey(self):
+        '''
+        destroy all Iput elements touched by brush
+        add brush accum geometry to active patch
+        merge any patches touched into active patch
+        this prevents adjacnet patches until we have the cutting mechancis
+        to support it
+        '''
         
         
+        print('paint confirm')
         
+        if len(self.brush.geom_accum) == 0: return  #that was easy
+        
+        self.network_cutter.validate_cdata()
+        
+        AP = self.network_cutter.active_patch
+        
+        #First, identify touched patches
+        merge_patches = []
+        
+        for patch in self.network_cutter.face_patches:
+            if patch == AP: continue
+            if not patch.patch_faces.isdisjoint(self.brush.geom_accum):
+                merge_patches += [patch]
+        
+        #merge them all together    
+        for patch in merge_patches:
+            AP.patch_faces.update(patch.patch_faces)
+            AP.input_net_segments += patch.input_net_segments
+            AP.ip_points += patch.ip_points
+            AP.spline_net_segments += patch.spline_net_segments
+            AP.curve_nodes += patch.curve_nodes
+            self.network_cutter.face_patches.remove(patch)
+
+        #Destroy all Discrete Network Elements touched by brush
+        remove_points = []
+        for ip in self.input_net.points:
+            if ip.bmface in self.brush.geom_accum:
+                remove_points += [ip]
+                
+        print('removing %i input points' % len(remove_points))
+        for ip in remove_points:
+            self.input_net.remove_point(ip, disconnect = True)
+            
+        remove_segs = []        
+        for seg in self.input_net.segments:
+            if seg not in self.network_cutter.cut_data: continue #uh oh
+            if not self.brush.geom_accum.isdisjoint(self.network_cutter.cut_data[seg]['face_set']):                           
+                remove_segs += [seg]
+        
+        for seg in remove_segs:
+            self.input_net.remove_segment(seg)
+    
+        print('removing %i input segments' % len(remove_segs))
+        
+        #Destroy all Spline Network Elements touched by brush
+        remove_nodes = []
+        for node in self.spline_net.points:
+            if node.bmface in self.brush.geom_accum:
+                #self.spline_net.remove_point(node, disconnect = True)
+                remove_nodes += [node]
+                
+        for node in remove_nodes:
+            #the seg is about to get deleted because it's node is gone
+            #so we will loose the opportuity to clear out the children
+            #segments
+            for seg in node.link_segments:
+                seg.clear_input_net_references(self.input_net)
+            #actually delete the node
+            self.spline_net.remove_point(node, disconnect = True)
+            node.clear_input_net_references(self.input_net)  #Should  not be any
+            
+        remove_splines = set()   
+        for spline in self.spline_net.segments:
+            for ip_seg in spline.input_segments:
+                if ip_seg not in self.input_net.segments:
+                    #remove the associated SPLINE segment  #TODO get smarter later 
+                    remove_splines.add(spline)
+                    
+        for spline in remove_splines:
+            self.spline_net.remove_segment(spline)            
+            spline.clear_input_net_references(self.input_net) #if the spline parent is gone, we take all children away from the border too....#TRUMP?        
+        
+        #join the brush geom!
+        self.network_cutter.active_patch.patch_faces |= self.brush.geom_accum
+        self.network_cutter.active_patch.paint_modified = True
+        
+        #ensure no 0 face paches
+        remove_patches = []
+        for patch in self.network_cutter.face_patches:
+            if len(patch.patch_faces) == 0:
+                remove_patches += [patch]
+            
+        for patch in remove_patches:
+            self.network_cutter.face_patches.remove(patch)
+                
+        #TODO, remove the destroyed elements from the patch references
+        self.network_cutter.active_patch.color_patch()
+        self.network_cutter.validate_cdata()  #we have just removed a bunch of input network elements
+
+        return
+
+
+    def paint_confirm_subtract(self):
+        '''
+        destroy all Input elements touched by brush
+        remove brush accum geometry from all patches
+        '''
+        
+        
+        print('paint confirm subtract')
+        
+        if len(self.brush.geom_accum) == 0: return  #that was easy
+        
+        self.network_cutter.validate_cdata()
+        
+        #First, identify touched patches 
+        for patch in self.network_cutter.face_patches:
+            if not patch.patch_faces.isdisjoint(self.brush.geom_accum):
+                print('removing brush geom from patch')
+                patch.patch_faces.difference_update(self.brush.geom_accum)
+                if patch.validate_seed():
+                    patch.world_loc = self.net_ui_context.mx * patch.local_loc
+                patch.paint_modified = True
+                patch.un_color_patch()
+                patch.color_patch()
+        
+        #ensure no 0 face paches
+        remove_patches = []
+        for patch in self.network_cutter.face_patches:
+            if len(patch.patch_faces) == 0:
+                remove_patches += [patch]
+            
+        for patch in remove_patches:
+            self.network_cutter.face_patches.remove(patch)
+            
+        #Destroy all Discrete Network Elements touched by brush
+        remove_points = []
+        for ip in self.input_net.points:
+            if ip.bmface in self.brush.geom_accum:
+                remove_points += [ip]
+                
+        for ip in remove_points:
+            self.input_net.remove_point(ip, disconnect = True)
+            
+        remove_segs = []        
+        for seg in self.input_net.segments:
+            if seg not in self.network_cutter.cut_data: continue #uh oh
+            if not self.brush.geom_accum.isdisjoint(self.network_cutter.cut_data[seg]['face_set']):                           
+                remove_segs += [seg]
+        
+        for seg in remove_segs:
+            self.input_net.remove_segment(seg)
+    
+        #Destroy all Spline Network Elements touched by brush
+        remove_nodes = []
+        for node in self.spline_net.points:
+            if node.bmface in self.brush.geom_accum:
+                #self.spline_net.remove_point(node, disconnect = True)
+                remove_nodes += [node]
+                
+        for node in remove_nodes:
+            #the seg is about to get deleted because it's node is gone
+            #so we will loose the opportuity to clear out the children
+            #segments
+            for seg in node.link_segments:
+                seg.clear_input_net_references(self.input_net)
+            #actually delete the node
+            self.spline_net.remove_point(node, disconnect = True)
+            node.clear_input_net_references(self.input_net)  #Should  not be any
+            
+        remove_splines = set()   
+        for spline in self.spline_net.segments:
+            for ip_seg in spline.input_segments:
+                if ip_seg not in self.input_net.segments:
+                    #remove the associated SPLINE segment  #TODO get smarter later 
+                    remove_splines.add(spline)
+                    
+        for spline in remove_splines:
+            self.spline_net.remove_segment(spline)            
+            spline.clear_input_net_references(self.input_net) #if the spline parent is gone, we take all children away from the border too....#TRUMP?        
+        
+
+        self.network_cutter.validate_cdata()  #we have just removed a bunch of input network elements
+
+        return      
+                                  
     def paint_exit(self):
         print('paint exit')
         

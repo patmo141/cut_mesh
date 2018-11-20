@@ -207,6 +207,19 @@ class BMFacePatch(object):
     def set_color(self, color): 
         self.color = Color(color)
            
+    
+    def validate_seed(self):
+        if len(self.patch_faces) == 0: return False
+        
+        if self.seed_face not in self.patch_faces:
+            #choose an arbitray element from set
+            for s in self.patch_faces:
+                break
+            self.seed_face = s
+            self.local_loc = s.calc_center_bounds()
+            return True
+            
+            
     def grow_seed(self, bme, boundary_edges):
         #if we are re-growing our seed,
         if len(self.patch_faces)  != 0:

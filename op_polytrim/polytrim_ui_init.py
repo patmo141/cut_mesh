@@ -69,6 +69,7 @@ class Polytrim_UI_Init():
         #Knife geometry stepper buttons
         info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
         info.add(ui.UI_Button('Step Cut', self.knife_step_button, margin=5))
+        info.add(ui.UI_Button('Inspect Stuff', self.inspect_things, margin=5))
 
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))
