@@ -325,9 +325,26 @@ class Polytrim_UI_Tools():
         def move_grab_point(self,context,mouse_loc):
             ''' Moves location of point'''
             d = self.net_ui_context.hovered_mesh
+            n = self.net_ui_context.hovered_near
+            
             if d and self.grab_point:
-                self.grab_point.set_values(d["world loc"], d["local loc"], d["view"], d["face index"])
-                self.grab_point.bmface = self.input_net.bme.faces[d["face index"]]
+                print(n)
+                if n[0] == 'NON_MAN_ED' and len(self.grab_point.link_segments) == 1:
+                    imx = self.net_ui_context.imx
+                    ed, world_loc = n[1]
+                    face = ed.link_faces[0]
+                    
+                    self.grab_point.set_values(world_loc, imx * world_loc, d["view"], face.index)
+                    self.grab_point.bmface = face
+                    self.grab_point.seed_geom = ed  #we have ensure it's not a non manifold
+                    self.grab_point.bmedge = ed #unused, but will in future
+                
+                else:                
+                    self.grab_point.set_values(d["world loc"], d["local loc"], d["view"], d["face index"])
+                    self.grab_point.bmface = self.input_net.bme.faces[d["face index"]]
+                    self.grab_point.seed_geom = None  #we have ensure it's not a non manifold
+                    self.grab_point.bmedge = None #unused, but will in future
+                
                 
                 #update bezier preview
                 if isinstance(self.grab_point, CurveNode):
@@ -553,8 +570,13 @@ class Polytrim_UI_Tools():
                         elif 0 < d1 <= 1 and screen_d1 < 20:
                             self.hovered_near = ['NON_MAN_ED', (close_eds[1], self.mx*inter_1)]
                             return
-
-
+                
+                        else:
+                            self.hovered_near = [None, (None, None)]
+                    else:
+                            self.hovered_near = [None, (None, None)]    
+            else:
+                self.hovered_near = [None, (None, None)]
 
         def nearest_endpoint(self, mouse_3d_loc):
             def dist3d(ip):

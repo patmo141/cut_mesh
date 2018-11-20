@@ -254,6 +254,7 @@ class Polytrim_States():
         if self.tweak_moving and self.actions.mousemove:
             p2d = self.tweak_point_p2d + (self.actions.mouse - self.tweak_mousedown)
             self.net_ui_context.update(p2d)
+            self.net_ui_context.nearest_non_man_loc()
             self.grabber.move_grab_point(self.context, p2d)
 
     @spline_fsm.FSM_State('tweak', 'exit')
@@ -374,6 +375,7 @@ class Polytrim_States():
         if self.actions.mousemove_prev:
             #update the b_pt location
             self.net_ui_context.update(self.actions.mouse)
+            self.net_ui_context.nearest_non_man_loc()
             #self.hover()
             #self.net_ui_context.hover()
             self.grabber.move_grab_point(self.context, self.actions.mouse)
