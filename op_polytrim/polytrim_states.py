@@ -342,7 +342,7 @@ class Polytrim_States():
 
     #--------------------------------------
     # grab
-    # TODO: can we not just use tweak?
+    # TODO: can we not just use tweak?  yes we can just use tweak
 
     @spline_fsm.FSM_State('grab', 'can enter')
     def spline_grab_can_enter(self):

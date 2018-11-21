@@ -689,15 +689,50 @@ class Polytrim_UI_Tools():
         if not loc: return None
         view_vector, ray_origin, ray_target = get_view_ray_data(self.context, p2d)
         
+        #add an input node on non manifold edge of mesh
         if self.net_ui_context.hovered_near[0] and 'NON_MAN' in self.net_ui_context.hovered_near[0]:
             bmed, wrld_loc = self.net_ui_context.hovered_near[1]
             p = self.spline_net.create_point(wrld_loc,imx * wrld_loc, view_vector, bmed.link_faces[0].index)
             p.seed_geom = bmed
             p.bmedge = bmed #UNUSED, but preparing for future
+        
+        #insert a new point
+        elif self.net_ui_context.hovered_near[0] == 'EDGE':  #TODO, actually make InputSegment as hovered_near
+            p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
+            
+            old_discrete_seg = self.net_ui_context.hovered_near[1]
+            old_spline_seg = old_discrete_seg.parent_spline
+            
+            self.spline_net.insert_point(p, old_spline_seg)
+            self.net_ui_context.selected = p
+            self.network_cutter.update_segments()
+        
         else:
             p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
 
         return p
+    
+    
+    def insert_spline_point(self, p2d):
+        mx = self.net_ui_context.mx
+        imx = self.net_ui_context.imx
+        loc, no, face_ind = self.ray_cast_source(p2d, in_world=False)
+        if not loc: return None
+        view_vector, ray_origin, ray_target = get_view_ray_data(self.context, p2d)
+    
+        
+        p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
+            
+        old_discrete_seg = self.net_ui_context.hovered_near[1]
+        old_spline_seg = old_discrete_seg.parent_spline
+            
+        self.spline_net.insert_point(p, old_spline_seg)
+        self.net_ui_context.selected = p
+            
+        self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
+        self.network_cutter.update_segments_async()
+            
+            return p
     
     def ray_cast_source(self, p2d, in_world=True):
         context = self.context
