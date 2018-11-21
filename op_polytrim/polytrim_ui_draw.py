@@ -218,47 +218,56 @@ class Polytrim_UI_Draw():
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
 
-        #CurveNetwork, BezierSegments
-        for seg in self.spline_net.segments:
-            if len(seg.draw_tessellation) == 0: continue
+        if self._state != 'segmetnation':
+            #CurveNetwork, BezierSegments
+            for seg in self.spline_net.segments:
+                if len(seg.draw_tessellation) == 0: continue
+    
+                #has not been successfully converted to InputPoints and InputSegments
+                if seg.is_inet_dirty:
+                    draw3d_polyline(seg.draw_tessellation, orange2, 4, view_loc, view_ortho)
+    
+                #if len(seg.ip_tesselation):
+                #    draw3d_polyline(seg.ip_tesselation,  blue, 2, view_loc, view_ortho)
+                #    draw3d_points(seg.ip_tesselation, green2, 4, view_loc, view_ortho)
+    
+            draw3d_points(self.spline_net.point_world_locs, green2, 6, view_loc, view_ortho)
+    
+            # Polylines...InputSegments
+            for seg in self.input_net.segments:
+                #bad segment with a preview path provided by geodesic
+                if seg.bad_segment and not len(seg.path) > 2:
+                    draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], pink, 2, view_loc, view_ortho)
+    
+                #s
+                elif len(seg.path) >= 2 and not seg.bad_segment and seg not in self.network_cutter.completed_segments:
+                    draw3d_polyline(seg.path,  blue, 2, view_loc, view_ortho)
+    
+                elif len(seg.path) >= 2 and not seg.bad_segment and seg in self.network_cutter.completed_segments:
+                    draw3d_polyline(seg.path,  green2, 2, view_loc, view_ortho)
+    
+                elif len(seg.path) >= 2 and seg.bad_segment:
+                    draw3d_polyline(seg.path,  orange2, 2, view_loc, view_ortho)
+                    draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], orange2, 2, view_loc, view_ortho)
+    
+                elif seg.calculation_complete == False:
+                    draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], orange2, 2, view_loc, view_ortho)
+                else:
+                    draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], blue2, 2, view_loc, view_ortho)
+    
+    
+            if self.network_cutter.the_bad_segment:
+                seg = self.network_cutter.the_bad_segment
+                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, view_loc, view_ortho)
 
-            #has not been successfully converted to InputPoints and InputSegments
-            if seg.is_inet_dirty:
-                draw3d_polyline(seg.draw_tessellation, orange2, 4, view_loc, view_ortho)
 
-            #if len(seg.ip_tesselation):
-            #    draw3d_polyline(seg.ip_tesselation,  blue, 2, view_loc, view_ortho)
-            #    draw3d_points(seg.ip_tesselation, green2, 4, view_loc, view_ortho)
-
-        draw3d_points(self.spline_net.point_world_locs, green2, 6, view_loc, view_ortho)
-
-        # Polylines...InputSegments
-        for seg in self.input_net.segments:
-
-            #bad segment with a preview path provided by geodesic
-            if seg.bad_segment and not len(seg.path) > 2:
-                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], pink, 2, view_loc, view_ortho)
-
-            #s
-            elif len(seg.path) >= 2 and not seg.bad_segment and seg not in self.network_cutter.completed_segments:
-                draw3d_polyline(seg.path,  blue, 2, view_loc, view_ortho)
-
-            elif len(seg.path) >= 2 and not seg.bad_segment and seg in self.network_cutter.completed_segments:
-                draw3d_polyline(seg.path,  green2, 2, view_loc, view_ortho)
-
-            elif len(seg.path) >= 2 and seg.bad_segment:
-                draw3d_polyline(seg.path,  orange2, 2, view_loc, view_ortho)
-                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], orange2, 2, view_loc, view_ortho)
-
-            elif seg.calculation_complete == False:
-                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], orange2, 2, view_loc, view_ortho)
-            else:
-                draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc], blue2, 2, view_loc, view_ortho)
-
-
-        if self.network_cutter.the_bad_segment:
-            seg = self.network_cutter.the_bad_segment
-            draw3d_polyline([seg.ip0.world_loc, seg.ip1.world_loc],  red, 4, view_loc, view_ortho)
+        if self._state == 'segmentation':
+            #draw the hovered patch
+            if self.net_ui_context.hovered_near[0] == 'PATCH':
+                p = self.net_ui_context.hovered_near[1]
+                for spline_seg in p.spline_net_segments:
+                    for input_seg in spline_seg.input_segments:
+                        draw3d_polyline(input_seg.path,  orange2, 2, view_loc, view_ortho)
 
         if self._state == 'spline':
             draw3d_points(self.input_net.point_world_locs, blue, 2, view_loc, view_ortho)
@@ -269,7 +278,7 @@ class Polytrim_UI_Draw():
         draw3d_points([p.world_loc for p in self.network_cutter.face_patches], orange2, 6, view_loc, view_ortho)
 
 
-        #draw the actively processing Input Point (IP Steper Debug)
+        #draw the actively processing Input Point (IP Steper Debug) for debug stepper cutting
         if self.network_cutter.active_ip:
             draw3d_points([self.network_cutter.active_ip.world_loc], purple, 20, view_loc, view_ortho)
             draw3d_points([ip.world_loc for ip in self.network_cutter.ip_chain], purple, 12, view_loc, view_ortho)

@@ -2884,15 +2884,106 @@ class NetworkCutter(object):
         else:
             self.add_seed_pre_cut(face_ind, world_loc, local_loc)
             
+    def find_patch_post_cut(self, face_ind, world_loc, local_loc):
+        '''
+        selects a FacePatch based on "hovered mesh" data
+        '''
+        #dictionaries to map newly created faces to their original faces and vice versa
+        old_to_new_face_map = self.old_to_new_face_map
+             
+        def find_newest_faces(old_f, max_iters = 5):
+            '''
+            '''    
+            if old_f not in old_to_new_face_map: return []
             
+            iters = 0
+            child_fs = old_to_new_face_map[old_f]
+            newest_faces = []
+            
+            if not any([f in old_to_new_face_map for f in child_fs]):
+                return child_fs
+            
+            while iters < max_iters and any([f in old_to_new_face_map for f in child_fs]):
+                iters += 1
+                next_gen = []
+                for f in child_fs:
+                    if f in old_to_new_face_map:
+                        next_gen += old_to_new_face_map[f]
+                
+                    else:
+                        newest_faces += [f]
+                        
+                    print(f)
+                print(next_gen)
+                child_fs = next_gen
+                
+            #new_fs = old_to_new_face_map[old_f]
+                
+            return newest_faces  
+        
+        def find_new_faces(old_f, max_iters = 5):
+            '''
+            TODO, may want to only find NEWEST
+            faces
+            '''    
+            if old_f not in old_to_new_face_map: return []
+            
+            iters = 0
+            new_fs = []
+            
+            child_fs = old_to_new_face_map[old_f]
+            new_fs += child_fs
+            while iters < max_iters and len(child_fs):
+                iters += 1
+                next_gen = []
+                for f in child_fs:
+                    if f in old_to_new_face_map:
+                        next_gen += old_to_new_face_map[f] #this is always a pair
+                
+                new_fs += next_gen
+                child_fs = next_gen
+                
+            
+            #new_fs = old_to_new_face_map[old_f]
+                
+            return new_fs    
+        
+        #print(self.original_indices_map)
+        
+        #first, BVH gives us a face index, but we have deleted all the faces and created new ones
+        
+        f = None
+        if face_ind in self.original_indices_map:
+            print('found an old face that was split')
+            old_f = self.original_indices_map[face_ind]
+            fs_new = find_newest_faces(old_f, max_iters = 5)
+            for new_f in fs_new:
+                if bmesh.geometry.intersect_face_point(new_f, local_loc):
+                    print('found the new face that corresponds')
+                    f = new_f
+                
+        else:
+            self.input_net.bme.faces.ensure_lookup_table()
+            self.input_net.bme.verts.ensure_lookup_table()
+            self.input_net.bme.edges.ensure_lookup_table()
+            
+            f = self.old_face_indices[face_ind]
+            #f = self.input_net.bme.faces[face_ind]
+            
+        if f == None:
+            print('failed to find the new face')
+            return None
+        
+        for patch in self.face_patches:
+            if f in patch.patch_faces:  #just change the color but don't add a duplicate
+                return patch
+                            
+        return None
+      
     def add_seed_post_cut(self, face_ind, world_loc, local_loc):
         #dictionaries to map newly created faces to their original faces and vice versa
-        original_face_indices = self.original_indices_map
-        new_to_old_face_map = self.new_to_old_face_map
         old_to_new_face_map = self.old_to_new_face_map
-        completed_segments = self.completed_segments
-        completed_input_points = self.completed_input_points
-        ip_bmvert_map = self.ip_bmvert_map
+        
     
         if "patches" not in self.input_net.bme.loops.layers.color:
             vcol_layer = self.input_net.bme.loops.layers.color.new("patches")
@@ -3762,6 +3853,7 @@ class SplineSegment(object): #NetworkSegment
         #first clear out any existing tessellation
         self.clear_input_net_references(input_network)
         
+        #get the CurveNodes and corresponding InputPoints
         if self.n0.input_point == None:
             self.n0.spawn_input_point(input_network)
         if self.n1.input_point == None:
@@ -3770,7 +3862,7 @@ class SplineSegment(object): #NetworkSegment
         self.input_points = []
         self.input_segments = []
         
-        #now create new ones 
+        #now create new tesseation
         ip0 = self.n0.input_point
         ip1 = self.n1.input_point
         
@@ -3804,6 +3896,7 @@ class SplineSegment(object): #NetworkSegment
             prev_pnt = new_pnt
         
         seg = InputSegment(prev_pnt,end_pnt)
+        seg.parent_spline = self
         self.input_segments += [seg]
         input_network.segments.append(seg)    
         self.is_inet_dirty = False

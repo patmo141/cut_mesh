@@ -42,13 +42,16 @@ class Polytrim_UI_Init():
             if self._state == 'region': return 'region'
             if self._state == 'spline': return 'spline'
             if self._state == 'seed': return 'seed'
+            if self._state == 'segmentation': return 'segmentation'
             print('Unknown state for UI getter: "%s"' % self._state)
             return self._state
         def mode_setter(m):
             if   m == 'spline': self.fsm_change('spline')
             elif m == 'region': self.fsm_change('region')
             elif m == 'seed':   self.fsm_change('seed')
+            elif m == 'segmentation': self.fsm_change('segmentation')
             else: print('Unknown state for UI setter: "%s"' % m)
+            
         ui_mode = info.add(ui.UI_Options(mode_getter, mode_setter))
         ui_mode.set_label('Pre Cut Tools', fontsize=16, align=0, margin=4)
         ui_mode.add_option('Boundary Edit', value='spline', icon=ui.UI_Image('polyline.png'))
@@ -66,10 +69,15 @@ class Polytrim_UI_Init():
         info.add(ui.UI_Label('Cut Tools', fontsize=16, align=0, margin=4))
         info.add(ui.UI_Button('Compute Cut', self.compute_cut_button, margin=5))
 
+        info.add(ui.UI_Label('Segmentation Tools', fontsize=16, align=0, margin=4))
+        ui_mode2 = info.add(ui.UI_Options(mode_getter, mode_setter))
+        ui_mode2.add_option('Segmentation', value='segmentation', icon=ui.UI_Image('paint.png'))
+
+
         #Knife geometry stepper buttons
-        info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
-        info.add(ui.UI_Button('Step Cut', self.knife_step_button, margin=5))
-        info.add(ui.UI_Button('Inspect Stuff', self.inspect_things, margin=5))
+        #info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
+        #info.add(ui.UI_Button('Step Cut', self.knife_step_button, margin=5))
+        #info.add(ui.UI_Button('Inspect Stuff', self.inspect_things, margin=5))
 
         exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
         exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))

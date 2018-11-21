@@ -405,10 +405,11 @@ class Polytrim_UI_Tools():
         UI tool for storing data depending on where mouse is located
         * Intermediary between polytrim_states and Network
         '''
-        def __init__(self, context, ui_type='DENSE_POLY'):
+        def __init__(self, context, ui_type='DENSE_POLY', geometry_mode = 'DESTRUCTIVE'):
             self.context = context
             self.input_net = None
-
+            self.geometry_mode = geometry_mode
+            
             self.ob = context.object
             self.ob.hide = False
             context.scene.render.engine = 'BLENDER_RENDER'
@@ -430,7 +431,13 @@ class Polytrim_UI_Tools():
                 self.ob.material_slots[0].material = mat
             
             self.bme = bmesh.new()
-            self.bme.from_mesh(self.ob.data)
+            
+            if self.geometry_mode == 'DESTRUCTIVE':
+                self.backup_mesh = None
+            else:
+                self.backup_me = self.ob.data.copy()
+            
+            self.bme.from_mesh(self.ob.data)    
             ensure_lookup(self.bme)
             self.bvh = BVHTree.FromBMesh(self.bme) 
             self.mx, self.imx = get_matrices(self.ob) 
@@ -695,18 +702,6 @@ class Polytrim_UI_Tools():
             p = self.spline_net.create_point(wrld_loc,imx * wrld_loc, view_vector, bmed.link_faces[0].index)
             p.seed_geom = bmed
             p.bmedge = bmed #UNUSED, but preparing for future
-        
-        #insert a new point
-        elif self.net_ui_context.hovered_near[0] == 'EDGE':  #TODO, actually make InputSegment as hovered_near
-            p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
-            
-            old_discrete_seg = self.net_ui_context.hovered_near[1]
-            old_spline_seg = old_discrete_seg.parent_spline
-            
-            self.spline_net.insert_point(p, old_spline_seg)
-            self.net_ui_context.selected = p
-            self.network_cutter.update_segments()
-        
         else:
             p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
 
@@ -722,17 +717,25 @@ class Polytrim_UI_Tools():
     
         
         p = self.spline_net.create_point(mx * loc, loc, view_vector, face_ind)
-            
-        old_discrete_seg = self.net_ui_context.hovered_near[1]
-        old_spline_seg = old_discrete_seg.parent_spline
-            
-        self.spline_net.insert_point(p, old_spline_seg)
-        self.net_ui_context.selected = p
-            
+         
+        #place holder for later hovering the tessellated line segments    
+        #old_discrete_seg = self.net_ui_context.hovered_near[1]
+        #old_spline_seg = old_discrete_seg.parent_spline
+        seg = self.net_ui_context.hovered_near[1]
+        n0, n1 = seg.n0, seg.n1   
+        self.spline_net.insert_point(p, seg)
+        seg.clear_input_net_references(self.input_net)
+        for node in [n0, p, n1]:
+            node.calc_handles()
+        
+        #n00 ----- n0 ------ p ------ n1-----n11 
+        for node in [n0, n1]:  #because n0 and n1 connect to p,  this updates 4 splines
+            node.update_splines()
+        
         self.spline_net.push_to_input_net(self.net_ui_context, self.input_net)
         self.network_cutter.update_segments_async()
-            
-            return p
+        self.network_cutter.validate_cdata()
+        return p
     
     def ray_cast_source(self, p2d, in_world=True):
         context = self.context
@@ -1114,7 +1117,6 @@ class Polytrim_UI_Tools():
 
         return
 
-
     def paint_confirm_subtract(self):
         '''
         destroy all Input elements touched by brush
@@ -1216,6 +1218,39 @@ class Polytrim_UI_Tools():
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         
     # TODO: Make this a NetworkUIContext function
+    
+    def delete_patch(self):
+    
+        if self.net_ui_context.hovered_mesh == {}: return
+        
+        face_ind = self.net_ui_context.hovered_mesh['face index']
+        world_loc = self.net_ui_context.hovered_mesh['world loc']
+        local_loc = self.net_ui_context.hovered_mesh['local loc']
+        
+        patch = self.network_cutter.find_patch_post_cut(face_ind, world_loc, local_loc)
+        
+        #verts = set()
+        #edges = set()
+        #for f in patch.faces:
+            #verts.update(f.verts)
+            #edges.update(ed.verts)
+        
+            
+        del_vs = [v for v in self.net_ui_context.bme.verts if all([f in patch.patch_faces for f in v.link_faces])]
+        del_eds = [ed for ed in self.net_ui_context.bme.edges if all([f in patch.patch_faces for f in ed.link_faces])]
+        
+        for v in del_vs:
+            self.bme.verts.remove(v)
+        for ed in del_eds:
+            self.bme.edges.remove(ed)
+        for f in patch.patch_faces: 
+            self.bme.faces.remove(f)
+            
+            
+        self.network_cutter.face_patches.remove(patch)
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        
+        
     def closest_endpoint(self, pt3d):
         def dist3d(point):
             return (point.world_loc - pt3d).length
@@ -1346,7 +1381,7 @@ class Polytrim_UI_Tools():
             patch.color_patch()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         
-        self._sate_next = 'seed'
+        self._sate_next = 'segmentation'
         
     def enter_seed_select_button(self):
         self.fsm_change('seed')
@@ -1538,29 +1573,65 @@ class Polytrim_UI_Tools():
 
         ##Check distance between ray_cast point, and segments
         distance_map = {}
-        for seg in self.spline_net.segments:  #TODO, may need to decide some better naming and better hierarchy
+        #notice InputNet not SplineNet!  We could also check against BMFaceMap for the cut data
+        for seg in self.input_net.segments:  #TODO, may need to decide some better naming and better hierarchy
             close_loc, close_d = self.closest_point_3d_linear(seg, loc)
             distance_map[seg] = close_d if close_loc else float('inf')
 
-        if self.spline_net.segments:
-            closest_seg = min(self.spline_net.segments, key = lambda x: distance_map[x])
+        if self.input_net.segments:
+            closest_seg = min(self.input_net.segments, key = lambda x: distance_map[x])
 
-            a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.n0.world_loc)
-            b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.n1.world_loc)
+            a = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip0.world_loc)
+            b = loc3d_reg2D(context.region, context.space_data.region_3d, closest_seg.ip1.world_loc)
 
             if a and b:  #if points are not on the screen, a or b will be None
                 intersect = intersect_point_line(mouse_vec.to_3d(), a.to_3d(),b.to_3d())
                 dist = (intersect[0].to_2d() - mouse_vec).length_squared
                 bound = intersect[1]
                 if (dist < select_radius**2) and (bound < 1) and (bound > 0):
-                    self.net_ui_context.hovered_near = ['EDGE', closest_seg]
+                    spline_seg = closest_seg.parent_spline
+                    self.net_ui_context.hovered_near = ['EDGE', spline_seg]
                     return
         ## Multiple points, but not hovering over edge or point.
 
         self.net_ui_context.nearest_non_man_loc()
 
 
-    ### XXX: Put these in their own class maybe?
+    def hover_patches(self): #TODO, these radii are pixels? Should they be settings?
+        '''
+        finds the patch associated under the mouse
+        '''
+
+        
+        # TODO: update self.hover to use Accel2D?
+        mouse = self.actions.mouse
+        mouse_vec = Vector(mouse)
+        context = self.context
+        mx, imx = get_matrices(self.net_ui_context.ob)
+        loc3d_reg2D = view3d_utils.location_3d_to_region_2d
+
+        if len(self.network_cutter.face_patches) == 0:
+            self.net_ui_context.hovered_near = [None, None]
+            return
+
+        # ray tracing
+        view_vector, ray_origin, ray_target = get_view_ray_data(context, mouse)
+        #loc, no, face_ind = ray_cast(self.net_ui_context.ob, imx, ray_origin, ray_target, None)
+        loc,_,face_ind = ray_cast_bvh(self.net_ui_context.bvh, imx, ray_origin, ray_target, None)
+
+        # bail if we did not hit the source
+        if face_ind == -1 or face_ind == None:
+            self.net_ui_context.hovered_near = [None, None]
+            return
+
+        #find if we hit a patch
+        patch = self.network_cutter.find_patch_post_cut(face_ind, mx * loc, loc)
+        
+        if patch != None:
+            self.net_ui_context.hovered_near = ['PATCH', patch]
+        else:
+            self.net_ui_context.hovered_near = [None, None]
+            
     def interpolate_input_point_pair(self, p0, p1, factor):
         '''
         will return a linear interpolation of this point with other

@@ -40,13 +40,15 @@ class Polytrim_States():
     spline_fsm = FSM()
     seed_fsm   = FSM()
     region_fsm = FSM()
+    segmentation_fsm = FSM()
 
     def fsm_setup(self):
         # let each fsm know that self should be passed to every fsm state call and transition (main, enter, exit, etc.)
         self.spline_fsm.set_call_args(self)
         self.seed_fsm.set_call_args(self)
         self.region_fsm.set_call_args(self)
-
+        self.segmentation_fsm.set_call_args(self)
+        
     def common(self, fsm):
         # this fn contains common actions for all states
 
@@ -110,7 +112,23 @@ class Polytrim_States():
     def seed(self):
         return self.common(self.seed_fsm)
 
+    
+    #Segmentation State (Delete, Split,Duplicate)
+    @CookieCutter.FSM_State('segmentation', 'can enter')
+    def segmentation_can_enter(self):
+        # exit spline mode iff cut network has finished and there are no bad segments
+        return self.network_cutter.knife_complete
 
+    @CookieCutter.FSM_State('segmentation', 'enter')
+    def segmentation_enter(self):
+        self.segmentation_fsm.reset()
+
+    @CookieCutter.FSM_State('segmentation')
+    def segmentation(self):
+        return self.common(self.segmentation_fsm)
+
+
+    #Region Painting State
     @CookieCutter.FSM_State('region', 'can enter')
     def region_can_enter(self):
         # exit spline mode iff cut network has finished and there are no bad segments
@@ -154,6 +172,7 @@ class Polytrim_States():
             self.net_ui_context.update(self.actions.mouse)
             #TODO: Bring hover into NetworkUiContext
             self.hover_spline()
+            print(self.net_ui_context.hovered_near)
             #self.net_ui_context.inspect_print()
 
         if self.actions.pressed('select', unpress=False):
@@ -175,7 +194,9 @@ class Polytrim_States():
             elif self.spline_fsm.can_change('add point (disconnected)'):
                 self.actions.unpress()
                 return 'add point (disconnected)'
-
+            elif self.spline_fsm.can_change('insert point'):
+                return 'insert point'
+            
         if self.actions.pressed('sketch'):
             return 'sketch'
 
@@ -284,7 +305,7 @@ class Polytrim_States():
         # make sure near is an endpoint
         if self.net_ui_context.hovered_near[0] not in {'POINT CONNECT'}: return False
         n = self.net_ui_context.hovered_near[1]
-        if not n or not n.is_endpoint: return False
+        if not n or not n.is_endpoint: return False  #impose loops condition
         return True
 
     @spline_fsm.FSM_State('connect')
@@ -307,6 +328,10 @@ class Polytrim_States():
         # make sure selected is an endpoint
         s = self.net_ui_context.selected
         if not s or not s.is_endpoint: return False
+        
+        hn = self.net_ui_context.hovered_near
+        if hn and hn[0] == 'EDGE': return False
+        
         # make sure mouse is over source
         if not self.ray_cast_source_hit(self.actions.mouse): return False
         return True
@@ -322,12 +347,39 @@ class Polytrim_States():
         self.tweak_cancel = 'cancel'
         return 'tweak'
 
+    
+    #--------------------------------------
+    # insert point
+
+    @spline_fsm.FSM_State('insert point', 'can enter')
+    def spline_insert_point_can_enter(self):
+        # make sure mouse is over source
+        if not self.ray_cast_source_hit(self.actions.mouse): return False
+        #and over a spline segment
+        hn = self.net_ui_context.hovered_near
+        if not hn: return False
+        if hn[0] != 'EDGE': return False
+        
+        return True
+
+    @spline_fsm.FSM_State('insert point')
+    def spline_insert_point(self):
+        n = self.insert_spline_point(self.actions.mouse)
+        self.net_ui_context.selected = n
+        self.tweak_release = 'add point'
+        self.tweak_cancel = 'cancel'
+        return 'tweak'
+    
+    
     #--------------------------------------
     # add point disconnected
 
     @spline_fsm.FSM_State('add point (disconnected)', 'can enter')
     def spline_add_point_disconnected_can_enter(self):
         # make sure mouse is over source
+        hn = self.net_ui_context.hovered_near
+        if hn and hn[0] == 'EDGE': return False
+        
         if not self.ray_cast_source_hit(self.actions.mouse): return False
         return True
 
@@ -339,6 +391,7 @@ class Polytrim_States():
         self.tweak_cancel = 'cancel'
         return 'tweak'
 
+   
 
     #--------------------------------------
     # grab
@@ -607,6 +660,25 @@ class Polytrim_States():
         #if right click
             #remove the seed
             #remove any "patch" data associated with the seed
+
+
+
+    ######################################################
+    #segementation state
+
+    @segmentation_fsm.FSM_State('main')
+    def modal_segmentation(self):
+        self.cursor_modal_set('CROSSHAIR')
+
+        if self.actions.mousemove_prev:
+            #update the bmesh geometry under mouse location
+            self.net_ui_context.update(self.actions.mouse)
+            self.hover_patches()
+
+        #if right click
+            #remove the seed
+            #remove any "patch" data associated with the seed
+
 
 
     ######################################################
