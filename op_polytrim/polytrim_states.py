@@ -172,7 +172,7 @@ class Polytrim_States():
             self.net_ui_context.update(self.actions.mouse)
             #TODO: Bring hover into NetworkUiContext
             self.hover_spline()
-            print(self.net_ui_context.hovered_near)
+            #print(self.net_ui_context.hovered_near)
             #self.net_ui_context.inspect_print()
 
         if self.actions.pressed('select', unpress=False):
@@ -674,7 +674,7 @@ class Polytrim_States():
             #update the bmesh geometry under mouse location
             self.net_ui_context.update(self.actions.mouse)
             self.hover_patches()
-
+            print(self.net_ui_context.hovered_near)
         #if right click
             #remove the seed
             #remove any "patch" data associated with the seed
