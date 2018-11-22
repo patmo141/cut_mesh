@@ -686,7 +686,16 @@ class Polytrim_States():
             #update the bmesh geometry under mouse location
             self.net_ui_context.update(self.actions.mouse)
             self.hover_patches()
+            #print(self.net_ui_context.hovered_near)
+        
+        if self.actions.pressed('LEFTMOUSE'):
+            #place seed on surface
+            #background watershed form the seed to color the region on the mesh
             print(self.net_ui_context.hovered_near)
+            if self.net_ui_context.hovered_near[1]:
+                self.network_cutter.active_patch = self.net_ui_context.hovered_near[1]
+            
+            
         #if right click
             #remove the seed
             #remove any "patch" data associated with the seed

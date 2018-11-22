@@ -71,9 +71,13 @@ class Polytrim_UI_Init():
 
         info.add(ui.UI_Label('Segmentation Tools', fontsize=16, align=0, margin=4))
         ui_mode2 = info.add(ui.UI_Options(mode_getter, mode_setter))
-        ui_mode2.add_option('Segmentation', value='segmentation', icon=ui.UI_Image('paint.png'))
+        ui_mode2.add_option('Segmentation', value='segmentation', margin = 5)
 
-
+        seg_buttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
+        seg_buttons.add(ui.UI_Button('Delete Patch', self.delete_active_patch, margin=5))
+        seg_buttons.add(ui.UI_Button('Separate Patch', self.separate_active_patch, margin=5))
+        seg_buttons.add(ui.UI_Button('Duplicate Patch', self.duplicate_active_patch, margin=5))
+        #seg_buttons.add(ui.UI_Button('Patch to VGroup', self.active_patch_to_vgroup, margin=5))
         #Knife geometry stepper buttons
         #info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
         #info.add(ui.UI_Button('Step Cut', self.knife_step_button, margin=5))

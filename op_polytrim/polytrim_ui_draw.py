@@ -263,11 +263,19 @@ class Polytrim_UI_Draw():
 
         if self._state == 'segmentation':
             #draw the hovered patch
+            #TODO, segmentation only happens AFTER CUtting
+            #So it would be MUCH easier to just draw the damn edges of the patch
             if self.net_ui_context.hovered_near[0] == 'PATCH':
                 p = self.net_ui_context.hovered_near[1]
-                for spline_seg in p.spline_net_segments:
-                    for input_seg in spline_seg.input_segments:
-                        draw3d_polyline([seg.n0.world_loc] + input_seg.path + [seg.n1.world_loc],  orange2, 5, view_loc, view_ortho)
+                if p != self.network_cutter.active_patch:
+                    for spline_seg in p.spline_net_segments:
+                        for iseg in spline_seg.input_segments:
+                            draw3d_polyline([iseg.ip0.world_loc] + iseg.path + [iseg.ip1.world_loc],  orange2, 4, view_loc, view_ortho)
+            
+            if self.network_cutter.active_patch:                    
+                for spline_seg in self.network_cutter.active_patch.spline_net_segments:
+                    for iseg in spline_seg.input_segments:
+                            draw3d_polyline([iseg.ip0.world_loc] + iseg.path + [iseg.ip1.world_loc],  orange2, 4, view_loc, view_ortho)
 
         if self._state == 'spline':
             draw3d_points(self.input_net.point_world_locs, blue, 2, view_loc, view_ortho)

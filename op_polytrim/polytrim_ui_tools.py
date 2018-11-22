@@ -8,7 +8,7 @@ import bpy
 import time
 import math
 
-from ..bmesh_fns import edge_loops_from_bmedges_old, ensure_lookup
+from ..bmesh_fns import edge_loops_from_bmedges_old, ensure_lookup, new_bmesh_from_bmelements
 from ..common.utils import get_matrices
 from ..common.rays import get_view_ray_data, ray_cast, ray_cast_path, ray_cast_bvh
 
@@ -439,7 +439,11 @@ class Polytrim_UI_Tools():
             
             self.bme.from_mesh(self.ob.data)    
             ensure_lookup(self.bme)
-            self.bvh = BVHTree.FromBMesh(self.bme) 
+            start = time.time()
+            self.bvh = BVHTree.FromBMesh(self.bme)
+            finish = time.time()
+            
+            print('took %f seconds to build BVH' % (finish-start))
             self.mx, self.imx = get_matrices(self.ob) 
             self.mx_norm = self.imx.transposed().to_3x3() #local directions to global
             self.imx_norm = self.imx.to_3x3() #global direction to local
@@ -1219,15 +1223,17 @@ class Polytrim_UI_Tools():
         
     # TODO: Make this a NetworkUIContext function
     
-    def delete_patch(self):
+    def delete_active_patch(self):
     
-        if self.net_ui_context.hovered_mesh == {}: return
-        
-        face_ind = self.net_ui_context.hovered_mesh['face index']
-        world_loc = self.net_ui_context.hovered_mesh['world loc']
-        local_loc = self.net_ui_context.hovered_mesh['local loc']
-        
-        patch = self.network_cutter.find_patch_post_cut(face_ind, world_loc, local_loc)
+    
+        if self.network_cutter.active_patch == None: return
+        if self._state != 'segmentation': return
+        #for now, use an active patch input style
+        #if self.net_ui_context.hovered_mesh == {}: return
+        #face_ind = self.net_ui_context.hovered_mesh['face index']
+        #world_loc = self.net_ui_context.hovered_mesh['world loc']
+        #local_loc = self.net_ui_context.hovered_mesh['local loc']
+        #patch = self.network_cutter.find_patch_post_cut(face_ind, world_loc, local_loc)
         
         #verts = set()
         #edges = set()
@@ -1235,22 +1241,162 @@ class Polytrim_UI_Tools():
             #verts.update(f.verts)
             #edges.update(ed.verts)
         
-            
+        patch = self.network_cutter.active_patch    
         del_vs = [v for v in self.net_ui_context.bme.verts if all([f in patch.patch_faces for f in v.link_faces])]
         del_eds = [ed for ed in self.net_ui_context.bme.edges if all([f in patch.patch_faces for f in ed.link_faces])]
         
-        for v in del_vs:
-            self.bme.verts.remove(v)
-        for ed in del_eds:
-            self.bme.edges.remove(ed)
+        bme = self.net_ui_context.bme  
+        
         for f in patch.patch_faces: 
-            self.bme.faces.remove(f)
+            bme.faces.remove(f)
+        
+        for ed in del_eds:
+            bme.edges.remove(ed)
+                
+        for v in del_vs:
+            bme.verts.remove(v)
             
+        bme.verts.ensure_lookup_table()
+        bme.edges.ensure_lookup_table()
+        bme.faces.ensure_lookup_table()
+        
+        self.network_cutter.active_patch = None   
+        self.network_cutter.face_patches.remove(patch)
+        bme.to_mesh(self.net_ui_context.ob.data)
+        
+        #update BVH?  hmmmm....
+
+    def active_patch_to_vgroup(self):
+    
+    
+        if self.network_cutter.active_patch == None: return
+        if self._state != 'segmentation': return
+        #for now, use an active patch input style
+        #if self.net_ui_context.hovered_mesh == {}: return
+        #face_ind = self.net_ui_context.hovered_mesh['face index']
+        #world_loc = self.net_ui_context.hovered_mesh['world loc']
+        #local_loc = self.net_ui_context.hovered_mesh['local loc']
+        #patch = self.network_cutter.find_patch_post_cut(face_ind, world_loc, local_loc)
+        
+        #verts = set()
+        #edges = set()
+        #for f in patch.faces:
+            #verts.update(f.verts)
+            #edges.update(ed.verts)
+        
+        patch = self.network_cutter.active_patch    
+        bme = self.net_ui_context.bme  
+        
+        group_vs = [v for v in bme.verts if all([f in patch.patch_faces for f in v.link_faces])]
+        
+        ob = self.net_ui_context.ob
+        vg = ob.vertex_groups.new('segmentation')
+        
+        vg.add([v.index for v in group_vs], 1, type = 'REPLACE')
+        self.network_cutter.active_patch = None
+        self.network_cutter.face_patches.remove(patch)
+        bme.to_mesh(self.net_ui_context.ob.data)
+          
+    def split_active_patch(self):
+    
+    
+        if self.network_cutter.active_patch == None: return
+        #for now, use an active patch input style
+        #if self.net_ui_context.hovered_mesh == {}: return
+        #face_ind = self.net_ui_context.hovered_mesh['face index']
+        #world_loc = self.net_ui_context.hovered_mesh['world loc']
+        #local_loc = self.net_ui_context.hovered_mesh['local loc']
+        #patch = self.network_cutter.find_patch_post_cut(face_ind, world_loc, local_loc)
+        
+        #verts = set()
+        #edges = set()
+        #for f in patch.faces:
+            #verts.update(f.verts)
+            #edges.update(ed.verts)
+        
+        patch = self.newtork_cutter.active_patch    
+        
+        patch.find_boundary_edges()  #this should probbaly happen at regino growing time anyway
+        
+        bme = self.net_ui_context.bme 
+        eds = patch.find_all_boundary_edges()
+        bmesh.ops.split_edges(bme, eges = list(eds))
             
+        self.newtork_cutter.active_patch = None    
+        self.network_cutter.face_patches.remove(patch)
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+    
+    
+    def separate_active_patch(self):
+    
+    
+        if self.network_cutter.active_patch == None: return
+        #for now, use an active patch input style
+        #if self.net_ui_context.hovered_mesh == {}: return
+        #face_ind = self.net_ui_context.hovered_mesh['face index']
+        #world_loc = self.net_ui_context.hovered_mesh['world loc']
+        #local_loc = self.net_ui_context.hovered_mesh['local loc']
+        #patch = self.network_cutter.find_patch_post_cut(face_ind, world_loc, local_loc)
+        
+        #verts = set()
+        #edges = set()
+        #for f in patch.faces:
+            #verts.update(f.verts)
+            #edges.update(ed.verts)
+        
+        patch = self.network_cutter.active_patch    
+        
+        new_bme = new_bmesh_from_bmelements(patch.patch_faces)
+        name = self.net_ui_context.ob.name + "_patch"
+        new_me = bpy.data.meshes.new(name)
+        new_ob = bpy.data.objects.new(name, new_me)
+        new_ob.matrix_world = self.net_ui_context.mx
+        new_bme.to_mesh(new_me)
+        new_bme.free()
+        bpy.context.scene.objects.link(new_ob)
+                
+        bme = self.net_ui_context.bme 
+
+        del_vs = [v for v in bme.verts if all([f in patch.patch_faces for f in v.link_faces])]
+        del_eds = [ed for ed in bme.edges if all([f in patch.patch_faces for f in ed.link_faces])]        
+        bme = self.net_ui_context.bme  
+        for f in patch.patch_faces: 
+            bme.faces.remove(f)
+        
+        for ed in del_eds:
+            bme.edges.remove(ed)
+                
+        for v in del_vs:
+            bme.verts.remove(v)
+            
+        bme.verts.ensure_lookup_table()
+        bme.edges.ensure_lookup_table()
+        bme.faces.ensure_lookup_table()
+        
+        self.network_cutter.active_patch = None
         self.network_cutter.face_patches.remove(patch)
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         
+    def duplicate_active_patch(self):
+
+        if self.network_cutter.active_patch == None: return
+        patch = self.network_cutter.active_patch    
         
+        new_bme = new_bmesh_from_bmelements(patch.patch_faces)
+        name = self.net_ui_context.ob.name + "_patch"
+        new_me = bpy.data.meshes.new(name)
+        new_ob = bpy.data.objects.new(name, new_me)
+        new_ob.matrix_world = self.net_ui_context.mx
+        new_bme.to_mesh(new_me)
+        new_bme.free()
+        bpy.context.scene.objects.link(new_ob)
+        
+        self.network_cutter.active_patch = None
+        self.network_cutter.face_patches.remove(patch)
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data) 
+        
+        
+               
     def closest_endpoint(self, pt3d):
         def dist3d(point):
             return (point.world_loc - pt3d).length
