@@ -31,6 +31,8 @@ these are the states and substates (tool states)
 
     region tool:
         main --> paint --> main
+        
+    segmentation
 '''
 
 
@@ -96,6 +98,9 @@ class Polytrim_States():
     @CookieCutter.FSM_State('seed', 'can enter')
     def seed_can_enter(self):
         # exit spline mode iff cut network has finished and there are no bad segments
+        if self.network_cutter.knife_complete:
+            #for now, because we need pre-cut geometry to associate patches with SplineSegments
+            return False
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
         return c1 and c2
@@ -113,6 +118,13 @@ class Polytrim_States():
         return self.common(self.seed_fsm)
 
     
+    #@CookieCutter.FSM_State('seed', 'exit')
+    #def seed_exit(self):
+    #    if not self.network_cutter.knife_complete:
+            #assoccates SplineNetwork and InputNetwork elements with patches
+    #        self.network_cutter.update_spline_edited_patches(self.spline_net)
+     
+     
     #Segmentation State (Delete, Split,Duplicate)
     @CookieCutter.FSM_State('segmentation', 'can enter')
     def segmentation_can_enter(self):
@@ -656,7 +668,7 @@ class Polytrim_States():
             #place seed on surface
             #background watershed form the seed to color the region on the mesh
             self.click_add_seed()
-
+            self.network_cutter.update_spline_edited_patches(self.spline_net)
         #if right click
             #remove the seed
             #remove any "patch" data associated with the seed

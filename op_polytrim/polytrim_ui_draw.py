@@ -218,7 +218,7 @@ class Polytrim_UI_Draw():
         bgl.glLineWidth(1)
         bgl.glDepthRange(0.0, 1.0)
 
-        if self._state != 'segmetnation':
+        if self._state != 'segmentation':
             #CurveNetwork, BezierSegments
             for seg in self.spline_net.segments:
                 if len(seg.draw_tessellation) == 0: continue
@@ -267,11 +267,11 @@ class Polytrim_UI_Draw():
                 p = self.net_ui_context.hovered_near[1]
                 for spline_seg in p.spline_net_segments:
                     for input_seg in spline_seg.input_segments:
-                        draw3d_polyline(input_seg.path,  orange2, 2, view_loc, view_ortho)
+                        draw3d_polyline([seg.n0.world_loc] + input_seg.path + [seg.n1.world_loc],  orange2, 5, view_loc, view_ortho)
 
         if self._state == 'spline':
             draw3d_points(self.input_net.point_world_locs, blue, 2, view_loc, view_ortho)
-        else:
+        elif self._state != 'segmentation':
             draw3d_points(self.input_net.point_world_locs, blue, 6, view_loc, view_ortho)
 
         #draw the seed/face patch points

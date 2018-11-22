@@ -2876,13 +2876,7 @@ class NetworkCutter(object):
         
     
     
-    
-    def add_seed(self, face_ind, world_loc, local_loc):
-        
-        if self.knife_complete:
-            self.add_seed_post_cut(face_ind, world_loc, local_loc)
-        else:
-            self.add_seed_pre_cut(face_ind, world_loc, local_loc)
+
             
     def find_patch_post_cut(self, face_ind, world_loc, local_loc):
         '''
@@ -2980,6 +2974,17 @@ class NetworkCutter(object):
                             
         return None
       
+    
+    
+        
+    def add_seed(self, face_ind, world_loc, local_loc):
+        
+        if self.knife_complete:
+            self.add_seed_post_cut(face_ind, world_loc, local_loc)
+        else:
+            self.add_seed_pre_cut(face_ind, world_loc, local_loc)
+            
+            
     def add_seed_post_cut(self, face_ind, world_loc, local_loc):
         #dictionaries to map newly created faces to their original faces and vice versa
         old_to_new_face_map = self.old_to_new_face_map
@@ -3085,6 +3090,9 @@ class NetworkCutter(object):
         new_patch.color_patch()
         self.face_patches += [new_patch]
         
+        #self.update_spline_edited_patches(self.spline_net)
+        
+        print(new_patch.spline_net_segments)
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
 
 
@@ -3113,34 +3121,6 @@ class NetworkCutter(object):
         new_patch.color_patch()
         self.face_patches += [new_patch]
         
-        
-        ip_cycles, seg_cycles = self.input_net.find_network_cycles()
-        
-        border_faces = new_patch.adjacent_faces()
-        def calc_overlap(seg_cycle, ip_cycle):
-            overlap = 0
-            for seg in seg_cycle:
-                if seg not in self.cut_data: continue
-                overlap += len(self.cut_data[seg]['face_set'].intersection(border_faces))
-            for ip in ip_cycle:
-                if ip.bmface in border_faces:
-                    overlap += 1
-            return overlap
-        
-        best_overlap = 0
-        best_cycle = None
-        best_ip_cycle = None
-        for seg_cyc, ip_cyc in zip(seg_cycles, ip_cycles):
-            over = calc_overlap(seg_cyc, ip_cyc)
-            if over > best_overlap:
-                best_overlap = over
-                best_cycle = seg_cyc
-                best_ip_cycle = ip_cyc
-                
-        if best_overlap > 10: #TODO this needs to be more robust
-            print('assigned the input cycles to this patch')
-            new_patch.input_net_segments = best_cycle
-            new_patch.ip_points = best_ip_cycle
         
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
     
