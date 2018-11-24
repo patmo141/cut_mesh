@@ -17,7 +17,7 @@ from .polytrim_datastructure import InputNetwork, NetworkCutter, SplineNetwork
 
 
 #ModalOperator
-class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim_UI_Tools, Polytrim_UI_Draw):
+class CutMesh_Polytrim(Polytrim_States, Polytrim_UI_Init, Polytrim_UI_Tools, Polytrim_UI_Draw, CookieCutter):
     ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
 
@@ -60,10 +60,10 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim
         if context.object.type != 'MESH':
             #showErrorMessage('Must select a mesh object')
             return False
-        
+
         if context.object.hide:
             return False
-        
+
         return True
 
     def start(self):
@@ -90,7 +90,6 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim
 
         self.ui_setup()
         self.fsm_setup()
-
 
     def end(self):
         ''' Called when tool is ending modal '''

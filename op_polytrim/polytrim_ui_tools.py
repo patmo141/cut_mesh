@@ -1820,7 +1820,7 @@ class Polytrim_UI_Tools():
     def end_commit(self):
         print('end commit')
         if self.net_ui_context.geometry_mode == 'DESTRUCTIVE':
-            bpy.data.meshes.remove(self.net_ui_cotnext.backup_data)
+            bpy.data.meshes.remove(self.net_ui_context.backup_data)
             
         else:
             del_data = self.net_ui_context.ob.data
