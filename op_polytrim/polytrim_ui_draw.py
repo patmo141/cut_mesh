@@ -112,6 +112,13 @@ class Polytrim_UI_Draw():
             loc = self.net_ui_context.hovered_near[1][1]
             self.draw_circle(loc, 10, .7, green_trans, clear)
 
+        #INSERT POINT HINT
+        if self.net_ui_context.hovered_near[0] in {'EDGE'}:
+            # draw insertion circle
+            loc = self.net_ui_context.hovered_mesh['world loc']
+            self.draw_circle(loc, 10, .7, green_trans, clear)
+            
+           
         if self.net_ui_context.hovered_near[0] in {'POINT'}:
             # draw selection circle
             loc = self.net_ui_context.hovered_near[1].world_loc
@@ -148,19 +155,37 @@ class Polytrim_UI_Draw():
             elif isinstance(self.net_ui_context.selected, CurveNode):
                 common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
 
-        # Grab Location Dot and Lines XXX:This part is gross..
-        if self._state == 'spline' and self.spline_fsm.state == 'grab': # self.grabber.grab_point:
-            # Dot
-            common_drawing.draw_3d_points(context,[self.grabber.grab_point.world_loc], 5, blue_trans)
-            # Lines
-            point_orig = self.net_ui_context.selected  #had to be selected to be grabbed
-            other_locs = [seg.other_point(point_orig).world_loc for seg in point_orig.link_segments]
-            for pt_3d in other_locs:
-                other_loc = loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d)
-                grab_loc = loc3d_reg2D(context.region, context.space_data.region_3d, self.grabber.grab_point.world_loc)
-                if other_loc and grab_loc:
-                    draw2d_polyline([grab_loc, other_loc], preview_line_clr, preview_line_wdth)
+        #draw  bad segment hints
+        if self.hint_bad:
+            for seg in self.input_net.segments:
+                if not seg.is_bad: continue
+                mid = .5 * (seg.ip0.world_loc + seg.ip1.world_loc)
+                common_drawing.draw_3d_points(context,[mid], 10, red)
+        
+        
+        if self._state == 'spline' and self.net_ui_context.snap_element:
+            psnap = self.net_ui_context.snap_element
+            psel = self.net_ui_context.selected
+            
+            if psnap != psel:
+                pn = psnap.world_loc
+                ps = psel.world_loc
+                pts_2d = [loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d) for pt_3d in [pn, ps]]
+                draw2d_polyline(pts_2d, preview_line_clr, preview_line_wdth)
+            
+            
+        if self._state == 'spline' and self.net_ui_context.hovered_near[0] == 'EDGE':
+            seg = self.net_ui_context.hovered_near[1]
+            
+            p0 = seg.n0.world_loc
+            p1 = seg.n1.world_loc
+            pn = self.net_ui_context.hovered_mesh['world loc']
 
+            pts_2d = [loc3d_reg2D(context.region, context.space_data.region_3d, pt_3d) for pt_3d in [p0, pn, p1]]
+            draw2d_polyline(pts_2d, preview_line_clr, preview_line_wdth)
+
+            
+            
         # skip the rest of the drawing if user is navigating or doing stuff with ui
         if self._nav or self._ui: return
 

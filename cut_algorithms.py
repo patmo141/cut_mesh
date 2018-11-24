@@ -69,11 +69,19 @@ def find_bmedges_crossing_plane(pt, no, edges, epsilon, sort = False):
         i_edges += [edge]
         intersects += [i]
         ds += [d]
-            
-    if len(i_edges) > 2:  #a concave ngon with 4,6,8.. crossings
+    
+    if len(i_edges) == 3:
+        print('\n\nTHE THREE EDGE ERROR')
+        print('3 edges crossing plane')
+        sorted_edges = []
+        sorted_is = []         
+    elif len(i_edges) > 3:  #a concave ngon with 4,6,8.. crossings
         
         print('There are %i crossed edges' % len(i_edges))
         print('There are %i total edges' % len(edges))
+        
+        if len(i_edges) == 3:
+            return 
         #all the crossings are colinear if ngon is planar, so sorting them is easy
         min_i = intersects[ds.index(min(ds))]
         min_ed = i_edges[ds.index(min(ds))]

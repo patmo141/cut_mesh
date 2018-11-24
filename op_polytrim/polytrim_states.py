@@ -102,7 +102,14 @@ class Polytrim_States():
             #for now, because we need pre-cut geometry to associate patches with SplineSegments
             return False
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
+        if not c1:
+            self.hint_bad = True
+        else:
+            self.hint_bad = False
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
+        
+        ip_cyc, seg_cyc = self.input_net.find_network_cycles()
+        if len(ip_cyc) == 0: return False
         return c1 and c2
 
     @CookieCutter.FSM_State('seed', 'enter')
@@ -112,7 +119,13 @@ class Polytrim_States():
         else:
             self.network_cutter.find_boundary_faces_cycles()
         self.seed_fsm.reset()
-
+        self.ui_text_update()
+        
+    @CookieCutter.FSM_State('seed', 'exit')
+    def seed_exit(self):
+        self.seed_fsm.reset()
+        self.ui_text_update()
+           
     @CookieCutter.FSM_State('seed')
     def seed(self):
         return self.common(self.seed_fsm)
@@ -134,7 +147,8 @@ class Polytrim_States():
     @CookieCutter.FSM_State('segmentation', 'enter')
     def segmentation_enter(self):
         self.segmentation_fsm.reset()
-
+        self.ui_text_update()
+        
     @CookieCutter.FSM_State('segmentation')
     def segmentation(self):
         return self.common(self.segmentation_fsm)
@@ -145,11 +159,15 @@ class Polytrim_States():
     def region_can_enter(self):
         # exit spline mode iff cut network has finished and there are no bad segments
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
+        
+        if not c1:
+            self.hint_bad = True
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
         return c1 and c2
 
     @CookieCutter.FSM_State('region', 'enter')
     def region_enter(self):
+        self.net_ui_context.selected = [None, None]
         self.network_cutter.find_boundary_faces_cycles()
         for patch in self.network_cutter.face_patches:
             patch.grow_seed_faces(self.input_net.bme, self.network_cutter.boundary_faces)
@@ -159,12 +177,13 @@ class Polytrim_States():
 
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         self.region_fsm.reset()
+        self.ui_text_update()
 
     @CookieCutter.FSM_State('region', 'exit')
     def region_exit(self):
         self.paint_exit()
         self.region_fsm.reset()
-
+        self.ui_text_update()
 
     @CookieCutter.FSM_State('region')
     def region(self):
@@ -269,6 +288,7 @@ class Polytrim_States():
         self.tweak_mousedown = self.actions.mouse
         self.tweak_moving = False
         self.grabber.initiate_grab_point()
+        #self.ui_text_update()
 
     @spline_fsm.FSM_State('tweak')
     def spline_tweak(self):
@@ -300,7 +320,7 @@ class Polytrim_States():
                 self.network_cutter.update_segments_async()
             else:
                 self.network_cutter.update_segments()
-        self.ui_text_update()
+        #self.ui_text_update()
         self.tweak_press = None
         self.tweak_release = None
         self.tweak_cancel = None
@@ -418,7 +438,7 @@ class Polytrim_States():
         self.header_text_set("'MoveMouse' and 'LeftClick' to adjust node location, Right Click to cancel the grab")
         self.grabber.initiate_grab_point()
         self.grabber.move_grab_point(self.context, self.actions.mouse)
-        self.ui_text_update()
+        #self.ui_text_update()
 
     @spline_fsm.FSM_State('grab')
     def spline_grab(self):
@@ -457,7 +477,7 @@ class Polytrim_States():
         else:
             self.network_cutter.update_segments()
 
-        self.ui_text_update()
+        #self.ui_text_update()
 
 
     #--------------------------------------
@@ -708,7 +728,8 @@ class Polytrim_States():
     @region_fsm.FSM_State('main', 'enter')
     def region_main_enter(self):
         self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
-
+        self.ui_text_update()
+        
     @region_fsm.FSM_State('main')
     def region_main(self):
         self.cursor_modal_set('PAINT_BRUSH')

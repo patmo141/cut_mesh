@@ -78,9 +78,9 @@ class CutMesh_Polytrim(CookieCutter, Polytrim_States, Polytrim_UI_Init, Polytrim
 
         self.net_ui_context = self.NetworkUIContext(self.context)
 
+        self.hint_bad = False   #draw obnoxious things over the bad segments
         self.input_net = InputNetwork(self.net_ui_context)
         self.spline_net = SplineNetwork(self.net_ui_context)
-
         self.network_cutter = NetworkCutter(self.input_net, self.net_ui_context)
 
         self.sketcher = self.SketchManager(self.input_net, self.spline_net, self.net_ui_context, self.network_cutter)
