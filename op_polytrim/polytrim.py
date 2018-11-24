@@ -14,6 +14,7 @@ from .polytrim_states        import Polytrim_States
 from .polytrim_ui_tools      import Polytrim_UI_Tools
 from .polytrim_ui_draw       import Polytrim_UI_Draw
 from .polytrim_datastructure import InputNetwork, NetworkCutter, SplineNetwork
+from ..common.utils import get_settings
 
 
 #ModalOperator
@@ -76,17 +77,25 @@ class CutMesh_Polytrim(Polytrim_States, Polytrim_UI_Init, Polytrim_UI_Tools, Pol
         self.mode_radius     = 0
         self.action_center   = (0, 0)
 
-        self.net_ui_context = self.NetworkUIContext(self.context)
+        prefs = get_settings()
+        
+        self.net_ui_context = self.NetworkUIContext(self.context, geometry_mode = prefs.destructive)
 
         self.hint_bad = False   #draw obnoxious things over the bad segments
         self.input_net = InputNetwork(self.net_ui_context)
         self.spline_net = SplineNetwork(self.net_ui_context)
         self.network_cutter = NetworkCutter(self.input_net, self.net_ui_context)
-
         self.sketcher = self.SketchManager(self.input_net, self.spline_net, self.net_ui_context, self.network_cutter)
         self.grabber = self.GrabManager(self.input_net, self.net_ui_context, self.network_cutter)
         self.brush = None
         self.brush_radius = 1.5
+        
+        #get from preferences or override
+        #TODO maybe have a "preferences" within the segmentation operator
+        self.spline_preview_tess = prefs.spline_preview_tess
+        self.sketch_fit_epsilon = prefs.sketch_fit_epsilon
+        self.patch_boundary_fit_epsilon =  prefs.patch_boundary_fit_epsilon
+        self.spline_tessellation_epsilon = prefs.spline_tessellation_epsilon
 
         self.ui_setup()
         self.fsm_setup()
