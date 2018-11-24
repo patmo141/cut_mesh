@@ -148,12 +148,13 @@ class Polytrim_UI_Draw():
         ctrl_pressed = self.actions.ctrl
         loc3d_reg2D = view3d_utils.location_3d_to_region_2d
 
-        ## Selected Point
-        if self.net_ui_context.selected:
-            if isinstance(self.net_ui_context.selected, InputPoint):
-                common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
-            elif isinstance(self.net_ui_context.selected, CurveNode):
-                common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
+        if self._state == 'spline':
+            ## Selected Point
+            if self.net_ui_context.selected:
+                if isinstance(self.net_ui_context.selected, InputPoint):
+                    common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, orange)
+                elif isinstance(self.net_ui_context.selected, CurveNode):
+                    common_drawing.draw_3d_points(context,[self.net_ui_context.selected.world_loc], 8, green)
 
         #draw  bad segment hints
         if self.hint_bad:

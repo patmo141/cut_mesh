@@ -38,34 +38,20 @@ class Polytrim_UI_Init():
             "paint remove": "Right-click and drag to delete area from patch",
             "seed add": "Left-click within a boundary to indicate it as patch segment",
             "segmentation" : "Left-click on a patch to select it, then use the segmentation buttons to apply changes"
-        
-
         }
 
-        info = self.wm.create_window('PolyTrim Help', {'pos':9, 'movable':True, 'bgcolor':(.3,.6,.3,.6)})
-        info.add(ui.UI_Label('Instructions', fontsize=16, align=0, margin=4))
-        self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
-
         def mode_getter():
-            if self._state is None: return None
-            if self._state == 'region': return 'region'
-            if self._state == 'spline': return 'spline'
-            if self._state == 'seed': return 'seed'
-            if self._state == 'segmentation': return 'segmentation'
-            print('Unknown state for UI getter: "%s"' % self._state)
             return self._state
         def mode_setter(m):
-            if   m == 'spline': self.fsm_change('spline')
-            elif m == 'region': self.fsm_change('region')
-            elif m == 'seed':   self.fsm_change('seed')
-            elif m == 'segmentation': self.fsm_change('segmentation')
-            else: print('Unknown state for UI setter: "%s"' % m)
-            
-        ui_mode = info.add(ui.UI_Options(mode_getter, mode_setter))
-        ui_mode.set_label('Pre Cut Tools', fontsize=16, align=0, margin=4)
-        ui_mode.add_option('Boundary Edit', value='spline', icon=ui.UI_Image('polyline.png'))
-        ui_mode.add_option('Boundary > Region', value='seed', icon=ui.UI_Image('seed.png'))
-        ui_mode.add_option('Region Paint', value='region', icon=ui.UI_Image('paint.png'))
+            self.fsm_change(m)
+        def mode_change():
+            nonlocal precut_container, segmentation_container, paint_radius
+            m = self._state
+            precut_container.visible = (m in {'spline', 'seed', 'region'})
+            paint_radius.visible = (m in {'region'})
+            no_options.visible = not (m in {'region'})
+            segmentation_container.visible = (m in {'segmentation'})
+        self.fsm_change_callback(mode_change)
 
         def radius_getter():
             return self.brush_radius
@@ -73,28 +59,55 @@ class Polytrim_UI_Init():
             self.brush_radius = max(0.1, int(v*10)/10)
             if self.brush:
                 self.brush.radius = self.brush_radius
-        info.add(ui.UI_Number("Paint radius", radius_getter, radius_setter))
 
-        info.add(ui.UI_Label('Cut Tools', fontsize=16, align=0, margin=4))
-        info.add(ui.UI_Button('Compute Cut', self.compute_cut_button, margin=5))
+        # def compute_cut():
+        #     # should this be a state instead?
+        #     self.network_cutter.knife_geometry4()
+        #     self.network_cutter.find_perimeter_edges()
+        #     for patch in self.network_cutter.face_patches:
+        #         patch.grow_seed(self.input_net.bme, self.network_cutter.boundary_edges)
+        #         patch.color_patch()
+        #     self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
+        #     self.fsm_change('segmentation')
 
-        info.add(ui.UI_Label('Segmentation Tools', fontsize=16, align=0, margin=4))
-        ui_mode2 = info.add(ui.UI_Options(mode_getter, mode_setter))
-        ui_mode2.add_option('Segmentation', value='segmentation', margin = 5)
+        win_tools = self.wm.create_window('Polytrim Tools', {'pos':7, 'movable':True, 'bgcolor':(0.50, 0.50, 0.50, 0.90)})
 
-        seg_buttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
-        seg_buttons.add(ui.UI_Button('Delete Patch', self.delete_active_patch, margin=5))
-        seg_buttons.add(ui.UI_Button('Separate Patch', self.separate_active_patch, margin=5))
-        seg_buttons.add(ui.UI_Button('Duplicate Patch', self.duplicate_active_patch, margin=5))
+        precut_container = win_tools.add(ui.UI_Container())
+        precut_tools = precut_container.add(ui.UI_Frame('Pre Cut Tools', fontsize=16))
+        precut_mode = precut_tools.add(ui.UI_Options(mode_getter, mode_setter))
+        precut_mode.add_option('Boundary Edit', value='spline', icon=ui.UI_Image('polyline.png', width=24, height=24))
+        precut_mode.add_option('Boundary > Region', value='seed', icon=ui.UI_Image('seed.png', width=24, height=24))
+        precut_mode.add_option('Region Paint', value='region', icon=ui.UI_Image('paint.png', width=24, height=24))
+
+        precut_options = precut_container.add(ui.UI_Frame('Tool Options', fontsize=16))
+        paint_radius = precut_options.add(ui.UI_Number("Paint radius", radius_getter, radius_setter))
+        no_options = precut_options.add(ui.UI_Label('(none)', color=(1.00, 1.00, 1.00, 0.25)))
+
+        container = precut_container.add(ui.UI_Frame('Cut Tools', fontsize=16))
+        container.add(ui.UI_Button('Compute Cut', lambda:self.fsm_change('segmentation'), margin=5))
+        container.add(ui.UI_Button('Cancel', lambda:self.done(cancel=True), margin=5))
+
+
+        segmentation_container = win_tools.add(ui.UI_Container())
+        segmentation_tools = segmentation_container.add(ui.UI_Frame('Patch Tools', fontsize=16))
+        #segmentation_mode = segmentation_tools.add(ui.UI_Options(mode_getter, mode_setter))
+        #segmentation_mode.add_option('Segmentation', value='segmentation', margin = 5)
+        #seg_buttons = segmentation_tools.add(ui.UI_EqualContainer(margin=0,vertical=False))
+        segmentation_tools.add(ui.UI_Button('Delete', self.delete_active_patch, margin=5))
+        segmentation_tools.add(ui.UI_Button('Separate', self.separate_active_patch, margin=5))
+        segmentation_tools.add(ui.UI_Button('Duplicate', self.duplicate_active_patch, margin=5))
         #seg_buttons.add(ui.UI_Button('Patch to VGroup', self.active_patch_to_vgroup, margin=5))
-        #Knife geometry stepper buttons
-        #info.add(ui.UI_Button('Prepare Stepwise Cut', self.knife_stepwise_prepare_button, margin=5))
-        #info.add(ui.UI_Button('Step Cut', self.knife_step_button, margin=5))
-        #info.add(ui.UI_Button('Inspect Stuff', self.inspect_things, margin=5))
 
-        exitbuttons = info.add(ui.UI_EqualContainer(margin=0,vertical=False))
-        exitbuttons.add(ui.UI_Button('commit', self.done, margin=5))
-        exitbuttons.add(ui.UI_Button('cancel', lambda:self.done(cancel=True), margin=5))
+        container = segmentation_container.add(ui.UI_Frame('Cut Tools', fontsize=16))
+        container.add(ui.UI_Button('Commit', self.done, margin=5))
+        container.add(ui.UI_Button('Cancel', lambda:self.done(cancel=True), margin=5))
+
+
+        info = self.wm.create_window('Polytrim Help', {'pos':9, 'movable':True, 'bgcolor':(0.30, 0.60, 0.30, 0.90)})
+        #info.add(ui.UI_Label('Instructions', fontsize=16, align=0, margin=4))
+        self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
+        #for i in self.inst_paragraphs: i.visible = False
+        #self.ui_instructions = info.add(ui.UI_Markdown('test', min_size=(200,200)))
 
         self.set_ui_text_no_points()
 
@@ -113,15 +126,15 @@ class Polytrim_UI_Init():
                 self.set_ui_text_multiple_points()
             elif self.grabber and self.grabber.in_use:
                 self.set_ui_text_grab_mode()
-                
+
         elif self._state == 'region':
             self.set_ui_text_paint()
         elif self._state == 'seed':
             self.set_ui_text_seed_mode()
-            
+
         elif self._state == 'segmentation':
             self.set_ui_text_segmetation_mode()
-    
+
         else:
             self.reset_ui_text()
 
@@ -134,7 +147,7 @@ class Polytrim_UI_Init():
 
     def set_ui_text_1_point(self):
         ''' sets the viewports text when 1 point has been placed'''
-        self.reset_ui_text()        
+        self.reset_ui_text()
         self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['add (extend)'])
         self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['delete'])
         self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['sketch extend'])
@@ -144,7 +157,7 @@ class Polytrim_UI_Init():
         self.inst_paragraphs[6].set_markdown('F) ' + self.instructions['delete (disconnect)'])
 
         #self.inst_paragraphs[4].set_markdown('E) ' + self.instructions['add (disconnect)'])
-       
+
 
     def set_ui_text_multiple_points(self):
         ''' sets the viewports text when there are multiple points '''
@@ -156,7 +169,7 @@ class Polytrim_UI_Init():
         self.inst_paragraphs[4].set_markdown('E) ' + self.instructions['sketch'])
         self.inst_paragraphs[5].set_markdown('F) ' + self.instructions['tweak'])
         self.inst_paragraphs[6].set_markdown('G) ' + self.instructions['close loop'])
-        
+
     def set_ui_text_grab_mode(self):
         ''' sets the viewports text during general creation of line '''
         self.reset_ui_text()
@@ -166,19 +179,19 @@ class Polytrim_UI_Init():
         ''' sets the viewport text during seed selection'''
         self.reset_ui_text()
         self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['seed add'])
-        
+
     def set_ui_text_segmetation_mode(self):
         ''' sets the viewport text during seed selection'''
         self.reset_ui_text()
         self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['segmentation'])
-    
+
     def set_ui_text_paint(self):
         self.reset_ui_text()
         self.inst_paragraphs[0].set_markdown('A) ' + self.instructions['paint'])
         self.inst_paragraphs[1].set_markdown('B) ' + self.instructions['paint extend'])
         self.inst_paragraphs[2].set_markdown('C) ' + self.instructions['paint remove'])
         self.inst_paragraphs[3].set_markdown('D) ' + self.instructions['paint mergey'])
-        
+
     def reset_ui_text(self):
         for inst_p in self.inst_paragraphs:
             inst_p.set_markdown('')

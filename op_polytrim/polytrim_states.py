@@ -31,9 +31,11 @@ these are the states and substates (tool states)
 
     region tool:
         main --> paint --> main
-        
+
     segmentation
 '''
+
+
 
 
 
@@ -50,7 +52,7 @@ class Polytrim_States():
         self.seed_fsm.set_call_args(self)
         self.region_fsm.set_call_args(self)
         self.segmentation_fsm.set_call_args(self)
-        
+
     def common(self, fsm):
         # this fn contains common actions for all states
 
@@ -94,23 +96,23 @@ class Polytrim_States():
     def spline(self):
         return self.common(self.spline_fsm)
 
-
-    @CookieCutter.FSM_State('seed', 'can enter')
-    def seed_can_enter(self):
+    @CookieCutter.FSM_State('spline', 'can exit')
+    def spline_can_exit(self):
         # exit spline mode iff cut network has finished and there are no bad segments
-        if self.network_cutter.knife_complete:
-            #for now, because we need pre-cut geometry to associate patches with SplineSegments
-            return False
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
         if not c1:
             self.hint_bad = True
         else:
             self.hint_bad = False
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
-        
-        ip_cyc, seg_cyc = self.input_net.find_network_cycles()
-        if len(ip_cyc) == 0: return False
         return c1 and c2
+
+
+    @CookieCutter.FSM_State('seed', 'can enter')
+    def seed_can_enter(self):
+        # enter seed mode iff there is at least one cycle
+        ip_cyc, seg_cyc = self.input_net.find_network_cycles()
+        return len(ip_cyc) > 0
 
     @CookieCutter.FSM_State('seed', 'enter')
     def seed_enter(self):
@@ -120,35 +122,37 @@ class Polytrim_States():
             self.network_cutter.find_boundary_faces_cycles()
         self.seed_fsm.reset()
         self.ui_text_update()
-        
+
     @CookieCutter.FSM_State('seed', 'exit')
     def seed_exit(self):
         self.seed_fsm.reset()
         self.ui_text_update()
-           
+        # if not self.network_cutter.knife_complete:
+        #    #assoccates SplineNetwork and InputNetwork elements with patches
+        #     self.network_cutter.update_spline_edited_patches(self.spline_net)
+
     @CookieCutter.FSM_State('seed')
     def seed(self):
         return self.common(self.seed_fsm)
 
-    
-    #@CookieCutter.FSM_State('seed', 'exit')
-    #def seed_exit(self):
-    #    if not self.network_cutter.knife_complete:
-            #assoccates SplineNetwork and InputNetwork elements with patches
-    #        self.network_cutter.update_spline_edited_patches(self.spline_net)
-     
-     
+
     #Segmentation State (Delete, Split,Duplicate)
     @CookieCutter.FSM_State('segmentation', 'can enter')
     def segmentation_can_enter(self):
-        # exit spline mode iff cut network has finished and there are no bad segments
-        return self.network_cutter.knife_complete
+        return True
+        #return self.network_cutter.knife_complete
 
     @CookieCutter.FSM_State('segmentation', 'enter')
     def segmentation_enter(self):
+        self.network_cutter.knife_geometry4()
+        self.network_cutter.find_perimeter_edges()
+        for patch in self.network_cutter.face_patches:
+            patch.grow_seed(self.input_net.bme, self.network_cutter.boundary_edges)
+            patch.color_patch()
+        self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
         self.segmentation_fsm.reset()
         self.ui_text_update()
-        
+
     @CookieCutter.FSM_State('segmentation')
     def segmentation(self):
         return self.common(self.segmentation_fsm)
@@ -159,7 +163,7 @@ class Polytrim_States():
     def region_can_enter(self):
         # exit spline mode iff cut network has finished and there are no bad segments
         c1 = not any([seg.is_bad for seg in self.input_net.segments])
-        
+
         if not c1:
             self.hint_bad = True
         c2 = all([seg.calculation_complete for seg in self.input_net.segments])
@@ -227,7 +231,7 @@ class Polytrim_States():
                 return 'add point (disconnected)'
             elif self.spline_fsm.can_change('insert point'):
                 return 'insert point'
-            
+
         if self.actions.pressed('sketch'):
             return 'sketch'
 
@@ -240,7 +244,7 @@ class Polytrim_States():
         if self.actions.pressed('delete'):
             self.click_delete_spline_point(mode='mouse')
             self.net_ui_context.update(self.actions.mouse)
-            
+
             self.hover_spline()
             self.ui_text_update()
             return
@@ -360,10 +364,10 @@ class Polytrim_States():
         # make sure selected is an endpoint
         s = self.net_ui_context.selected
         if not s or not s.is_endpoint: return False
-        
+
         hn = self.net_ui_context.hovered_near
         if hn and hn[0] == 'EDGE': return False
-        
+
         # make sure mouse is over source
         if not self.ray_cast_source_hit(self.actions.mouse): return False
         return True
@@ -379,7 +383,7 @@ class Polytrim_States():
         self.tweak_cancel = 'cancel'
         return 'tweak'
 
-    
+
     #--------------------------------------
     # insert point
 
@@ -391,7 +395,7 @@ class Polytrim_States():
         hn = self.net_ui_context.hovered_near
         if not hn: return False
         if hn[0] != 'EDGE': return False
-        
+
         return True
 
     @spline_fsm.FSM_State('insert point')
@@ -401,8 +405,8 @@ class Polytrim_States():
         self.tweak_release = 'add point'
         self.tweak_cancel = 'cancel'
         return 'tweak'
-    
-    
+
+
     #--------------------------------------
     # add point disconnected
 
@@ -411,7 +415,7 @@ class Polytrim_States():
         # make sure mouse is over source
         hn = self.net_ui_context.hovered_near
         if hn and hn[0] == 'EDGE': return False
-        
+
         if not self.ray_cast_source_hit(self.actions.mouse): return False
         return True
 
@@ -423,7 +427,7 @@ class Polytrim_States():
         self.tweak_cancel = 'cancel'
         return 'tweak'
 
-   
+
 
     #--------------------------------------
     # grab
@@ -696,7 +700,7 @@ class Polytrim_States():
 
 
     ######################################################
-    #segementation state
+    # segmentation state
 
     @segmentation_fsm.FSM_State('main')
     def modal_segmentation(self):
@@ -707,15 +711,15 @@ class Polytrim_States():
             self.net_ui_context.update(self.actions.mouse)
             self.hover_patches()
             #print(self.net_ui_context.hovered_near)
-        
+
         if self.actions.pressed('LEFTMOUSE'):
             #place seed on surface
             #background watershed form the seed to color the region on the mesh
             print(self.net_ui_context.hovered_near)
             if self.net_ui_context.hovered_near[1]:
                 self.network_cutter.active_patch = self.net_ui_context.hovered_near[1]
-            
-            
+
+
         #if right click
             #remove the seed
             #remove any "patch" data associated with the seed
@@ -729,7 +733,7 @@ class Polytrim_States():
     def region_main_enter(self):
         self.brush = self.PaintBrush(self.net_ui_context, radius=self.brush_radius)
         self.ui_text_update()
-        
+
     @region_fsm.FSM_State('main')
     def region_main(self):
         self.cursor_modal_set('PAINT_BRUSH')
@@ -789,8 +793,8 @@ class Polytrim_States():
         self.brush.absorb_geom_geodesic(self.context, self.actions.mouse)
         self.paint_confirm_mergey()
         self.net_ui_context.bme.to_mesh(self.net_ui_context.ob.data)
-        
-        
+
+
     @region_fsm.FSM_State('paint delete', 'enter')
     def region_unpaint_enter(self):
         #set the cursor to to something

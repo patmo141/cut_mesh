@@ -90,6 +90,7 @@ class CutMesh_Polytrim(Polytrim_States, Polytrim_UI_Init, Polytrim_UI_Tools, Pol
 
         self.ui_setup()
         self.fsm_setup()
+        self.window_state_overwrite(show_only_render=False, hide_manipulator=True)
 
     def end(self):
         ''' Called when tool is ending modal '''
