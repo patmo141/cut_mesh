@@ -1999,7 +1999,7 @@ class UI_Collapsible(UI_Container):
 
 
 class UI_Frame(UI_Container):
-    def __init__(self, title, equal=False, vertical=True, separation=2):
+    def __init__(self, title, equal=False, vertical=True, separation=2, fontsize=12):
         super().__init__()
         self.defer_recalc = True
         self.margin = 0
@@ -2009,7 +2009,7 @@ class UI_Frame(UI_Container):
         self.body_wrap = super().add(UI_Container(vertical=False, margin=0, separation=0))
         self.footer = super().add(UI_Container(margin=0, separation=0))
 
-        self.title = self.header.add(UI_Label(title))
+        self.title = self.header.add(UI_Label(title, fontsize=fontsize))
 
         self.body_wrap.add(UI_Spacer(width=8))
         #self.body_wrap.add(UI_Spacer(width=2, background=(1,1,1,0.1)))
