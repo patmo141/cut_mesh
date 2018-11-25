@@ -72,11 +72,10 @@ class Polytrim_UI_Init():
 
         win_tools = self.wm.create_window('Polytrim Tools', {'pos':7, 'movable':True, 'bgcolor':(0.50, 0.50, 0.50, 0.90)})
 
-        precut_container = win_tools.add(ui.UI_Container())
-        precut_container.rounded_background = True
-        
+        precut_container = win_tools.add(ui.UI_Container(rounded=1))
+
         precut_tools = precut_container.add(ui.UI_Frame('Pre Cut Tools', fontsize=16, spacer=0))
-        precut_mode = precut_tools.add(ui.UI_Options(mode_getter, mode_setter, separation=0))
+        precut_mode = precut_tools.add(ui.UI_Options(mode_getter, mode_setter, separation=0, rounded=1))
         precut_mode.add_option('Boundary Edit', value='spline', icon=ui.UI_Image('polyline.png', width=32, height=32))
         precut_mode.add_option('Boundary > Region', value='seed', icon=ui.UI_Image('seed.png', width=32, height=32))
         precut_mode.add_option('Region Paint', value='region', icon=ui.UI_Image('paint.png', width=32, height=32))
