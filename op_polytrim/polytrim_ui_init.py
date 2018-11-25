@@ -73,18 +73,16 @@ class Polytrim_UI_Init():
         win_tools = self.wm.create_window('Polytrim Tools', {'pos':7, 'movable':True, 'bgcolor':(0.50, 0.50, 0.50, 0.90)})
 
         precut_container = win_tools.add(ui.UI_Container())
+        precut_container.rounded_background = True
+        
         precut_tools = precut_container.add(ui.UI_Frame('Pre Cut Tools', fontsize=16))
         precut_mode = precut_tools.add(ui.UI_Options(mode_getter, mode_setter))
         precut_mode.add_option('Boundary Edit', value='spline', icon=ui.UI_Image('polyline.png', width=32, height=32))
         precut_mode.add_option('Boundary > Region', value='seed', icon=ui.UI_Image('seed.png', width=32, height=32))
         precut_mode.add_option('Region Paint', value='region', icon=ui.UI_Image('paint.png', width=32, height=32))
 
-        precut_options = precut_container.add(ui.UI_Frame('Tool Options', fontsize=16))
-        paint_radius = precut_options.add(ui.UI_Number("Paint radius", radius_getter, radius_setter))
-        no_options = precut_options.add(ui.UI_Label('(none)', color=(1.00, 1.00, 1.00, 0.25)))
-
         container = precut_container.add(ui.UI_Frame('Cut Tools', fontsize=16))
-        container.add(ui.UI_Button('Compute Cut', lambda:self.fsm_change('segmentation'), icon=ui.UI_Image('divivde32.png', width=32, height=32), margin=5))
+        container.add(ui.UI_Button('Compute Cut', lambda:self.fsm_change('segmentation'), icon=ui.UI_Image('divide32.png', width=32, height=32), margin=5))
         container.add(ui.UI_Button('Cancel', lambda:self.done(cancel=True), margin=5))
 
 
@@ -108,7 +106,11 @@ class Polytrim_UI_Init():
         self.inst_paragraphs = [info.add(ui.UI_Markdown('', min_size=(200,10))) for i in range(7)]
         #for i in self.inst_paragraphs: i.visible = False
         #self.ui_instructions = info.add(ui.UI_Markdown('test', min_size=(200,200)))
-
+        precut_options = info.add(ui.UI_Frame('Tool Options', fontsize=16))
+        paint_radius = precut_options.add(ui.UI_Number("Paint radius", radius_getter, radius_setter))
+        no_options = precut_options.add(ui.UI_Label('(none)', color=(1.00, 1.00, 1.00, 0.25)))
+        
+        
         self.set_ui_text_no_points()
 
 

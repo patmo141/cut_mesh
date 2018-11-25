@@ -164,7 +164,7 @@ class Polytrim_UI_Draw():
                 common_drawing.draw_3d_points(context,[mid], 10, red)
         
         
-        if self._state == 'spline' and self.net_ui_context.snap_element:
+        if self._state == 'spline' and self.net_ui_context.snap_element and self.net_ui_context.selected:
             psnap = self.net_ui_context.snap_element
             psel = self.net_ui_context.selected
             
