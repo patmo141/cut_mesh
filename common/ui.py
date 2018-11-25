@@ -412,18 +412,26 @@ class UI_Padding(UI_Element):
 
 
 class UI_Background(UI_Element):
-    def __init__(self, background=None, rounded=False, border=None, border_thickness=1, ui_item=None, margin=0):
-        super().__init__(margin=margin)
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs, {
+            'background': None,
+            'rounded': 0,
+            'border': None,
+            'border_thickness': 1,
+            'ui_item': None,
+            'margin': 0,
+        })
+        super().__init__(margin=opts.margin)
         self.defer_recalc = True
 
         self.ui_item = None
 
-        self.background = background
-        self.rounded_background = rounded
-        self.border = border
+        self.background = opts.background
+        self.rounded = opts.rounded
+        self.border = opts.border
         # TODO: should border_thickness add to margin?
         self.border_thickness = 0
-        self.set_ui_item(ui_item)
+        self.set_ui_item(opts.ui_item)
 
         self.defer_recalc = False
 
@@ -461,47 +469,62 @@ class UI_Background(UI_Element):
         if not self.ui_item or not self.ui_item.visible: return
         l,t = self.pos
         w,h = self.size
+        r,b = l + w, t - h + 1
+        rounded_count = 10  # number of segments for each rounded corner
 
         bgl.glEnable(bgl.GL_BLEND)
 
         if self.background:
             bgl.glColor4f(*self.background)
             bgl.glBegin(bgl.GL_QUADS)
-            if self.rounded_background:
-                bgl.glVertex2f(l+1, t)
-                bgl.glVertex2f(l+w-1, t)
-                bgl.glVertex2f(l+w-1, t-h)
-                bgl.glVertex2f(l+1, t-h)
-
-                bgl.glVertex2f(l, t-1)
-                bgl.glVertex2f(l+1, t-1)
-                bgl.glVertex2f(l+1, t-h+1)
-                bgl.glVertex2f(l, t-h+1)
-
-                bgl.glVertex2f(l+w-1, t-1)
-                bgl.glVertex2f(l+w, t-1)
-                bgl.glVertex2f(l+w, t-h+1)
-                bgl.glVertex2f(l+w-1, t-h+1)
+            if self.rounded:
+                cos,sin,radians = math.cos,math.sin,math.radians
+                rounded = self.rounded
+                lr,rr = l + rounded, r - rounded
+                tr,br = t - rounded, b + rounded
+                first = True
+                for i in range(rounded_count+1):
+                    ir = 90 * i / rounded_count
+                    rad0, rad1 = radians(90 + ir), radians(90 - ir)
+                    bx0,by0 = lr + rounded * cos(rad0), tr + rounded * sin(rad0)
+                    bx1,by1 = rr + rounded * cos(rad1), tr + rounded * sin(rad1)
+                    if not first:
+                        bgl.glVertex2f(tx1, ty1)
+                        bgl.glVertex2f(tx0, ty0)
+                        bgl.glVertex2f(bx0, by0)
+                        bgl.glVertex2f(bx1, by1)
+                    first = False
+                    tx0,ty0,tx1,ty1 = bx0,by0,bx1,by1
+                for i in range(rounded_count+1):
+                    ir = 90 * (rounded_count - i) / rounded_count
+                    rad0, rad1 = radians(270 - ir), radians(270 + ir)
+                    bx0,by0 = lr + rounded * cos(rad0), br + rounded * sin(rad0)
+                    bx1,by1 = rr + rounded * cos(rad1), br + rounded * sin(rad1)
+                    bgl.glVertex2f(tx1, ty1)
+                    bgl.glVertex2f(tx0, ty0)
+                    bgl.glVertex2f(bx0, by0)
+                    bgl.glVertex2f(bx1, by1)
+                    tx0,ty0,tx1,ty1 = bx0,by0,bx1,by1
             else:
                 bgl.glVertex2f(l, t)
                 bgl.glVertex2f(l+w, t)
                 bgl.glVertex2f(l+w, t-h)
                 bgl.glVertex2f(l, t-h)
             bgl.glEnd()
+
         if self.border:
             bgl.glColor4f(*self.border)
             self.drawing.line_width(self.border_thickness)
             bgl.glBegin(bgl.GL_LINE_STRIP)
-            if self.rounded_background:
-                bgl.glVertex2f(l+1,t)
-                bgl.glVertex2f(l,t-1)
-                bgl.glVertex2f(l,t-h+1)
-                bgl.glVertex2f(l+1,t-h)
-                bgl.glVertex2f(l+w-1,t-h)
-                bgl.glVertex2f(l+w,t-h+1)
-                bgl.glVertex2f(l+w,t-1)
-                bgl.glVertex2f(l+w-1,t)
-                bgl.glVertex2f(l+1,t)
+            if self.rounded:
+                cos,sin,radians = math.cos,math.sin,math.radians
+                rounded = self.rounded
+                lr,rr = l + rounded, r - rounded
+                tr,br = t - rounded, b + rounded
+                for ci,cx,cy in [(0,rr,tr),(90,lr,tr),(180,lr,br),(270,rr,br)]:
+                    for i in range(rounded_count+1):
+                        rad = radians(ci + 90 * i / rounded_count)
+                        bgl.glVertex2f(cx + cos(rad) * rounded, cy + sin(rad) * rounded)
             else:
                 bgl.glVertex2f(l,t)
                 bgl.glVertex2f(l,t-h)
@@ -706,18 +729,25 @@ class UI_Rule(UI_Element):
 
 
 class UI_Container(UI_Element):
-    def __init__(self, vertical=True, background=None, margin=0, separation=2):
+    def __init__(self, **kwargs):
+        opts = kwargopts(kwargs, {
+            'vertical': True,
+            'background': None,
+            'rounded': 0,
+            'margin': 0,
+            'separation': 2,
+        })
         self._vertical = None
         self._separation = None
 
-        super().__init__(margin=margin)
+        super().__init__(margin=opts.margin)
         self.defer_recalc = True
 
-        self.vertical = vertical
         self.ui_items = []
-        self.background = background
-        self.rounded_background = False
-        self.separation = separation
+        self.vertical   = opts.vertical
+        self.background = opts.background
+        self.rounded    = opts.rounded
+        self.separation = opts.separation
 
         self.defer_recalc = False
 
@@ -803,7 +833,7 @@ class UI_Container(UI_Element):
             bgl.glEnable(bgl.GL_BLEND)
             bgl.glColor4f(*self.background)
             bgl.glBegin(bgl.GL_QUADS)
-            if self.rounded_background:
+            if self.rounded:
                 bgl.glVertex2f(l+1, t)
                 bgl.glVertex2f(l+w-1, t)
                 bgl.glVertex2f(l+w-1, t-h)
@@ -1308,6 +1338,7 @@ class UI_Options(UI_Container):
             'margin':     2,
             'separation': 0,
             'hovercolor': (1,1,1,0.1),
+            'rounded':    1,
         })
         super().__init__(vertical=opts.vertical, margin=opts.margin)
         self.defer_recalc = True
@@ -1324,6 +1355,7 @@ class UI_Options(UI_Container):
         self.mouse_prev = None
         self.defer_recalc = False
         self.separation = opts.separation
+        self.rounded = opts.rounded
 
     def set_label(self, label, fontsize=None, align=None, margin=None):
         self.ui_label.visible = label is not None
@@ -1335,7 +1367,7 @@ class UI_Options(UI_Container):
     class UI_Option(UI_Background):
         def __init__(self, options, label, value, **kwargs):
             opts = kwargopts(kwargs)
-            super().__init__(rounded=True, margin=0)
+            super().__init__(rounded=opts.rounded, margin=0)
             self.defer_recalc = True
             self.label = label
             self.value = value
@@ -1384,6 +1416,7 @@ class UI_Options(UI_Container):
             'align': -1,
             'showlabel': True,
             'margin': 2,
+            'rounded': self.rounded,
         })
         value = opts.value or label
         assert value not in self.values, "All option values must be unique!"
@@ -1446,24 +1479,30 @@ class UI_Options(UI_Container):
 class UI_Image(UI_Element):
     executor = ThreadPoolExecutor()
 
-    def __init__(self, image_data, margin=0, async_load=True, width=None, height=None):
+    def __init__(self, image_data, **kwargs):
+        opts = kwargopts(kwargs, {
+            'margin': 0,
+            'async_load': True,
+            'width': None,
+            'height': None,
+        })
         super().__init__()
         self.defer_recalc = True
         self.image_data = image_data
         self.image_width,self.image_height = 16,16
-        self.width = width or 16
-        self.height = height or 16
-        self.size_set = (width is not None) or (height is not None)
+        self.width = opts.width or 16
+        self.height = opts.height or 16
+        self.size_set = (opts.width is not None) or (opts.height is not None)
         self.loaded = False
         self.buffered = False
         self.deleted = False
-        self.margin = margin
+        self.margin = opts.margin
 
         self.texbuffer = bgl.Buffer(bgl.GL_INT, [1])
         bgl.glGenTextures(1, self.texbuffer)
         self.texture_id = self.texbuffer[0]
 
-        if async_load: self.executor.submit(self.load_image)
+        if opts.async_load: self.executor.submit(self.load_image)
         else: self.load_image()
         self.defer_recalc = False
 
@@ -1721,7 +1760,7 @@ class UI_Checkbox2(UI_Container):
         super().__init__(margin=0)
         self.defer_recalc = True
 
-        self.bg = self.add(UI_Background(border_thickness=1, rounded=True))
+        self.bg = self.add(UI_Background(border_thickness=1, rounded=1))
         self.bg.set_ui_item(UI_Label(label, align=0))
         self.fn_get_checked = fn_get_checked
         self.fn_set_checked = fn_set_checked
