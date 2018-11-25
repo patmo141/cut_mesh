@@ -10,7 +10,15 @@ modified and customized for a specific purpose
 
 from .op_polytrim.polytrim import CutMesh_Polytrim
 
-class Custom_Polytrim(CutMesh_Polytrim):
+# make our own copy of CutMesh_Polytrim so we don't overlap
+# any other classes that subclass CutMesh_Polytrim
+CutMesh_Polytrim_copy = type(
+    'CutMesh_Polytrim_copy',
+    CutMesh_Polytrim.__bases__,
+    dict(CutMesh_Polytrim.__dict__)
+    )
+
+class Custom_Polytrim(CutMesh_Polytrim_copy):
     ''' Cut Mesh Polytrim Modal Editor '''
     ''' Note: the functionality of this operator is split up over multiple base classes '''
 
