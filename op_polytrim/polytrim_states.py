@@ -17,10 +17,11 @@ from .polytrim_datastructure import InputPoint, SplineSegment, CurveNode
 '''
 these are the states and substates (tool states)
 
-    main   --> spline     (automatically switch to default tool)
-    spline <-> seed
-    seed   <-> region
-    region <-> spline
+    main --> spline                         (automatically switch to default tool)
+        spline --> seed,region
+        seed   --> spline,region
+        region --> spline,seed
+    spline,seed,region --> segmentation     (pre cut -> post cut)
 
     spline tool:
         main --> grab   --> main
