@@ -1856,6 +1856,8 @@ class NetworkCutter(object):
         self.active_ip = None
         self.knife_complete = True
         
+        if len(self.face_patches):
+            self.active_patch = self.face_patches[0]
         self.input_net.bme.faces.ensure_lookup_table()
         self.input_net.bme.edges.ensure_lookup_table()
         self.input_net.bme.verts.ensure_lookup_table()   

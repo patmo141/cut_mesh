@@ -23,6 +23,8 @@ http://www.inf.u-szeged.hu/~palagyi/skel/skel.html
 for color management in the blender API
 https://blenderartists.org/t/easy-way-to-access-vertex-colors-in-python-bmesh/543789/3
 
+material management
+https://blenderartists.org/t/removing-specific-material-slots/540802/13
 
 '''
 import random
