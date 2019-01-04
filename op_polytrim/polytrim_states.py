@@ -343,6 +343,9 @@ class Polytrim_States():
         if self.net_ui_context.hovered_near[0] not in {'POINT CONNECT'}: return False
         n = self.net_ui_context.hovered_near[1]
         if not n or not n.is_endpoint: return False  #impose loops condition
+        if s == n:
+            print('same point')
+            return False
         return True
 
     @spline_fsm.FSM_State('connect')

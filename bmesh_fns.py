@@ -407,6 +407,55 @@ def flood_selection_edge_loop(bme, edge_loop, seed_face, max_iters = 1000):
 
     return total_selection
 
+def grow_selection(bme, start_faces, max_iters = 1000):
+    '''
+    a simple "select more" if oyu pass None for stop_face and
+    max_iters = number of times to select more
+    
+    args:
+        bme - BMesh
+        start_faces = List or Set of BMFaces
+        max_iters = Int, number of times to select more
+        
+    return
+        set(BMFaces)
+    '''
+
+    print('there are %i start_faces' % len(start_faces))
+    if isinstance(start_faces, list):
+        total_selection = set(start_faces)
+        new_faces = set()
+        for f in start_faces:
+            new_faces.update(face_neighbors_by_vert(f))
+    
+        print('there are %i new_faces' % len(new_faces))
+        
+    elif isinstance(start_faces, set):
+        total_selection = set()
+        total_selection.update(start_faces)
+        
+        new_faces = set()
+        for f in start_faces:
+            new_faces.update(face_neighbors_by_vert(f))
+    
+        print('there are %i new_faces' % len(new_faces))
+    
+    iters = 0
+    while iters < max_iters and len(new_faces):
+        iters += 1
+        candidates = set()
+        for f in new_faces:
+            candidates.update(face_neighbors(f))
+        
+        new_faces = candidates - total_selection   
+        if new_faces:
+            total_selection |= new_faces
+             
+    if iters == max_iters:
+        print('max iterations reached')
+            
+    return total_selection 
+
 def grow_selection_to_find_face(bme, start_face, stop_face, max_iters = 1000):
     '''
     contemplating indexes vs faces themselves?  will try both ways for speed
